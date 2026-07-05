@@ -1,0 +1,24 @@
+{
+  "name": "elder-tree-esg",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/admin-web",
+    "services/api",
+    "services/iot-bridge",
+    "services/device-simulator",
+    "packages/contracts"
+  ],
+  "scripts": {
+    "build": "npm run build -w @elder-tree/contracts && npm run build -w @elder-tree/api && npm run build -w @elder-tree/admin-web && npm run build -w @elder-tree/iot-bridge && npm run build -w @elder-tree/device-simulator",
+    "build:contracts": "npm run build -w @elder-tree/contracts",
+    "dev:api": "npm run build:contracts && npm run dev -w @elder-tree/api",
+    "dev:web": "npm run build:contracts && npm run dev -w @elder-tree/admin-web",
+    "dev:simulator": "npm run build:contracts && npm run dev -w @elder-tree/device-simulator",
+    "test": "npm run test -w @elder-tree/contracts && npm run test -w @elder-tree/api && npm run test -w @elder-tree/iot-bridge",
+    "typecheck": "npm run build:contracts && npm run typecheck -w @elder-tree/contracts && npm run typecheck -w @elder-tree/api && npm run typecheck -w @elder-tree/admin-web && npm run typecheck -w @elder-tree/iot-bridge && npm run typecheck -w @elder-tree/device-simulator"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

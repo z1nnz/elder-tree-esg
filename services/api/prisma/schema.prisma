@@ -1,0 +1,268 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  PARTICIPANT
+  FAMILY
+  REVIEWER
+  ORG_ADMIN
+  PLATFORM_ADMIN
+}
+
+enum VerificationMode {
+  PHOTO_AI
+  SELF_CHECK
+  TIMER
+  STEP_COUNT
+  LOCATION_CHECK_IN
+  DEVICE_CONFIRM
+}
+
+enum AssignmentStatus {
+  AVAILABLE
+  IN_PROGRESS
+  VERIFYING
+  COMPLETED
+  REJECTED
+}
+
+enum VerificationDecision {
+  PASS
+  REVIEW
+  FAIL
+}
+
+enum TreeStage {
+  SEED
+  SPROUT
+  SEEDLING
+  YOUNG_TREE
+  MATURE
+}
+
+enum ImpactBatchStatus {
+  DRAFT
+  SIMULATED
+  PUBLISHED
+  ARCHIVED
+}
+
+model User {
+  id             String           @id @default(uuid())
+  firebaseUid    String           @unique
+  displayName    String
+  role           UserRole
+  householdLinks HouseholdMember[]
+  assignments    TaskAssignment[]
+  messages       FamilyMessage[]
+  auditLogs      AuditLog[]       @relation("AuditActor")
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+}
+
+model Household {
+  id        String            @id @default(uuid())
+  name      String
+  members   HouseholdMember[]
+  devices   Device[]
+  trees     Tree[]
+  messages  FamilyMessage[]
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+}
+
+model HouseholdMember {
+  householdId String
+  userId      String
+  relationship String
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([householdId, userId])
+}
+
+model Device {
+  id              String      @id @default(uuid())
+  thingName       String      @unique
+  serialNumber    String      @unique
+  claimCodeHash   String
+  householdId     String?
+  firmwareVersion String
+  lastSeenAt      DateTime?
+  desiredState    Json?
+  reportedState   Json?
+  household       Household?  @relation(fields: [householdId], references: [id])
+  events          DeviceEvent[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model DeviceEvent {
+  id         String   @id @default(uuid())
+  deviceId   String
+  eventKey   String   @unique
+  eventType  String
+  payload    Json
+  occurredAt DateTime
+  device     Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+}
+
+model Task {
+  id               String             @id @default(uuid())
+  title            String
+  description      String
+  verificationMode VerificationMode
+  verificationRule Json
+  growthPoints     Int
+  assignments      TaskAssignment[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+}
+
+model TaskAssignment {
+  id          String           @id @default(uuid())
+  taskId      String
+  userId      String
+  status      AssignmentStatus @default(AVAILABLE)
+  dueAt       DateTime?
+  completedAt DateTime?
+  task        Task             @relation(fields: [taskId], references: [id])
+  user        User             @relation(fields: [userId], references: [id])
+  evidence    Evidence[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model Evidence {
+  id           String            @id @default(uuid())
+  assignmentId String
+  storagePath  String
+  sha256       String?
+  uploadedAt   DateTime?
+  assignment   TaskAssignment    @relation(fields: [assignmentId], references: [id])
+  verification VerificationRun?
+  createdAt    DateTime          @default(now())
+}
+
+model VerificationRun {
+  id             String               @id @default(uuid())
+  evidenceId     String               @unique
+  decision       VerificationDecision
+  confidence     Float
+  labels         String[]
+  reasonCodes    String[]
+  explanation    String
+  model          String
+  ruleVersion    String
+  reviewedById   String?
+  reviewedAt     DateTime?
+  evidence       Evidence             @relation(fields: [evidenceId], references: [id])
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+}
+
+model Tree {
+  id           String      @id @default(uuid())
+  householdId  String
+  name         String
+  stage        TreeStage   @default(SEED)
+  growthPoints Int         @default(0)
+  household    Household   @relation(fields: [householdId], references: [id])
+  ledger       GrowthEntry[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model GrowthEntry {
+  id             String   @id @default(uuid())
+  treeId         String
+  idempotencyKey String   @unique
+  points         Int
+  reason         String
+  sourceId       String?
+  tree           Tree     @relation(fields: [treeId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+}
+
+model FamilyMessage {
+  id                  String    @id @default(uuid())
+  householdId         String
+  authorId            String
+  body                String
+  deliveredToDeviceAt DateTime?
+  household           Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  author              User      @relation(fields: [authorId], references: [id])
+  createdAt           DateTime  @default(now())
+}
+
+model Organization {
+  id          String          @id @default(uuid())
+  name        String
+  memberships OrganizationMember[]
+  campaigns   Campaign[]
+  batches     ImpactBatch[]
+  createdAt   DateTime        @default(now())
+}
+
+model OrganizationMember {
+  organizationId String
+  userId         String
+  role           UserRole
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, userId])
+}
+
+model Campaign {
+  id             String       @id @default(uuid())
+  organizationId String
+  title          String
+  startsAt       DateTime
+  endsAt         DateTime
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+}
+
+model ImpactPoolEntry {
+  id             String   @id @default(uuid())
+  idempotencyKey String   @unique
+  points         Int
+  sourceType     String
+  sourceId       String
+  allocatedAt    DateTime?
+  createdAt      DateTime @default(now())
+}
+
+model ImpactBatch {
+  id               String            @id @default(uuid())
+  organizationId   String?
+  title            String
+  status           ImpactBatchStatus @default(DRAFT)
+  simulated        Boolean           @default(true)
+  allocatedPoints  Int
+  equivalentTrees  Float
+  evidenceMetadata Json?
+  publishedAt      DateTime?
+  organization     Organization?     @relation(fields: [organizationId], references: [id])
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String
+  before     Json?
+  after      Json?
+  actor      User?    @relation("AuditActor", fields: [actorId], references: [id])
+  createdAt  DateTime @default(now())
+}
