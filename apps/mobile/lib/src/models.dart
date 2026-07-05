@@ -29,39 +29,39 @@ class DailyTask {
   final DateTime? dueAt;
 
   DailyTask copyWith({TaskStatus? status}) => DailyTask(
-        id: id,
-        title: title,
-        description: description,
-        verificationMode: verificationMode,
-        growthPoints: growthPoints,
-        status: status ?? this.status,
-        dueAt: dueAt,
-      );
+    id: id,
+    title: title,
+    description: description,
+    verificationMode: verificationMode,
+    growthPoints: growthPoints,
+    status: status ?? this.status,
+    dueAt: dueAt,
+  );
 
   factory DailyTask.fromJson(Map<String, dynamic> json) => DailyTask(
-        id: json['id'] as String,
-        title: json['title'] as String,
-        description: json['description'] as String,
-        verificationMode: switch (json['verificationMode']) {
-          'PHOTO_AI' => VerificationMode.photoAi,
-          'SELF_CHECK' => VerificationMode.selfCheck,
-          'TIMER' => VerificationMode.timer,
-          'STEP_COUNT' => VerificationMode.stepCount,
-          'LOCATION_CHECK_IN' => VerificationMode.locationCheckIn,
-          _ => VerificationMode.deviceConfirm,
-        },
-        growthPoints: json['growthPoints'] as int,
-        status: switch (json['status']) {
-          'IN_PROGRESS' => TaskStatus.inProgress,
-          'VERIFYING' => TaskStatus.verifying,
-          'COMPLETED' => TaskStatus.completed,
-          'REJECTED' => TaskStatus.rejected,
-          _ => TaskStatus.available,
-        },
-        dueAt: json['dueAt'] == null
-            ? null
-            : DateTime.parse(json['dueAt'] as String),
-      );
+    id: json['id'] as String,
+    title: json['title'] as String,
+    description: json['description'] as String,
+    verificationMode: switch (json['verificationMode']) {
+      'PHOTO_AI' => VerificationMode.photoAi,
+      'SELF_CHECK' => VerificationMode.selfCheck,
+      'TIMER' => VerificationMode.timer,
+      'STEP_COUNT' => VerificationMode.stepCount,
+      'LOCATION_CHECK_IN' => VerificationMode.locationCheckIn,
+      _ => VerificationMode.deviceConfirm,
+    },
+    growthPoints: json['growthPoints'] as int,
+    status: switch (json['status']) {
+      'IN_PROGRESS' => TaskStatus.inProgress,
+      'VERIFYING' => TaskStatus.verifying,
+      'COMPLETED' => TaskStatus.completed,
+      'REJECTED' => TaskStatus.rejected,
+      _ => TaskStatus.available,
+    },
+    dueAt: json['dueAt'] == null
+        ? null
+        : DateTime.parse(json['dueAt'] as String),
+  );
 }
 
 class TreeSummary {
@@ -80,12 +80,12 @@ class TreeSummary {
   final int? nextStageAt;
 
   factory TreeSummary.fromJson(Map<String, dynamic> json) => TreeSummary(
-        name: json['name'] as String,
-        householdName: json['householdName'] as String,
-        stage: json['stage'] as String,
-        growthPoints: json['growthPoints'] as int,
-        nextStageAt: json['nextStageAt'] as int?,
-      );
+    name: json['name'] as String,
+    householdName: json['householdName'] as String,
+    stage: json['stage'] as String,
+    growthPoints: json['growthPoints'] as int,
+    nextStageAt: json['nextStageAt'] as int?,
+  );
 }
 
 class FamilyMessageModel {

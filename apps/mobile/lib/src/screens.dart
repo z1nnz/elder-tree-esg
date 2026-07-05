@@ -126,7 +126,9 @@ class HomeScreen extends StatelessWidget {
               text: '休息一下，看看家人留給你的訊息。',
             )
           else
-            ...incomplete.take(2).map(
+            ...incomplete
+                .take(2)
+                .map(
                   (task) => Padding(
                     padding: const EdgeInsets.only(bottom: 10),
                     child: _TaskTile(task: task, controller: controller),
@@ -221,7 +223,11 @@ class TasksScreen extends StatelessWidget {
         ...controller.tasks.map(
           (task) => Padding(
             padding: const EdgeInsets.only(bottom: 11),
-            child: _TaskTile(task: task, controller: controller, expanded: true),
+            child: _TaskTile(
+              task: task,
+              controller: controller,
+              expanded: true,
+            ),
           ),
         ),
       ],
@@ -251,10 +257,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
       children: [
-        const _PageHeading(
-          title: '家人的陪伴',
-          subtitle: '不必在同一個地方，也能一起照顧這棵家庭樹。',
-        ),
+        const _PageHeading(title: '家人的陪伴', subtitle: '不必在同一個地方，也能一起照顧這棵家庭樹。'),
         const SizedBox(height: 14),
         Card(
           child: Padding(
@@ -280,8 +283,9 @@ class _FamilyScreenState extends State<FamilyScreen> {
                   alignment: Alignment.centerRight,
                   child: FilledButton.icon(
                     onPressed: () async {
-                      await widget.controller
-                          .sendFamilyMessage(messageController.text);
+                      await widget.controller.sendFamilyMessage(
+                        messageController.text,
+                      );
                       messageController.clear();
                     },
                     icon: const Icon(Icons.send_rounded),
@@ -293,10 +297,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
           ),
         ),
         const SizedBox(height: 18),
-        const _SectionTitle(
-          title: '最近訊息',
-          subtitle: '裝置離線時會保留，重新連線後再送達',
-        ),
+        const _SectionTitle(title: '最近訊息', subtitle: '裝置離線時會保留，重新連線後再送達'),
         const SizedBox(height: 10),
         ...widget.controller.messages.map(
           (message) => Padding(
@@ -362,10 +363,7 @@ class ImpactScreen extends StatelessWidget {
                   fontWeight: FontWeight.w900,
                 ),
               ),
-              Text(
-                '公益池累積成長值',
-                style: TextStyle(color: Color(0xFFBDD3C7)),
-              ),
+              Text('公益池累積成長值', style: TextStyle(color: Color(0xFFBDD3C7))),
               SizedBox(height: 18),
               LinearProgressIndicator(
                 value: .74,
@@ -382,10 +380,7 @@ class ImpactScreen extends StatelessWidget {
           text: '目前展示的是模擬換算，不代表已完成真實植樹，也不構成碳權。',
         ),
         const SizedBox(height: 18),
-        const _SectionTitle(
-          title: '本期示範批次',
-          subtitle: '每一筆分配都會保留狀態與稽核紀錄',
-        ),
+        const _SectionTitle(title: '本期示範批次', subtitle: '每一筆分配都會保留狀態與稽核紀錄'),
         const SizedBox(height: 10),
         Card(
           child: Padding(
@@ -559,10 +554,7 @@ class DeviceScreen extends StatelessWidget {
           ),
         if (controller.discoveredTrees.isNotEmpty) ...[
           const SizedBox(height: 16),
-          const _SectionTitle(
-            title: '附近裝置',
-            subtitle: '選擇後會進入 Wi-Fi 配網流程',
-          ),
+          const _SectionTitle(title: '附近裝置', subtitle: '選擇後會進入 Wi-Fi 配網流程'),
           const SizedBox(height: 8),
           ...controller.discoveredTrees.map(
             (name) => Card(
@@ -700,27 +692,27 @@ class _TaskTile extends StatelessWidget {
                       label: const Text('已完成'),
                     )
                   : verifying
-                      ? OutlinedButton.icon(
-                          onPressed: null,
-                          icon: const Icon(Icons.fact_check_outlined),
-                          label: const Text('等待 AI／人工覆核'),
-                        )
-                      : FilledButton.icon(
-                          onPressed: () => task.verificationMode ==
-                                  VerificationMode.photoAi
-                              ? controller.photographTask(task)
-                              : controller.completeTask(task),
-                          icon: Icon(
-                            task.verificationMode == VerificationMode.photoAi
-                                ? Icons.camera_alt_rounded
-                                : Icons.check_circle_outline_rounded,
-                          ),
-                          label: Text(
-                            task.verificationMode == VerificationMode.photoAi
-                                ? '拍照完成任務'
-                                : '我完成了',
-                          ),
-                        ),
+                  ? OutlinedButton.icon(
+                      onPressed: null,
+                      icon: const Icon(Icons.fact_check_outlined),
+                      label: const Text('等待 AI／人工覆核'),
+                    )
+                  : FilledButton.icon(
+                      onPressed: () =>
+                          task.verificationMode == VerificationMode.photoAi
+                          ? controller.photographTask(task)
+                          : controller.completeTask(task),
+                      icon: Icon(
+                        task.verificationMode == VerificationMode.photoAi
+                            ? Icons.camera_alt_rounded
+                            : Icons.check_circle_outline_rounded,
+                      ),
+                      label: Text(
+                        task.verificationMode == VerificationMode.photoAi
+                            ? '拍照完成任務'
+                            : '我完成了',
+                      ),
+                    ),
             ),
           ],
         ),
@@ -759,10 +751,7 @@ class _SectionTitle extends StatelessWidget {
               const SizedBox(height: 3),
               Text(
                 subtitle,
-                style: const TextStyle(
-                  color: Color(0xFF69736D),
-                  fontSize: 12,
-                ),
+                style: const TextStyle(color: Color(0xFF69736D), fontSize: 12),
               ),
             ],
           ),
@@ -804,9 +793,7 @@ class _FilterPill extends StatelessWidget {
     return ChoiceChip(
       label: Text(label),
       selected: selected,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     );
   }
 }
@@ -834,10 +821,7 @@ class _NoticeBand extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(
-                color: Color(0xFF765F1D),
-                height: 1.45,
-              ),
+              style: const TextStyle(color: Color(0xFF765F1D), height: 1.45),
             ),
           ),
         ],
@@ -969,28 +953,28 @@ class _SensorCell extends StatelessWidget {
 }
 
 IconData _taskIcon(VerificationMode mode) => switch (mode) {
-      VerificationMode.photoAi => Icons.photo_camera_outlined,
-      VerificationMode.selfCheck => Icons.water_drop_outlined,
-      VerificationMode.timer => Icons.directions_walk_rounded,
-      VerificationMode.stepCount => Icons.directions_walk_outlined,
-      VerificationMode.locationCheckIn => Icons.location_on_outlined,
-      VerificationMode.deviceConfirm => Icons.touch_app_outlined,
-    };
+  VerificationMode.photoAi => Icons.photo_camera_outlined,
+  VerificationMode.selfCheck => Icons.water_drop_outlined,
+  VerificationMode.timer => Icons.directions_walk_rounded,
+  VerificationMode.stepCount => Icons.directions_walk_outlined,
+  VerificationMode.locationCheckIn => Icons.location_on_outlined,
+  VerificationMode.deviceConfirm => Icons.touch_app_outlined,
+};
 
 Color _taskColor(VerificationMode mode) => switch (mode) {
-      VerificationMode.photoAi => const Color(0xFFDCEBDF),
-      VerificationMode.selfCheck => const Color(0xFFD7E6EF),
-      VerificationMode.timer => const Color(0xFFF8E6B1),
-      VerificationMode.stepCount => const Color(0xFFF8D2CB),
-      VerificationMode.locationCheckIn => const Color(0xFFDDE1F0),
-      VerificationMode.deviceConfirm => const Color(0xFFECE1F0),
-    };
+  VerificationMode.photoAi => const Color(0xFFDCEBDF),
+  VerificationMode.selfCheck => const Color(0xFFD7E6EF),
+  VerificationMode.timer => const Color(0xFFF8E6B1),
+  VerificationMode.stepCount => const Color(0xFFF8D2CB),
+  VerificationMode.locationCheckIn => const Color(0xFFDDE1F0),
+  VerificationMode.deviceConfirm => const Color(0xFFECE1F0),
+};
 
 String _stageLabel(String stage) => switch (stage) {
-      'SEED' => '種子',
-      'SPROUT' => '萌芽',
-      'SEEDLING' => '幼苗',
-      'YOUNG_TREE' => '小樹',
-      'MATURE' => '成熟樹',
-      _ => stage,
-    };
+  'SEED' => '種子',
+  'SPROUT' => '萌芽',
+  'SEEDLING' => '幼苗',
+  'YOUNG_TREE' => '小樹',
+  'MATURE' => '成熟樹',
+  _ => stage,
+};

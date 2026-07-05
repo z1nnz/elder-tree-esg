@@ -8,6 +8,8 @@ import { ImpactController } from "./controllers/impact.controller";
 import { TasksController } from "./controllers/tasks.controller";
 import { ApiAuthGuard } from "./security/api-auth.guard";
 import { DemoStoreService } from "./store/demo-store.service";
+import { PrismaService } from "./database/prisma.service";
+import { PersistentStoreService } from "./store/persistent-store.service";
 
 @Module({
   controllers: [
@@ -20,6 +22,8 @@ import { DemoStoreService } from "./store/demo-store.service";
   ],
   providers: [
     DemoStoreService,
+    PrismaService,
+    PersistentStoreService,
     {
       provide: APP_GUARD,
       useClass: ApiAuthGuard,

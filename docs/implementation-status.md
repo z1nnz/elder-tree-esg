@@ -1,5 +1,14 @@
 # 實作狀態
 
+## 2026-07-05：登入與持久化任務流程
+
+- Firebase 專案 `elder-tree-esg-z1nnz` 已開啟 Email/Password。
+- Flutter 已加入登入／註冊頁、Firebase session 保存與 ID Token API 驗證。
+- 首次登入會在 Neon PostgreSQL 建立使用者、家庭、任務指派與陪伴樹。
+- 任務完成會寫入 `GrowthEntry`，並以 `assignment:<id>` 作為唯一冪等鍵。
+- API 重啟後任務狀態與家庭樹成長值仍會保留。
+- Neon 整合測試會重建 Prisma instance，驗證重試不會再次加分。
+
 ## 已完成基線
 
 - npm monorepo、共享契約與 CI。
@@ -15,7 +24,7 @@
 
 ## 需要外部資源才能完成
 
-- Firebase、Neon、Google Cloud、AWS 帳號與正式憑證。
+- Google Cloud、AWS 帳號與正式憑證。
 - 實體 ESP32-S3、螢幕、感測器、LED、按鍵及外殼製作。
 - Firebase App 設定檔、APNs/FCM 憑證與簽章。
 - 150 張取得同意、完成標註的 golden set。

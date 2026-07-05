@@ -27,10 +27,7 @@ ThemeData buildAppTheme(bool elderMode) {
   );
   return base.copyWith(
     textTheme: base.textTheme
-        .apply(
-          bodyColor: ink,
-          displayColor: ink,
-        )
+        .apply(bodyColor: ink, displayColor: ink)
         .copyWith(
           headlineSmall: base.textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.w800,
@@ -65,9 +62,7 @@ ThemeData buildAppTheme(bool elderMode) {
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         minimumSize: Size(48, elderMode ? 54 : 48),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(7),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
         textStyle: const TextStyle(
           fontWeight: FontWeight.w800,
           letterSpacing: 0,
@@ -77,9 +72,7 @@ ThemeData buildAppTheme(bool elderMode) {
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         minimumSize: Size(48, elderMode ? 54 : 48),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(7),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
         textStyle: const TextStyle(
           fontWeight: FontWeight.w800,
           letterSpacing: 0,

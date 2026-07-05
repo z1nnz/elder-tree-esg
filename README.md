@@ -34,6 +34,35 @@ npm run dev:web
 The API runs in seeded in-memory demo mode when `DEMO_MODE=true`, so PostgreSQL,
 Firebase, AWS, and Gemini credentials are not required for the first launch.
 
+### Firebase login and Neon persistence
+
+The production-like development path uses Firebase Authentication and the
+PostgreSQL database linked in `.neon`.
+
+```sh
+firebase deploy --only auth
+npm run dev:api:neon
+```
+
+Run the Flutter app in another terminal:
+
+```sh
+cd apps/mobile
+flutter run -d macos \
+  --dart-define=API_URL=http://127.0.0.1:4100/api/v1
+```
+
+The first account created in the app is provisioned with a household, three
+starter task assignments, and a companion tree. Task completion is recorded in
+`GrowthEntry` with a canonical assignment idempotency key, so retries and API
+restarts cannot award the same growth twice.
+
+To verify the persistence contract against Neon:
+
+```sh
+npm run test:persistence
+```
+
 ## Verification
 
 ```sh

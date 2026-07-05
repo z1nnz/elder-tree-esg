@@ -12,11 +12,11 @@ import type {
   ImpactBatchSummary,
   ReviewItem,
   TaskSummary,
-  TreeStage,
   TreeSummary,
   VerificationDecision,
 } from "@elder-tree/contracts";
 import { randomUUID } from "node:crypto";
+import { nextStageAt, stageForPoints } from "./tree-growth";
 
 const TASK_PHOTO_ID = "11111111-1111-4111-8111-111111111111";
 const TASK_WATER_ID = "22222222-2222-4222-8222-222222222222";
@@ -38,22 +38,6 @@ interface AuditRecord {
   entityId: string;
   note: string | null;
   createdAt: string;
-}
-
-function stageForPoints(points: number): TreeStage {
-  if (points >= 1000) return "MATURE";
-  if (points >= 500) return "YOUNG_TREE";
-  if (points >= 250) return "SEEDLING";
-  if (points >= 100) return "SPROUT";
-  return "SEED";
-}
-
-function nextStageAt(points: number): number | null {
-  if (points < 100) return 100;
-  if (points < 250) return 250;
-  if (points < 500) return 500;
-  if (points < 1000) return 1000;
-  return null;
 }
 
 @Injectable()

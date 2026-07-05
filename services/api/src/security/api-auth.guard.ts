@@ -8,7 +8,7 @@ import type { Request } from "express";
 import { getApps, initializeApp, cert } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 
-interface AuthenticatedRequest extends Request {
+export interface AuthenticatedRequest extends Request {
   user?: {
     uid: string;
     role: string;
@@ -36,26 +36,29 @@ export class ApiAuthGuard implements CanActivate {
       throw new UnauthorizedException("Missing Firebase ID token");
     }
 
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+    const canCheckRevocation = Boolean(
+      process.env.FIREBASE_CLIENT_EMAIL && privateKey,
+    );
     if (!getApps().length) {
-      const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
-      if (
-        !process.env.FIREBASE_PROJECT_ID ||
-        !process.env.FIREBASE_CLIENT_EMAIL ||
-        !privateKey
-      ) {
+      if (!process.env.FIREBASE_PROJECT_ID) {
         throw new UnauthorizedException("Firebase Admin is not configured");
       }
-      initializeApp({
-        credential: cert({
-          projectId: process.env.FIREBASE_PROJECT_ID,
-          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-          privateKey,
-        }),
-      });
+      if (process.env.FIREBASE_CLIENT_EMAIL && privateKey) {
+        initializeApp({
+          credential: cert({
+            projectId: process.env.FIREBASE_PROJECT_ID,
+            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+            privateKey,
+          }),
+        });
+      } else {
+        initializeApp({ projectId: process.env.FIREBASE_PROJECT_ID });
+      }
     }
 
     try {
-      const decoded = await getAuth().verifyIdToken(token, true);
+      const decoded = await getAuth().verifyIdToken(token, canCheckRevocation);
       request.user = {
         uid: decoded.uid,
         role: String(decoded.role ?? "PARTICIPANT"),

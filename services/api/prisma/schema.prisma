@@ -134,10 +134,12 @@ model TaskAssignment {
   dueAt       DateTime?
   completedAt DateTime?
   task        Task             @relation(fields: [taskId], references: [id])
-  user        User             @relation(fields: [userId], references: [id])
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   evidence    Evidence[]
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
+
+  @@unique([taskId, userId])
 }
 
 model Evidence {
@@ -174,7 +176,7 @@ model Tree {
   name         String
   stage        TreeStage   @default(SEED)
   growthPoints Int         @default(0)
-  household    Household   @relation(fields: [householdId], references: [id])
+  household    Household   @relation(fields: [householdId], references: [id], onDelete: Cascade)
   ledger       GrowthEntry[]
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt

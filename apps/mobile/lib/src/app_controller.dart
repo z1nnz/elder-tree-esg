@@ -9,9 +9,12 @@ import 'api_client.dart';
 import 'models.dart';
 
 class AppController extends ChangeNotifier {
-  AppController({ApiClient? api}) : _api = api ?? ApiClient();
+  AppController({ApiClient? api, bool allowOfflineDemo = true})
+    : _api = api ?? ApiClient(),
+      _allowOfflineDemo = allowOfflineDemo;
 
   final ApiClient _api;
+  final bool _allowOfflineDemo;
   final ImagePicker _picker = ImagePicker();
   final List<StreamSubscription<dynamic>> _subscriptions = [];
 
@@ -48,8 +51,10 @@ class AppController extends ChangeNotifier {
       devices = results[3] as List<CompanionDevice>;
       offlineDemo = false;
     } catch (_) {
-      offlineDemo = true;
-      notice = '目前使用離線示範資料，連上 API 後會自動同步。';
+      offlineDemo = _allowOfflineDemo;
+      notice = _allowOfflineDemo
+          ? '目前使用離線示範資料，連上 API 後會自動同步。'
+          : '目前無法連線到服務，資料未變更，請稍後重新整理。';
     } finally {
       loading = false;
       notifyListeners();
@@ -66,9 +71,13 @@ class AppController extends ChangeNotifier {
   Future<void> completeTask(DailyTask task) async {
     if (task.status == TaskStatus.completed) return;
     try {
-      if (!offlineDemo) await _api.completeTask(task.id);
-      _replaceTask(task.copyWith(status: TaskStatus.completed));
-      _applyLocalGrowth(task.growthPoints);
+      if (offlineDemo) {
+        _replaceTask(task.copyWith(status: TaskStatus.completed));
+        _applyLocalGrowth(task.growthPoints);
+      } else {
+        _replaceTask(await _api.completeTask(task.id));
+        tree = await _api.getTree();
+      }
       notice = '完成了「${task.title}」，陪伴樹獲得 ${task.growthPoints} 點成長值。';
     } catch (error) {
       notice = '任務暫時無法完成：$error';
@@ -108,9 +117,7 @@ class AppController extends ChangeNotifier {
             )
           : await _api.sendMessage(body.trim());
       messages = [message, ...messages];
-      notice = message.delivered
-          ? '訊息已同步到客廳陪伴樹。'
-          : '訊息已保存，裝置重新連線後會送達。';
+      notice = message.delivered ? '訊息已同步到客廳陪伴樹。' : '訊息已保存，裝置重新連線後會送達。';
     } catch (error) {
       notice = '訊息暫時無法送出：$error';
     }
@@ -168,7 +175,9 @@ class AppController extends ChangeNotifier {
   }
 
   void _replaceTask(DailyTask updated) {
-    tasks = tasks.map((task) => task.id == updated.id ? updated : task).toList();
+    tasks = tasks
+        .map((task) => task.id == updated.id ? updated : task)
+        .toList();
   }
 
   void _applyLocalGrowth(int points) {

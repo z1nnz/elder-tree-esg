@@ -4,25 +4,37 @@ import 'package:http/http.dart' as http;
 
 import 'models.dart';
 
+typedef TokenProvider = Future<String?> Function();
+
 class ApiClient {
   ApiClient({
     http.Client? client,
     String? baseUrl,
-  })  : _client = client ?? http.Client(),
-        baseUrl = baseUrl ??
-            const String.fromEnvironment(
-              'API_URL',
-              defaultValue: 'http://localhost:4100/api/v1',
-            );
+    TokenProvider? tokenProvider,
+  }) : _client = client ?? http.Client(),
+       _tokenProvider = tokenProvider,
+       baseUrl =
+           baseUrl ??
+           const String.fromEnvironment(
+             'API_URL',
+             defaultValue: 'http://localhost:4100/api/v1',
+           );
 
   final http.Client _client;
+  final TokenProvider? _tokenProvider;
   final String baseUrl;
 
-  Map<String, String> get _headers => const {
-        'content-type': 'application/json',
+  Future<Map<String, String>> get _headers async {
+    final token = await _tokenProvider?.call();
+    return {
+      'content-type': 'application/json',
+      if (token != null && token.isNotEmpty) 'authorization': 'Bearer $token',
+      if (token == null || token.isEmpty) ...const {
         'x-demo-user': 'demo-elder',
         'x-demo-role': 'PARTICIPANT',
-      };
+      },
+    };
+  }
 
   Future<List<DailyTask>> getTasks() async {
     final data = await _getList('/tasks');
@@ -44,10 +56,11 @@ class ApiClient {
     return data.map(CompanionDevice.fromJson).toList();
   }
 
-  Future<void> completeTask(String taskId) async {
-    await _post('/tasks/$taskId/complete', {
-      'idempotencyKey': 'mobile-$taskId-${DateTime.now().day}',
+  Future<DailyTask> completeTask(String taskId) async {
+    final data = await _post('/tasks/$taskId/complete', {
+      'idempotencyKey': 'mobile-assignment-$taskId',
     });
+    return DailyTask.fromJson(data);
   }
 
   Future<void> submitPhotoEvidence(String taskId, String fileName) async {
@@ -79,17 +92,16 @@ class ApiClient {
 
   Future<Map<String, dynamic>> _getMap(String path) async {
     final response = await _client
-        .get(Uri.parse('$baseUrl$path'), headers: _headers)
+        .get(Uri.parse('$baseUrl$path'), headers: await _headers)
         .timeout(const Duration(seconds: 5));
     return _decode(response) as Map<String, dynamic>;
   }
 
   Future<List<Map<String, dynamic>>> _getList(String path) async {
     final response = await _client
-        .get(Uri.parse('$baseUrl$path'), headers: _headers)
+        .get(Uri.parse('$baseUrl$path'), headers: await _headers)
         .timeout(const Duration(seconds: 5));
-    return (_decode(response) as List)
-        .cast<Map<String, dynamic>>();
+    return (_decode(response) as List).cast<Map<String, dynamic>>();
   }
 
   Future<Map<String, dynamic>> _post(
@@ -99,7 +111,7 @@ class ApiClient {
     final response = await _client
         .post(
           Uri.parse('$baseUrl$path'),
-          headers: _headers,
+          headers: await _headers,
           body: jsonEncode(body),
         )
         .timeout(const Duration(seconds: 8));

@@ -5,8 +5,15 @@ import 'screens.dart';
 import 'theme.dart';
 
 class RootShell extends StatefulWidget {
-  const RootShell({required this.controller, super.key});
+  const RootShell({
+    required this.controller,
+    required this.accountEmail,
+    required this.onSignOut,
+    super.key,
+  });
   final AppController controller;
+  final String accountEmail;
+  final Future<void> Function() onSignOut;
 
   @override
   State<RootShell> createState() => _RootShellState();
@@ -18,7 +25,10 @@ class _RootShellState extends State<RootShell> {
   @override
   Widget build(BuildContext context) {
     final screens = [
-      HomeScreen(controller: widget.controller, onOpenTasks: () => setState(() => index = 1)),
+      HomeScreen(
+        controller: widget.controller,
+        onOpenTasks: () => setState(() => index = 1),
+      ),
       TasksScreen(controller: widget.controller),
       FamilyScreen(controller: widget.controller),
       ImpactScreen(controller: widget.controller),
@@ -76,6 +86,11 @@ class _RootShellState extends State<RootShell> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.refresh_rounded),
+          ),
+          IconButton(
+            onPressed: widget.onSignOut,
+            tooltip: '登出 ${widget.accountEmail}',
+            icon: const Icon(Icons.logout_rounded),
           ),
           const SizedBox(width: 6),
         ],
