@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:maplibre/maplibre.dart';
 
 import 'app_controller.dart';
+import 'exploration_map_config.dart';
 import 'models.dart';
 import 'theme.dart';
 
@@ -238,7 +239,7 @@ class TasksScreen extends StatelessWidget {
   }
 }
 
-class ExplorationScreen extends StatelessWidget {
+class ExplorationScreen extends StatefulWidget {
   const ExplorationScreen({required this.controller, super.key});
 
   final AppController controller;
@@ -249,6 +250,15 @@ class ExplorationScreen extends StatelessWidget {
   );
 
   @override
+  State<ExplorationScreen> createState() => _ExplorationScreenState();
+}
+
+class _ExplorationScreenState extends State<ExplorationScreen> {
+  ExplorationMapMode _mapMode = ExplorationMapMode.adventure;
+
+  AppController get controller => widget.controller;
+
+  @override
   Widget build(BuildContext context) {
     final route = controller.exploration.routes.isEmpty
         ? null
@@ -256,23 +266,10 @@ class ExplorationScreen extends StatelessWidget {
     final pointQuests = controller.exploration.quests
         .where((quest) => quest.latitude != null && quest.longitude != null)
         .toList();
-    final lockedPoints = pointQuests.where((quest) => !quest.unlocked).toList();
-    final unlockedPoints = pointQuests
-        .where((quest) => quest.unlocked && !quest.completed)
-        .toList();
-    final completedPoints = pointQuests
-        .where((quest) => quest.completed)
-        .toList();
-    List<Feature<Point>> featuresFor(List<ExplorationQuestModel> quests) =>
-        quests
-            .map(
-              (quest) => Feature(
-                geometry: Point(
-                  Geographic(lon: quest.longitude!, lat: quest.latitude!),
-                ),
-              ),
-            )
-            .toList();
+    final mapPresentation = explorationMapPresentation(
+      _mapMode,
+      streetStyleUrl: ExplorationScreen.mapStyleUrl,
+    );
     final routeProgress = route == null || route.totalQuestCount == 0
         ? 0.0
         : route.completedQuestCount / route.totalQuestCount;
@@ -347,45 +344,69 @@ class ExplorationScreen extends StatelessWidget {
         const SizedBox(height: 14),
         ClipRRect(
           borderRadius: BorderRadius.circular(10),
-          child: SizedBox(
-            height: 320,
-            child: MapLibreMap(
-              options: const MapOptions(
-                initStyle: mapStyleUrl,
-                initCenter: Geographic(lon: 121.5362, lat: 25.0316),
-                initZoom: 14.4,
+          child: Column(
+            children: [
+              Container(
+                width: double.infinity,
+                color: Colors.white,
+                padding: const EdgeInsets.all(8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: _MapModeSwitch(
+                    mode: _mapMode,
+                    onChanged: (mode) => setState(() => _mapMode = mode),
+                  ),
+                ),
               ),
-              layers: [
-                if (lockedPoints.isNotEmpty)
-                  CircleLayer(
-                    points: featuresFor(lockedPoints),
-                    radius: 11,
-                    color: const Color(0xFF9AA49E),
-                    strokeWidth: 3,
-                    strokeColor: Colors.white,
-                  ),
-                if (unlockedPoints.isNotEmpty)
-                  CircleLayer(
-                    points: featuresFor(unlockedPoints),
-                    radius: 12,
-                    color: warmYellow,
-                    strokeWidth: 3,
-                    strokeColor: forestDark,
-                  ),
-                if (completedPoints.isNotEmpty)
-                  CircleLayer(
-                    points: featuresFor(completedPoints),
-                    radius: 12,
-                    color: forest,
-                    strokeWidth: 3,
-                    strokeColor: Colors.white,
-                  ),
-              ],
-              children: const [
-                MapControlButtons(showTrackLocation: true),
-                SourceAttribution(),
-              ],
-            ),
+              SizedBox(
+                height: 340,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    MapLibreMap(
+                      key: ValueKey(_mapMode),
+                      options: MapOptions(
+                        initStyle: mapPresentation.style,
+                        initCenter: const Geographic(
+                          lon: 121.5362,
+                          lat: 25.0316,
+                        ),
+                        initZoom: mapPresentation.zoom,
+                        initPitch: mapPresentation.pitch,
+                        initBearing: mapPresentation.bearing,
+                        maxPitch: 60,
+                      ),
+                      layers: const [],
+                      children: [
+                        WidgetLayer(
+                          markers: pointQuests
+                              .map(
+                                (quest) => Marker(
+                                  point: Geographic(
+                                    lon: quest.longitude!,
+                                    lat: quest.latitude!,
+                                  ),
+                                  size: const Size(58, 72),
+                                  alignment: Alignment.bottomCenter,
+                                  child: _QuestBeacon(quest: quest),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                        const MapControlButtons(showTrackLocation: true),
+                        const SourceAttribution(),
+                      ],
+                    ),
+                    if (_mapMode == ExplorationMapMode.adventure)
+                      const Positioned(
+                        left: 12,
+                        bottom: 12,
+                        child: _AdventureMapHint(),
+                      ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 12),
@@ -527,6 +548,172 @@ class ExplorationScreen extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _MapModeSwitch extends StatelessWidget {
+  const _MapModeSwitch({required this.mode, required this.onChanged});
+
+  final ExplorationMapMode mode;
+  final ValueChanged<ExplorationMapMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.94),
+      elevation: 5,
+      shadowColor: Colors.black26,
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: SegmentedButton<ExplorationMapMode>(
+          showSelectedIcon: false,
+          segments: const [
+            ButtonSegment(
+              value: ExplorationMapMode.adventure,
+              icon: Icon(Icons.explore_rounded, size: 18),
+              label: Text('冒險地圖'),
+            ),
+            ButtonSegment(
+              value: ExplorationMapMode.street,
+              icon: Icon(Icons.map_outlined, size: 18),
+              label: Text('真實地圖'),
+            ),
+          ],
+          selected: {mode},
+          onSelectionChanged: (selection) => onChanged(selection.first),
+          style: ButtonStyle(
+            visualDensity: VisualDensity.compact,
+            textStyle: WidgetStateProperty.all(
+              const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AdventureMapHint extends StatelessWidget {
+  const _AdventureMapHint();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: forestDark.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: const [
+          BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 3)),
+        ],
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.auto_awesome_rounded, color: warmYellow, size: 16),
+          SizedBox(width: 6),
+          Text(
+            '遊戲視角 · 真實道路',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuestBeacon extends StatelessWidget {
+  const _QuestBeacon({required this.quest});
+
+  final ExplorationQuestModel quest;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = quest.completed
+        ? forest
+        : quest.unlocked
+        ? const Color(0xFF2F80ED)
+        : const Color(0xFF788781);
+    final icon = quest.completed
+        ? Icons.check_rounded
+        : quest.unlocked
+        ? Icons.eco_rounded
+        : Icons.lock_rounded;
+
+    return Opacity(
+      opacity: quest.unlocked ? 1 : 0.78,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color,
+              border: Border.all(color: Colors.white, width: 3),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 10,
+                  offset: Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                Center(
+                  child: Container(
+                    width: 31,
+                    height: 31,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withValues(alpha: 0.22),
+                    ),
+                    child: Icon(icon, color: Colors.white, size: 20),
+                  ),
+                ),
+                Positioned(
+                  right: -1,
+                  top: -1,
+                  child: Container(
+                    width: 20,
+                    height: 20,
+                    alignment: Alignment.center,
+                    decoration: const BoxDecoration(
+                      color: warmYellow,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      '${quest.sequence}',
+                      style: const TextStyle(
+                        color: ink,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(width: 5, height: 13, color: color),
+          Container(
+            width: 19,
+            height: 6,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

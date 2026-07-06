@@ -38,7 +38,7 @@ xcodebuild \
   -derivedDataPath build/macos \
   DEVELOPMENT_TEAM="$development_team" \
   CODE_SIGN_STYLE=Automatic \
-  CODE_SIGN_IDENTITY="$identity_name" \
+  CODE_SIGN_IDENTITY="Apple Development" \
   -allowProvisioningUpdates \
   build
 
