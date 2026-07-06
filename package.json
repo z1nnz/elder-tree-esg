@@ -11,6 +11,7 @@
     "packages/contracts"
   ],
   "scripts": {
+    "postinstall": "npm run prisma:generate -w @elder-tree/api",
     "build": "npm run build -w @elder-tree/contracts && npm run build -w @elder-tree/api && npm run build -w @elder-tree/admin-web && npm run build -w @elder-tree/public-web && npm run build -w @elder-tree/iot-bridge && npm run build -w @elder-tree/device-simulator",
     "build:contracts": "npm run build -w @elder-tree/contracts",
     "dev:api": "npm run build:contracts && npm run dev -w @elder-tree/api",
