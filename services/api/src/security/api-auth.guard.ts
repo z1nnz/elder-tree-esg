@@ -7,6 +7,8 @@ import {
 import type { Request } from "express";
 import { getApps, initializeApp, cert } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
+import { Reflector } from "@nestjs/core";
+import { IS_PUBLIC_KEY } from "./public.decorator";
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -17,13 +19,22 @@ export interface AuthenticatedRequest extends Request {
 
 @Injectable()
 export class ApiAuthGuard implements CanActivate {
+  constructor(private readonly reflector: Reflector) {}
+
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
-    if (request.path.endsWith("/health")) {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic || request.path.endsWith("/health")) {
       return true;
     }
 
-    if (process.env.DEMO_MODE !== "false") {
+    if (
+      process.env.NODE_ENV !== "production" &&
+      process.env.DEMO_MODE !== "false"
+    ) {
       request.user = {
         uid: request.header("x-demo-user") ?? "demo-elder",
         role: request.header("x-demo-role") ?? "PARTICIPANT",

@@ -20,6 +20,8 @@ class DailyTask {
     this.startedAt,
     this.minimumSeconds,
     this.dueAt,
+    this.capabilityEnabled = true,
+    this.capabilityReason,
   });
 
   final String id;
@@ -31,6 +33,8 @@ class DailyTask {
   final DateTime? startedAt;
   final int? minimumSeconds;
   final DateTime? dueAt;
+  final bool capabilityEnabled;
+  final String? capabilityReason;
 
   DailyTask copyWith({TaskStatus? status, DateTime? startedAt}) => DailyTask(
     id: id,
@@ -42,6 +46,8 @@ class DailyTask {
     startedAt: startedAt ?? this.startedAt,
     minimumSeconds: minimumSeconds,
     dueAt: dueAt,
+    capabilityEnabled: capabilityEnabled,
+    capabilityReason: capabilityReason,
   );
 
   factory DailyTask.fromJson(Map<String, dynamic> json) => DailyTask(
@@ -71,6 +77,11 @@ class DailyTask {
     dueAt: json['dueAt'] == null
         ? null
         : DateTime.parse(json['dueAt'] as String),
+    capabilityEnabled:
+        (json['capability'] as Map<String, dynamic>?)?['enabled'] as bool? ??
+        true,
+    capabilityReason:
+        (json['capability'] as Map<String, dynamic>?)?['reason'] as String?,
   );
 }
 
@@ -98,11 +109,15 @@ class AppContextModel {
     required this.displayName,
     required this.activeHouseholdId,
     required this.households,
+    this.photoEvidenceEnabled = false,
+    this.photoEvidenceReason,
   });
 
   final String displayName;
   final String activeHouseholdId;
   final List<HouseholdSummaryModel> households;
+  final bool photoEvidenceEnabled;
+  final String? photoEvidenceReason;
 
   HouseholdSummaryModel get activeHousehold =>
       households.firstWhere((household) => household.id == activeHouseholdId);
@@ -115,6 +130,15 @@ class AppContextModel {
             .cast<Map<String, dynamic>>()
             .map(HouseholdSummaryModel.fromJson)
             .toList(),
+        photoEvidenceEnabled:
+            ((json['capabilities'] as Map<String, dynamic>?)?['photoEvidence']
+                    as Map<String, dynamic>?)?['enabled']
+                as bool? ??
+            false,
+        photoEvidenceReason:
+            ((json['capabilities'] as Map<String, dynamic>?)?['photoEvidence']
+                    as Map<String, dynamic>?)?['reason']
+                as String?,
       );
 }
 
@@ -207,6 +231,11 @@ class ExplorationQuestModel {
   const ExplorationQuestModel({
     required this.id,
     required this.taskId,
+    required this.sequence,
+    required this.locationName,
+    required this.category,
+    required this.safetyNote,
+    required this.accessibilityTags,
     required this.title,
     required this.description,
     required this.triggerType,
@@ -215,10 +244,16 @@ class ExplorationQuestModel {
     required this.radiusMeters,
     required this.unlockDistanceMeters,
     required this.unlocked,
+    required this.completed,
   });
 
   final String id;
   final String taskId;
+  final int sequence;
+  final String locationName;
+  final String category;
+  final String? safetyNote;
+  final List<String> accessibilityTags;
   final String title;
   final String description;
   final String triggerType;
@@ -227,11 +262,17 @@ class ExplorationQuestModel {
   final int? radiusMeters;
   final int? unlockDistanceMeters;
   final bool unlocked;
+  final bool completed;
 
   factory ExplorationQuestModel.fromJson(Map<String, dynamic> json) =>
       ExplorationQuestModel(
         id: json['id'] as String,
         taskId: json['taskId'] as String,
+        sequence: json['sequence'] as int,
+        locationName: json['locationName'] as String,
+        category: json['category'] as String,
+        safetyNote: json['safetyNote'] as String?,
+        accessibilityTags: (json['accessibilityTags'] as List).cast<String>(),
         title: json['title'] as String,
         description: json['description'] as String,
         triggerType: json['triggerType'] as String,
@@ -240,6 +281,80 @@ class ExplorationQuestModel {
         radiusMeters: json['radiusMeters'] as int?,
         unlockDistanceMeters: json['unlockDistanceMeters'] as int?,
         unlocked: json['unlocked'] as bool,
+        completed: json['completed'] as bool,
+      );
+}
+
+class ExplorationSessionModel {
+  const ExplorationSessionModel({
+    required this.id,
+    required this.routeId,
+    required this.status,
+    required this.distanceMeters,
+    required this.startedAt,
+    required this.lastEventAt,
+  });
+
+  final String id;
+  final String routeId;
+  final String status;
+  final int distanceMeters;
+  final DateTime startedAt;
+  final DateTime? lastEventAt;
+
+  factory ExplorationSessionModel.fromJson(Map<String, dynamic> json) =>
+      ExplorationSessionModel(
+        id: json['id'] as String,
+        routeId: json['routeId'] as String,
+        status: json['status'] as String,
+        distanceMeters: json['distanceMeters'] as int,
+        startedAt: DateTime.parse(json['startedAt'] as String),
+        lastEventAt: json['lastEventAt'] == null
+            ? null
+            : DateTime.parse(json['lastEventAt'] as String),
+      );
+}
+
+class ExplorationRouteModel {
+  const ExplorationRouteModel({
+    required this.id,
+    required this.slug,
+    required this.name,
+    required this.description,
+    required this.badgeName,
+    required this.badgeAssetKey,
+    required this.completedQuestCount,
+    required this.totalQuestCount,
+    required this.badgeAwarded,
+    required this.quests,
+  });
+
+  final String id;
+  final String slug;
+  final String name;
+  final String description;
+  final String badgeName;
+  final String badgeAssetKey;
+  final int completedQuestCount;
+  final int totalQuestCount;
+  final bool badgeAwarded;
+  final List<ExplorationQuestModel> quests;
+
+  factory ExplorationRouteModel.fromJson(Map<String, dynamic> json) =>
+      ExplorationRouteModel(
+        id: json['id'] as String,
+        slug: json['slug'] as String,
+        name: json['name'] as String,
+        description: json['description'] as String,
+        badgeName: json['badgeName'] as String,
+        badgeAssetKey: json['badgeAssetKey'] as String,
+        completedQuestCount: json['completedQuestCount'] as int,
+        totalQuestCount: json['totalQuestCount'] as int,
+        badgeAwarded: json['badgeAwarded'] as bool,
+        quests: (json['quests'] as List)
+            .cast<Map<String, dynamic>>()
+            .map(ExplorationQuestModel.fromJson)
+            .toList(),
       );
 }
 
@@ -247,20 +362,30 @@ class ExplorationStateModel {
   const ExplorationStateModel({
     required this.totalDistanceMeters,
     required this.coarseCell,
-    required this.quests,
+    required this.activeSession,
+    required this.routes,
   });
 
   final int totalDistanceMeters;
   final String? coarseCell;
-  final List<ExplorationQuestModel> quests;
+  final ExplorationSessionModel? activeSession;
+  final List<ExplorationRouteModel> routes;
+
+  List<ExplorationQuestModel> get quests =>
+      routes.expand((route) => route.quests).toList();
 
   factory ExplorationStateModel.fromJson(Map<String, dynamic> json) =>
       ExplorationStateModel(
         totalDistanceMeters: json['totalDistanceMeters'] as int,
         coarseCell: json['coarseCell'] as String?,
-        quests: (json['quests'] as List)
+        activeSession: json['activeSession'] == null
+            ? null
+            : ExplorationSessionModel.fromJson(
+                json['activeSession'] as Map<String, dynamic>,
+              ),
+        routes: (json['routes'] as List)
             .cast<Map<String, dynamic>>()
-            .map(ExplorationQuestModel.fromJson)
+            .map(ExplorationRouteModel.fromJson)
             .toList(),
       );
 }

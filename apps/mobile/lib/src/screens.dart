@@ -245,14 +245,39 @@ class ExplorationScreen extends StatelessWidget {
 
   static const mapStyleUrl = String.fromEnvironment(
     'MAP_STYLE_URL',
-    defaultValue: 'https://demotiles.maplibre.org/style.json',
+    defaultValue: 'https://tiles.openfreemap.org/styles/liberty',
   );
 
   @override
   Widget build(BuildContext context) {
+    final route = controller.exploration.routes.isEmpty
+        ? null
+        : controller.exploration.routes.first;
     final pointQuests = controller.exploration.quests
         .where((quest) => quest.latitude != null && quest.longitude != null)
         .toList();
+    final lockedPoints = pointQuests.where((quest) => !quest.unlocked).toList();
+    final unlockedPoints = pointQuests
+        .where((quest) => quest.unlocked && !quest.completed)
+        .toList();
+    final completedPoints = pointQuests
+        .where((quest) => quest.completed)
+        .toList();
+    List<Feature<Point>> featuresFor(List<ExplorationQuestModel> quests) =>
+        quests
+            .map(
+              (quest) => Feature(
+                geometry: Point(
+                  Geographic(lon: quest.longitude!, lat: quest.latitude!),
+                ),
+              ),
+            )
+            .toList();
+    final routeProgress = route == null || route.totalQuestCount == 0
+        ? 0.0
+        : route.completedQuestCount / route.totalQuestCount;
+    final sessionDistance =
+        controller.exploration.activeSession?.distanceMeters ?? 0;
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
       children: [
@@ -260,6 +285,65 @@ class ExplorationScreen extends StatelessWidget {
           title: '城市探索',
           subtitle: '用自己的步調走動；不論是否有家人，每一步都能解鎖新的行動。',
         ),
+        if (route != null) ...[
+          const SizedBox(height: 12),
+          Card(
+            color: const Color(0xFFEAF4EC),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.park_rounded, color: forest),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          route.name,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '${route.completedQuestCount}/${route.totalQuestCount}',
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(route.description),
+                  const SizedBox(height: 12),
+                  LinearProgressIndicator(
+                    value: routeProgress,
+                    minHeight: 8,
+                    borderRadius: BorderRadius.circular(5),
+                    color: forest,
+                    backgroundColor: Colors.white,
+                  ),
+                  if (route.badgeAwarded) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.workspace_premium_rounded,
+                          color: Color(0xFFD98A00),
+                        ),
+                        const SizedBox(width: 7),
+                        Text(
+                          '已取得「${route.badgeName}」徽章',
+                          style: const TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 14),
         ClipRRect(
           borderRadius: BorderRadius.circular(10),
@@ -268,28 +352,33 @@ class ExplorationScreen extends StatelessWidget {
             child: MapLibreMap(
               options: const MapOptions(
                 initStyle: mapStyleUrl,
-                initCenter: Geographic(lon: 121.5654, lat: 25.033),
-                initZoom: 12,
+                initCenter: Geographic(lon: 121.5362, lat: 25.0316),
+                initZoom: 14.4,
               ),
               layers: [
-                if (pointQuests.isNotEmpty)
+                if (lockedPoints.isNotEmpty)
                   CircleLayer(
-                    points: pointQuests
-                        .map(
-                          (quest) => Feature(
-                            geometry: Point(
-                              Geographic(
-                                lon: quest.longitude!,
-                                lat: quest.latitude!,
-                              ),
-                            ),
-                          ),
-                        )
-                        .toList(),
+                    points: featuresFor(lockedPoints),
                     radius: 11,
+                    color: const Color(0xFF9AA49E),
+                    strokeWidth: 3,
+                    strokeColor: Colors.white,
+                  ),
+                if (unlockedPoints.isNotEmpty)
+                  CircleLayer(
+                    points: featuresFor(unlockedPoints),
+                    radius: 12,
                     color: warmYellow,
                     strokeWidth: 3,
                     strokeColor: forestDark,
+                  ),
+                if (completedPoints.isNotEmpty)
+                  CircleLayer(
+                    points: featuresFor(completedPoints),
+                    radius: 12,
+                    color: forest,
+                    strokeWidth: 3,
+                    strokeColor: Colors.white,
                   ),
               ],
               children: const [
@@ -315,13 +404,17 @@ class ExplorationScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${controller.exploration.totalDistanceMeters} 公尺',
+                        '$sessionDistance 公尺',
                         style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
-                      const Text('目前家庭的探索距離'),
+                      Text(
+                        controller.exploration.activeSession == null
+                            ? '本次路線尚未開始'
+                            : '本次路線由伺服器計算',
+                      ),
                     ],
                   ),
                 ),
@@ -342,37 +435,93 @@ class ExplorationScreen extends StatelessWidget {
         ),
         const _NoticeBand(
           icon: Icons.shield_outlined,
-          text: '伺服器只保存粗略網格、距離與任務觸發結果，不保存完整 GPS 行走軌跡。',
+          text: '只在此頁開啟定位。伺服器暫存最新一點，結束探索後清除；歷史只留粗略網格。',
         ),
         const SizedBox(height: 8),
         const _SectionTitle(title: '探索任務', subtitle: '走過指定距離或進入地標範圍時自動解鎖'),
         const SizedBox(height: 10),
-        if (controller.exploration.quests.isEmpty)
+        if (route == null)
           const _EmptyBlock(
             icon: Icons.map_outlined,
             title: '附近還沒有探索點',
             text: '營運單位建立地標後會出現在這裡；距離任務仍可照常累積。',
           )
         else
-          ...controller.exploration.quests.map(
+          ...route.quests.map(
             (quest) => Card(
-              child: ListTile(
-                leading: Icon(
-                  quest.triggerType == 'GEOFENCE'
-                      ? Icons.place_rounded
-                      : Icons.route_rounded,
-                  color: quest.unlocked ? forest : Colors.grey,
-                ),
-                title: Text(quest.title),
-                subtitle: Text(
-                  quest.unlocked
-                      ? '已解鎖，可到任務頁完成'
-                      : quest.triggerType == 'DISTANCE'
-                      ? '累積 ${quest.unlockDistanceMeters ?? 0} 公尺後解鎖'
-                      : '進入地標 ${quest.radiusMeters ?? 0} 公尺內解鎖',
-                ),
-                trailing: Icon(
-                  quest.unlocked ? Icons.lock_open_rounded : Icons.lock_outline,
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: quest.completed
+                          ? forest
+                          : quest.unlocked
+                          ? warmYellow
+                          : const Color(0xFFE3E7E4),
+                      foregroundColor: quest.completed
+                          ? Colors.white
+                          : forestDark,
+                      child: Icon(
+                        quest.completed
+                            ? Icons.check_rounded
+                            : quest.triggerType == 'GEOFENCE'
+                            ? Icons.place_rounded
+                            : Icons.route_rounded,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${quest.sequence}. ${quest.locationName}',
+                            style: const TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(quest.title),
+                          const SizedBox(height: 5),
+                          Text(
+                            quest.completed
+                                ? '已完成'
+                                : quest.unlocked
+                                ? '已解鎖，可到任務頁完成'
+                                : quest.triggerType == 'DISTANCE'
+                                ? '本次路線 ${quest.unlockDistanceMeters ?? 0} 公尺後解鎖'
+                                : '進入地標 ${quest.radiusMeters ?? 0} 公尺內解鎖',
+                            style: TextStyle(
+                              color: quest.unlocked ? forest : Colors.black54,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          if (quest.safetyNote != null) ...[
+                            const SizedBox(height: 7),
+                            Text(
+                              '安全提醒：${quest.safetyNote}',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ],
+                          if (quest.accessibilityTags.isNotEmpty) ...[
+                            const SizedBox(height: 7),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: quest.accessibilityTags
+                                  .map(
+                                    (tag) => Chip(
+                                      visualDensity: VisualDensity.compact,
+                                      label: Text(tag),
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -1023,6 +1172,12 @@ class _TaskTile extends StatelessWidget {
                       onPressed: null,
                       icon: const Icon(Icons.fact_check_outlined),
                       label: const Text('等待 AI／人工覆核'),
+                    )
+                  : !task.capabilityEnabled
+                  ? OutlinedButton.icon(
+                      onPressed: () => controller.photographTask(task),
+                      icon: const Icon(Icons.lock_outline_rounded),
+                      label: const Text('照片驗證服務尚未開放'),
                     )
                   : !supported
                   ? OutlinedButton.icon(

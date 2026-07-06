@@ -8,6 +8,7 @@ import { HealthController } from "./controllers/health.controller";
 import { ImpactController } from "./controllers/impact.controller";
 import { MeController } from "./controllers/me.controller";
 import { TasksController } from "./controllers/tasks.controller";
+import { PublicController } from "./controllers/public.controller";
 import { ApiAuthGuard } from "./security/api-auth.guard";
 import { DemoStoreService } from "./store/demo-store.service";
 import { PrismaService } from "./database/prisma.service";
@@ -15,6 +16,7 @@ import { PersistentStoreService } from "./store/persistent-store.service";
 import { ClockService } from "./time/clock.service";
 import { EvidenceStorageService } from "./evidence/evidence-storage.service";
 import { PhotoVerifierService } from "./evidence/photo-verifier.service";
+import { PlatformAdminGuard } from "./security/platform-admin.guard";
 
 @Module({
   controllers: [
@@ -26,6 +28,7 @@ import { PhotoVerifierService } from "./evidence/photo-verifier.service";
     DevicesController,
     AdminController,
     ImpactController,
+    PublicController,
   ],
   providers: [
     DemoStoreService,
@@ -33,6 +36,7 @@ import { PhotoVerifierService } from "./evidence/photo-verifier.service";
     ClockService,
     EvidenceStorageService,
     PhotoVerifierService,
+    PlatformAdminGuard,
     PersistentStoreService,
     {
       provide: APP_GUARD,

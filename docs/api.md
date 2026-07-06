@@ -1,7 +1,9 @@
 # API 契約
 
 Base URL：`/api/v1`。除 `/health` 外皆需 Firebase Bearer Token；本地
-`DEMO_MODE=true` 時可使用 `x-demo-user` 與 `x-demo-role`。
+`DEMO_MODE=true` 且非 production 時可使用 `x-demo-user` 與
+`x-demo-role`；所有 `/admin/*` 仍只查 Neon 的 `User.role`，
+不接受 header 提升權限。
 
 | Method | Path | 行為 |
 |---|---|---|

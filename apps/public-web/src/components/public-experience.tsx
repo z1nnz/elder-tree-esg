@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef } from "react";
+import type { ExplorationRouteSummary } from "@elder-tree/contracts";
+import { useEffect, useRef, useState } from "react";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -62,6 +63,28 @@ const contactHref = (subject: string) => {
 
 export function PublicExperience() {
   const root = useRef<HTMLElement>(null);
+  const [routeData, setRouteData] = useState<ExplorationRouteSummary | null>(
+    null,
+  );
+
+  useEffect(() => {
+    const apiUrl =
+      process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4100/api/v1";
+    const controller = new AbortController();
+    void fetch(
+      `${apiUrl}/public/exploration/routes/daan-forest-first-walk`,
+      { signal: controller.signal },
+    )
+      .then(async (response) => {
+        if (!response.ok) throw new Error("route unavailable");
+        return (await response.json()) as {
+          data: ExplorationRouteSummary;
+        };
+      })
+      .then(({ data }) => setRouteData(data))
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
 
   useGSAP(
     () => {
@@ -123,26 +146,6 @@ export function PublicExperience() {
               ),
           });
 
-          const route = gsap.timeline({
-            scrollTrigger: {
-              trigger: ".journey-map",
-              start: "top 74%",
-              end: "bottom 45%",
-              scrub: 0.8,
-            },
-          });
-          route
-            .fromTo(
-              ".route-path",
-              { strokeDashoffset: 860 },
-              { strokeDashoffset: 0, ease: "none" },
-            )
-            .from(
-              ".map-node",
-              { scale: 0, transformOrigin: "center", stagger: 0.12 },
-              "<0.08",
-            );
-
           if (desktop) {
             gsap.to(".tree-crown", {
               y: -10,
@@ -158,6 +161,41 @@ export function PublicExperience() {
       return () => media.revert();
     },
     { scope: root },
+  );
+
+  useGSAP(
+    () => {
+      if (
+        !routeData ||
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ) {
+        return;
+      }
+      const route = gsap.timeline({
+        scrollTrigger: {
+          trigger: ".journey-map",
+          start: "top 74%",
+          end: "bottom 45%",
+          scrub: 0.8,
+        },
+      });
+      route
+        .fromTo(
+          ".route-path",
+          { strokeDashoffset: 860 },
+          { strokeDashoffset: 0, ease: "none" },
+        )
+        .from(
+          ".map-node",
+          { scale: 0, transformOrigin: "center", stagger: 0.1 },
+          "<0.08",
+        );
+    },
+    {
+      scope: root,
+      dependencies: [routeData?.id],
+      revertOnUpdate: true,
+    },
   );
 
   return (
@@ -285,10 +323,10 @@ export function PublicExperience() {
       <section className="journey section-shell">
         <div className="section-heading" data-reveal>
           <p className="eyebrow">把城市變成溫柔的遊戲場</p>
-          <h2>不是追逐怪物，是在路上重新發現生活。</h2>
+          <h2>{routeData?.name ?? "首發探索路線載入中"}</h2>
           <p>
-            經過一段距離，或走進公園、社區據點與合作機構的安全範圍，
-            才解鎖適合當下的任務。行動不便時，也有室內與實體樹任務。
+            {routeData?.description ??
+              "公開路線只包含任務內容與地標，不含任何使用者位置或個人進度。"}
           </p>
         </div>
         <div className="journey-map" data-reveal>
@@ -302,21 +340,43 @@ export function PublicExperience() {
               pathLength="860"
               d="M95 350 C210 250 275 355 420 315 S620 90 760 170 S840 355 920 370"
             />
-            {[["150", "312"], ["420", "315"], ["615", "150"], ["810", "230"], ["920", "370"]].map(
-              ([cx, cy], index) => (
+            {(routeData?.quests ?? []).map((quest, index) => {
+              const positions = [
+                ["120", "340"],
+                ["270", "292"],
+                ["420", "315"],
+                ["570", "185"],
+                ["700", "150"],
+                ["825", "255"],
+                ["920", "370"],
+              ];
+              const [cx, cy] = positions[index] ?? ["920", "370"];
+              return (
                 <g className="map-node" key={cx}>
                   <circle cx={cx} cy={cy} r="23" />
                   <text x={cx} y={Number(cy) + 6} textAnchor="middle">
-                    {index + 1}
+                    {quest.sequence}
                   </text>
                 </g>
-              ),
-            )}
+              );
+            })}
           </svg>
           <div className="map-legend">
-            <span><i className="green" />自然觀察</span>
-            <span><i className="yellow" />社區陪伴</span>
-            <span><i className="blue" />休息與安全據點</span>
+            {(routeData?.quests ?? []).map((quest) => (
+              <span key={quest.id}>
+                <i
+                  className={
+                    quest.triggerType === "DISTANCE" ? "yellow" : "green"
+                  }
+                />
+                {quest.locationName}・{quest.title}
+              </span>
+            ))}
+            {routeData ? (
+              <strong className="route-badge">
+                完成 {routeData.totalQuestCount} 站，取得「{routeData.badgeName}」
+              </strong>
+            ) : null}
           </div>
         </div>
       </section>
@@ -341,12 +401,12 @@ export function PublicExperience() {
             <div>
               <ShieldCheck size={25} />
               <strong>隱私先於功能</strong>
-              <p>不保存完整 GPS 軌跡；照片終態即刪；陌生陪伴者只取得最低必要權限。</p>
+              <p>精確位置只暫存最新一點；照片服務未開放前保持鎖定；陪伴者只取得最低必要權限。</p>
             </div>
             <div>
               <Bot size={25} />
               <strong>AI 不取代人的判斷</strong>
-              <p>高信心才自動通過；不確定時交由可信任的人覆核。</p>
+              <p>照片驗證啟用後，高信心才自動通過；不確定時仍交由可信任的人覆核。</p>
             </div>
             <div>
               <Cpu size={25} />

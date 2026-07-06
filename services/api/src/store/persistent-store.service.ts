@@ -1,16 +1,21 @@
 import type {
   AppContext,
   CompanionDeviceSummary,
+  DashboardSnapshot,
   DeviceDesiredState,
   DeviceReportedState,
   EvidenceDecision,
   EvidenceUpload,
   ExplorationEventResult,
+  ExplorationQuestInput,
+  ExplorationRouteInput,
+  ExplorationRouteSummary,
   ExplorationState,
   FamilyMessage,
   FamilyReviewItem,
   HouseholdInviteSummary,
   ImpactSummary,
+  ReviewItem,
   TaskSummary,
   TreeSummary,
 } from "@elder-tree/contracts";
@@ -74,6 +79,10 @@ type AssignmentWithTask = Prisma.TaskAssignmentGetPayload<{
   include: { task: true };
 }>;
 
+type RouteWithTasks = Prisma.ExplorationRouteGetPayload<{
+  include: { quests: { include: { task: true } } };
+}>;
+
 function toTaskSummary(assignment: AssignmentWithTask): TaskSummary {
   const rule =
     assignment.task.verificationRule &&
@@ -92,11 +101,43 @@ function toTaskSummary(assignment: AssignmentWithTask): TaskSummary {
     minimumSeconds:
       typeof rule.minimumSeconds === "number" ? rule.minimumSeconds : null,
     dueAt: assignment.dueAt?.toISOString() ?? null,
+    capability: {
+      enabled:
+        assignment.task.verificationMode !== VerificationMode.PHOTO_AI ||
+        process.env.PHOTO_EVIDENCE_ENABLED === "true",
+      reason:
+        assignment.task.verificationMode === VerificationMode.PHOTO_AI &&
+        process.env.PHOTO_EVIDENCE_ENABLED !== "true"
+          ? "PHOTO_STORAGE_UNAVAILABLE"
+          : null,
+    },
   };
 }
 
 function inviteHash(code: string): string {
   return createHash("sha256").update(code.trim().toUpperCase()).digest("hex");
+}
+
+function distanceBetweenMeters(
+  first: { latitude: number; longitude: number },
+  second: { latitude: number; longitude: number },
+): number {
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const earthRadiusMeters = 6_371_000;
+  const latitudeDelta = toRadians(second.latitude - first.latitude);
+  const longitudeDelta = toRadians(second.longitude - first.longitude);
+  const firstLatitude = toRadians(first.latitude);
+  const secondLatitude = toRadians(second.latitude);
+  const haversine =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(firstLatitude) *
+      Math.cos(secondLatitude) *
+      Math.sin(longitudeDelta / 2) ** 2;
+  return (
+    2 *
+    earthRadiusMeters *
+    Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
+  );
 }
 
 @Injectable()
@@ -132,6 +173,15 @@ export class PersistentStoreService {
         name: membership.household.name,
         relationship: membership.relationship,
       })),
+      capabilities: {
+        photoEvidence: {
+          enabled: process.env.PHOTO_EVIDENCE_ENABLED === "true",
+          reason:
+            process.env.PHOTO_EVIDENCE_ENABLED === "true"
+              ? null
+              : "STORAGE_NOT_CONFIGURED",
+        },
+      },
     };
   }
 
@@ -360,6 +410,12 @@ export class PersistentStoreService {
         },
         include: { task: true },
       });
+      await this.awardCompletedRouteBadge(
+        transaction,
+        active.id,
+        active.activeHouseholdId,
+        assignment.taskId,
+      );
       return toTaskSummary(updatedAssignment);
     });
   }
@@ -370,6 +426,11 @@ export class PersistentStoreService {
     fileName: string,
     contentType: string,
   ): Promise<EvidenceUpload> {
+    if (process.env.PHOTO_EVIDENCE_ENABLED !== "true") {
+      throw new BadRequestException(
+        "Photo verification is unavailable until private storage is configured",
+      );
+    }
     const active = await this.getActiveUser(firebaseUid);
     const assignment = await this.prisma.taskAssignment.findFirst({
       where: {
@@ -817,9 +878,430 @@ export class PersistentStoreService {
     return this.toDeviceSummary(claimed);
   }
 
+  async getAdminDashboard(): Promise<DashboardSnapshot> {
+    const [
+      participantCount,
+      completedTaskCount,
+      pendingReviewCount,
+      connectedDeviceCount,
+      impactPool,
+      publishedRouteCount,
+    ] = await Promise.all([
+      this.prisma.user.count(),
+      this.prisma.taskAssignment.count({ where: { status: "COMPLETED" } }),
+      this.prisma.verificationRun.count({
+        where: { decision: "REVIEW", reviewedAt: null },
+      }),
+      this.prisma.device.count({ where: { householdId: { not: null } } }),
+      this.prisma.impactPoolEntry.aggregate({
+        where: { allocatedAt: null },
+        _sum: { points: true },
+      }),
+      this.prisma.explorationRoute.count({ where: { status: "PUBLISHED" } }),
+    ]);
+    return {
+      participantCount,
+      completedTaskCount,
+      pendingReviewCount,
+      connectedDeviceCount,
+      impactPoolPoints: impactPool._sum.points ?? 0,
+      simulatedTreeCount: publishedRouteCount,
+    };
+  }
+
+  async listAdminReviews(): Promise<ReviewItem[]> {
+    if (process.env.PHOTO_EVIDENCE_ENABLED !== "true") return [];
+    const reviews = await this.prisma.verificationRun.findMany({
+      where: { decision: "REVIEW", reviewedAt: null },
+      include: {
+        evidence: {
+          include: {
+            assignment: {
+              include: { task: true, user: true },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+    return Promise.all(
+      reviews.map(async (review) => ({
+        id: review.id,
+        taskTitle: review.evidence.assignment.task.title,
+        participantName: review.evidence.assignment.user.displayName,
+        imageUrl: await this.evidenceStorage.createSignedReadUrl(
+          review.evidence.storagePath,
+        ),
+        confidence: review.confidence,
+        labels: review.labels,
+        explanation: review.explanation,
+        createdAt: review.createdAt.toISOString(),
+      })),
+    );
+  }
+
+  async listAdminExplorationRoutes(): Promise<ExplorationRouteSummary[]> {
+    const routes = await this.prisma.explorationRoute.findMany({
+      include: {
+        quests: {
+          include: { task: true },
+          orderBy: { sequence: "asc" },
+        },
+      },
+      orderBy: [{ createdAt: "desc" }, { version: "desc" }],
+    });
+    return routes.map((route) => this.toRouteSummary(route));
+  }
+
+  async getPublicExplorationRoute(
+    slug: string,
+  ): Promise<ExplorationRouteSummary> {
+    const route = await this.prisma.explorationRoute.findFirst({
+      where: {
+        status: "PUBLISHED",
+        OR: [{ slug }, { slug: { startsWith: `${slug}-v` } }],
+      },
+      include: {
+        quests: {
+          where: { active: true },
+          include: { task: true },
+          orderBy: { sequence: "asc" },
+        },
+      },
+      orderBy: { version: "desc" },
+    });
+    if (!route) throw new NotFoundException("Published route not found");
+    return this.toRouteSummary(route);
+  }
+
+  async createAdminExplorationRoute(input: ExplorationRouteInput) {
+    const route = await this.prisma.explorationRoute.create({
+      data: {
+        slug: input.slug.trim().toLowerCase(),
+        name: input.name.trim(),
+        description: input.description.trim(),
+        badgeName: input.badgeName.trim(),
+        badgeAssetKey: input.badgeAssetKey.trim(),
+      },
+      include: { quests: { include: { task: true } } },
+    });
+    return this.toRouteSummary(route);
+  }
+
+  async updateAdminExplorationRoute(
+    routeId: string,
+    input: Partial<ExplorationRouteInput>,
+  ) {
+    await this.assertDraftRoute(routeId);
+    const route = await this.prisma.explorationRoute.update({
+      where: { id: routeId },
+      data: {
+        name: input.name?.trim(),
+        description: input.description?.trim(),
+        badgeName: input.badgeName?.trim(),
+        badgeAssetKey: input.badgeAssetKey?.trim(),
+      },
+      include: {
+        quests: {
+          include: { task: true },
+          orderBy: { sequence: "asc" },
+        },
+      },
+    });
+    return this.toRouteSummary(route);
+  }
+
+  async createAdminExplorationQuest(input: ExplorationQuestInput) {
+    await this.assertDraftRoute(input.routeId);
+    this.assertValidQuestInput(input);
+    await this.prisma.mapQuest.create({
+      data: {
+        route: { connect: { id: input.routeId } },
+        sequence: input.sequence,
+        locationName: input.locationName.trim(),
+        category: input.category.trim().toUpperCase(),
+        safetyNote: input.safetyNote?.trim() || null,
+        accessibilityTags: input.accessibilityTags.map((tag) => tag.trim()),
+        sourceUrl: input.sourceUrl?.trim() || null,
+        triggerType: input.triggerType,
+        latitude: input.latitude ?? null,
+        longitude: input.longitude ?? null,
+        radiusMeters: input.radiusMeters ?? null,
+        unlockDistanceMeters: input.unlockDistanceMeters ?? null,
+        task: {
+          create: {
+            title: input.title.trim(),
+            description: input.description.trim(),
+            verificationMode: input.verificationMode,
+            verificationRule:
+              input.verificationMode === "TIMER"
+                ? {
+                    source: "exploration",
+                    minimumSeconds: input.minimumSeconds,
+                  }
+                : { source: "exploration", confirmationRequired: true },
+            growthPoints: input.growthPoints,
+          },
+        },
+      },
+    });
+    return this.listAdminExplorationRoutes();
+  }
+
+  async updateAdminExplorationQuest(
+    questId: string,
+    input: ExplorationQuestInput,
+  ) {
+    const existing = await this.prisma.mapQuest.findUnique({
+      where: { id: questId },
+    });
+    if (!existing) throw new NotFoundException("Exploration quest not found");
+    await this.assertDraftRoute(existing.routeId);
+    if (existing.routeId !== input.routeId) {
+      throw new BadRequestException("A quest cannot move between route versions");
+    }
+    this.assertValidQuestInput(input);
+    await this.prisma.$transaction([
+      this.prisma.task.update({
+        where: { id: existing.taskId },
+        data: {
+          title: input.title.trim(),
+          description: input.description.trim(),
+          verificationMode: input.verificationMode,
+          verificationRule:
+            input.verificationMode === "TIMER"
+              ? {
+                  source: "exploration",
+                  minimumSeconds: input.minimumSeconds,
+                }
+              : { source: "exploration", confirmationRequired: true },
+          growthPoints: input.growthPoints,
+        },
+      }),
+      this.prisma.mapQuest.update({
+        where: { id: questId },
+        data: {
+          sequence: input.sequence,
+          locationName: input.locationName.trim(),
+          category: input.category.trim().toUpperCase(),
+          safetyNote: input.safetyNote?.trim() || null,
+          accessibilityTags: input.accessibilityTags.map((tag) => tag.trim()),
+          sourceUrl: input.sourceUrl?.trim() || null,
+          triggerType: input.triggerType,
+          latitude: input.latitude ?? null,
+          longitude: input.longitude ?? null,
+          radiusMeters: input.radiusMeters ?? null,
+          unlockDistanceMeters: input.unlockDistanceMeters ?? null,
+        },
+      }),
+    ]);
+    return this.listAdminExplorationRoutes();
+  }
+
+  async reorderAdminExplorationQuests(
+    routeId: string,
+    questIds: string[],
+  ) {
+    await this.assertDraftRoute(routeId);
+    const existing = await this.prisma.mapQuest.findMany({
+      where: { routeId },
+      select: { id: true },
+    });
+    const expected = new Set(existing.map((quest) => quest.id));
+    if (
+      questIds.length !== expected.size ||
+      new Set(questIds).size !== questIds.length ||
+      questIds.some((id) => !expected.has(id))
+    ) {
+      throw new BadRequestException(
+        "Reorder must include every route quest exactly once",
+      );
+    }
+    await this.prisma.$transaction(async (transaction) => {
+      for (let index = 0; index < questIds.length; index += 1) {
+        await transaction.mapQuest.update({
+          where: { id: questIds[index] },
+          data: { sequence: 10_000 + index },
+        });
+      }
+      for (let index = 0; index < questIds.length; index += 1) {
+        await transaction.mapQuest.update({
+          where: { id: questIds[index] },
+          data: { sequence: index + 1 },
+        });
+      }
+    });
+    return this.listAdminExplorationRoutes();
+  }
+
+  async publishAdminExplorationRoute(routeId: string) {
+    await this.assertDraftRoute(routeId);
+    const route = await this.prisma.explorationRoute.findUnique({
+      where: { id: routeId },
+      include: { quests: { include: { task: true } } },
+    });
+    if (!route || route.quests.length === 0) {
+      throw new BadRequestException("A route needs at least one quest");
+    }
+    for (const quest of route.quests) {
+      this.assertValidQuestInput({
+        routeId,
+        sequence: quest.sequence,
+        locationName: quest.locationName,
+        category: quest.category,
+        safetyNote: quest.safetyNote,
+        accessibilityTags: quest.accessibilityTags,
+        sourceUrl: quest.sourceUrl,
+        title: quest.task.title,
+        description: quest.task.description,
+        verificationMode: quest.task.verificationMode as
+          | "SELF_CHECK"
+          | "TIMER",
+        minimumSeconds: (
+          quest.task.verificationRule as Record<string, unknown>
+        ).minimumSeconds as number | undefined,
+        growthPoints: quest.task.growthPoints,
+        triggerType: quest.triggerType,
+        latitude: quest.latitude,
+        longitude: quest.longitude,
+        radiusMeters: quest.radiusMeters,
+        unlockDistanceMeters: quest.unlockDistanceMeters,
+      });
+    }
+    const baseSlug = route.slug.replace(/-v\d+$/, "");
+    const published = await this.prisma.$transaction(async (transaction) => {
+      await transaction.explorationRoute.updateMany({
+        where: {
+          id: { not: routeId },
+          status: "PUBLISHED",
+          OR: [
+            { slug: baseSlug },
+            { slug: { startsWith: `${baseSlug}-v` } },
+          ],
+        },
+        data: { status: "ARCHIVED", archivedAt: this.clock.now() },
+      });
+      return transaction.explorationRoute.update({
+        where: { id: routeId },
+        data: {
+          status: "PUBLISHED",
+          publishedAt: this.clock.now(),
+          archivedAt: null,
+        },
+        include: {
+          quests: {
+            include: { task: true },
+            orderBy: { sequence: "asc" },
+          },
+        },
+      });
+    });
+    return this.toRouteSummary(published);
+  }
+
+  async duplicateAdminExplorationRoute(routeId: string) {
+    const source = await this.prisma.explorationRoute.findUnique({
+      where: { id: routeId },
+      include: {
+        quests: {
+          include: { task: true },
+          orderBy: { sequence: "asc" },
+        },
+      },
+    });
+    if (!source || source.status === "DRAFT") {
+      throw new BadRequestException(
+        "Only a published or archived route can create a new version",
+      );
+    }
+    const version = source.version + 1;
+    const route = await this.prisma.explorationRoute.create({
+      data: {
+        slug: `${source.slug.replace(/-v\d+$/, "")}-v${version}`,
+        name: source.name,
+        description: source.description,
+        badgeName: source.badgeName,
+        badgeAssetKey: source.badgeAssetKey,
+        version,
+        quests: {
+          create: source.quests.map((quest) => ({
+            sequence: quest.sequence,
+            locationName: quest.locationName,
+            category: quest.category,
+            safetyNote: quest.safetyNote,
+            accessibilityTags: quest.accessibilityTags,
+            sourceUrl: quest.sourceUrl,
+            triggerType: quest.triggerType,
+            latitude: quest.latitude,
+            longitude: quest.longitude,
+            radiusMeters: quest.radiusMeters,
+            unlockDistanceMeters: quest.unlockDistanceMeters,
+            active: quest.active,
+            task: {
+              create: {
+                title: quest.task.title,
+                description: quest.task.description,
+                verificationMode: quest.task.verificationMode,
+                verificationRule:
+                  quest.task.verificationRule ?? Prisma.JsonNull,
+                growthPoints: quest.task.growthPoints,
+              },
+            },
+          })),
+        },
+      },
+      include: {
+        quests: {
+          include: { task: true },
+          orderBy: { sequence: "asc" },
+        },
+      },
+    });
+    return this.toRouteSummary(route);
+  }
+
+  async archiveAdminExplorationRoute(routeId: string) {
+    const route = await this.prisma.explorationRoute.findUnique({
+      where: { id: routeId },
+    });
+    if (!route) throw new NotFoundException("Exploration route not found");
+    if (route.status === "DRAFT") {
+      throw new BadRequestException("Draft routes cannot be archived");
+    }
+    const archived = await this.prisma.explorationRoute.update({
+      where: { id: routeId },
+      data: { status: "ARCHIVED", archivedAt: this.clock.now() },
+      include: {
+        quests: {
+          include: { task: true },
+          orderBy: { sequence: "asc" },
+        },
+      },
+    });
+    return this.toRouteSummary(archived);
+  }
+
   async getExplorationState(firebaseUid: string): Promise<ExplorationState> {
     const active = await this.getActiveUser(firebaseUid);
-    const [progress, latestReceipt, quests] = await Promise.all([
+    const expirationCutoff = new Date(
+      this.clock.now().getTime() - 4 * 60 * 60 * 1000,
+    );
+    await this.prisma.explorationSession.updateMany({
+      where: {
+        userId: active.id,
+        householdId: active.activeHouseholdId,
+        status: "ACTIVE",
+        startedAt: { lt: expirationCutoff },
+      },
+      data: {
+        status: "EXPIRED",
+        endedAt: this.clock.now(),
+        lastLatitude: null,
+        lastLongitude: null,
+        lastAccuracy: null,
+      },
+    });
+    const [progress, latestReceipt, routes, activeSession] = await Promise.all([
       this.prisma.explorationProgress.findUnique({
         where: {
           userId_householdId: {
@@ -835,56 +1317,236 @@ export class PersistentStoreService {
         },
         orderBy: { occurredAt: "desc" },
       }),
-      this.prisma.mapQuest.findMany({
-        where: { active: true },
+      this.prisma.explorationRoute.findMany({
+        where: { status: "PUBLISHED" },
         include: {
-          task: true,
-          unlocks: {
+          awards: {
             where: {
               userId: active.id,
               householdId: active.activeHouseholdId,
             },
             take: 1,
           },
+          quests: {
+            where: { active: true },
+            include: {
+              task: {
+                include: {
+                  assignments: {
+                    where: {
+                      userId: active.id,
+                      householdId: active.activeHouseholdId,
+                    },
+                    take: 1,
+                  },
+                },
+              },
+              unlocks: {
+                where: {
+                  userId: active.id,
+                  householdId: active.activeHouseholdId,
+                },
+                take: 1,
+              },
+            },
+            orderBy: { sequence: "asc" },
+          },
         },
         orderBy: { createdAt: "asc" },
+      }),
+      this.prisma.explorationSession.findFirst({
+        where: {
+          userId: active.id,
+          householdId: active.activeHouseholdId,
+          status: "ACTIVE",
+        },
+        orderBy: { startedAt: "desc" },
       }),
     ]);
     return {
       totalDistanceMeters: progress?.totalDistanceMeters ?? 0,
       coarseCell: latestReceipt?.coarseCell ?? null,
-      quests: quests.map((quest) => ({
-        id: quest.id,
-        taskId: quest.taskId,
-        title: quest.task.title,
-        description: quest.task.description,
-        triggerType: quest.triggerType,
-        latitude: quest.latitude,
-        longitude: quest.longitude,
-        radiusMeters: quest.radiusMeters,
-        unlockDistanceMeters: quest.unlockDistanceMeters,
-        unlocked: quest.unlocks.length > 0,
-      })),
+      activeSession: activeSession
+        ? {
+            id: activeSession.id,
+            routeId: activeSession.routeId,
+            status: activeSession.status,
+            distanceMeters: activeSession.distanceMeters,
+            startedAt: activeSession.startedAt.toISOString(),
+            lastEventAt: activeSession.lastEventAt?.toISOString() ?? null,
+          }
+        : null,
+      routes: routes.map((route) => {
+        const completedQuestCount = route.quests.filter(
+          (quest) => quest.task.assignments[0]?.status === "COMPLETED",
+        ).length;
+        return {
+          id: route.id,
+          slug: route.slug,
+          name: route.name,
+          description: route.description,
+          badgeName: route.badgeName,
+          badgeAssetKey: route.badgeAssetKey,
+          version: route.version,
+          status: route.status,
+          publishedAt: route.publishedAt?.toISOString() ?? null,
+          completedQuestCount,
+          totalQuestCount: route.quests.length,
+          badgeAwarded: route.awards.length > 0,
+          quests: route.quests.map((quest) => ({
+            id: quest.id,
+            taskId: quest.taskId,
+            sequence: quest.sequence,
+            locationName: quest.locationName,
+            category: quest.category,
+            safetyNote: quest.safetyNote,
+            accessibilityTags: quest.accessibilityTags,
+            sourceUrl: quest.sourceUrl,
+            title: quest.task.title,
+            description: quest.task.description,
+            verificationMode: quest.task.verificationMode as
+              | "SELF_CHECK"
+              | "TIMER",
+            minimumSeconds:
+              typeof (
+                quest.task.verificationRule as Record<string, unknown>
+              ).minimumSeconds === "number"
+                ? (quest.task.verificationRule as Record<string, number>)
+                    .minimumSeconds
+                : null,
+            growthPoints: quest.task.growthPoints,
+            triggerType: quest.triggerType,
+            latitude: quest.latitude,
+            longitude: quest.longitude,
+            radiusMeters: quest.radiusMeters,
+            unlockDistanceMeters: quest.unlockDistanceMeters,
+            unlocked: quest.unlocks.length > 0,
+            completed: quest.task.assignments[0]?.status === "COMPLETED",
+          })),
+        };
+      }),
     };
   }
 
-  async recordExplorationEvent(
+  async startExplorationSession(firebaseUid: string, routeId: string) {
+    const active = await this.getActiveUser(firebaseUid);
+    const route = await this.prisma.explorationRoute.findFirst({
+      where: { id: routeId, status: "PUBLISHED" },
+    });
+    if (!route) throw new NotFoundException("Published exploration route not found");
+    const now = this.clock.now();
+    const expirationCutoff = new Date(now.getTime() - 4 * 60 * 60 * 1000);
+    await this.prisma.explorationSession.updateMany({
+      where: {
+        userId: active.id,
+        householdId: active.activeHouseholdId,
+        status: "ACTIVE",
+        startedAt: { lt: expirationCutoff },
+      },
+      data: {
+        status: "EXPIRED",
+        endedAt: now,
+        lastLatitude: null,
+        lastLongitude: null,
+        lastAccuracy: null,
+      },
+    });
+    const current = await this.prisma.explorationSession.findFirst({
+      where: {
+        userId: active.id,
+        householdId: active.activeHouseholdId,
+        status: "ACTIVE",
+      },
+      orderBy: { startedAt: "desc" },
+    });
+    if (current?.routeId === routeId) {
+      return {
+        id: current.id,
+        routeId: current.routeId,
+        status: current.status,
+        distanceMeters: current.distanceMeters,
+        startedAt: current.startedAt.toISOString(),
+        lastEventAt: current.lastEventAt?.toISOString() ?? null,
+      };
+    }
+    if (current) {
+      await this.prisma.explorationSession.update({
+        where: { id: current.id },
+        data: {
+          status: "ENDED",
+          endedAt: now,
+          lastLatitude: null,
+          lastLongitude: null,
+          lastAccuracy: null,
+        },
+      });
+    }
+    const session = await this.prisma.explorationSession.create({
+      data: {
+        routeId,
+        userId: active.id,
+        householdId: active.activeHouseholdId,
+        startedAt: now,
+      },
+    });
+    return {
+      id: session.id,
+      routeId: session.routeId,
+      status: session.status,
+      distanceMeters: session.distanceMeters,
+      startedAt: session.startedAt.toISOString(),
+      lastEventAt: null,
+    };
+  }
+
+  async recordExplorationSessionEvent(
     firebaseUid: string,
+    sessionId: string,
     event: {
       eventKey: string;
       latitude: number;
       longitude: number;
       accuracyMeters: number;
-      distanceMeters: number;
       occurredAt: string;
     },
+    options: { simulation?: boolean } = {},
   ): Promise<ExplorationEventResult> {
-    if (event.accuracyMeters > 100) {
+    if (event.accuracyMeters > 50) {
       throw new BadRequestException(
-        "Location accuracy must be within 100 meters",
+        "Location accuracy must be within 50 meters",
       );
     }
     const active = await this.getActiveUser(firebaseUid);
+    const expirationCutoff = new Date(
+      this.clock.now().getTime() - 4 * 60 * 60 * 1000,
+    );
+    await this.prisma.explorationSession.updateMany({
+      where: {
+        id: sessionId,
+        userId: active.id,
+        householdId: active.activeHouseholdId,
+        status: "ACTIVE",
+        startedAt: { lt: expirationCutoff },
+      },
+      data: {
+        status: "EXPIRED",
+        endedAt: this.clock.now(),
+        lastLatitude: null,
+        lastLongitude: null,
+        lastAccuracy: null,
+      },
+    });
+    const occurredAt = new Date(event.occurredAt);
+    if (Number.isNaN(occurredAt.getTime())) {
+      throw new BadRequestException("Invalid exploration event time");
+    }
+    const eventAge = this.clock.now().getTime() - occurredAt.getTime();
+    if (
+      !options.simulation &&
+      (eventAge > 5 * 60 * 1000 || eventAge < -60 * 1000)
+    ) {
+      throw new BadRequestException("Exploration event time is outside the accepted window");
+    }
     const previousReceipt = await this.prisma.locationEventReceipt.findUnique({
       where: { eventKey: event.eventKey },
     });
@@ -892,31 +1554,72 @@ export class PersistentStoreService {
       return {
         ...(await this.getExplorationState(firebaseUid)),
         duplicate: true,
+        acceptedDistanceMeters: previousReceipt.distanceMeters,
         newlyUnlockedTaskIds: [],
       };
     }
-
-    const distanceMeters = Math.min(
-      2000,
-      Math.max(0, Math.round(event.distanceMeters)),
-    );
     const coarseCell = latLngToCell(event.latitude, event.longitude, 8);
-    const occurredAt = new Date(event.occurredAt);
-    if (Number.isNaN(occurredAt.getTime())) {
-      throw new BadRequestException("Invalid exploration event time");
-    }
 
-    const newlyUnlockedTaskIds = await this.prisma.$transaction(
+    const transactionResult = await this.prisma.$transaction(
       async (transaction) => {
         await transaction.$executeRaw`
-          SELECT pg_advisory_xact_lock(hashtext(${`exploration:${event.eventKey}`}))
+          SELECT pg_advisory_xact_lock(hashtext(${`exploration-session:${sessionId}`}))
         `;
         const duplicate = await transaction.locationEventReceipt.findUnique({
           where: { eventKey: event.eventKey },
         });
-        if (duplicate) return [] as string[];
+        if (duplicate) {
+          return {
+            duplicate: true,
+            acceptedDistanceMeters: duplicate.distanceMeters,
+            newlyUnlockedTaskIds: [] as string[],
+          };
+        }
+        const session = await transaction.explorationSession.findFirst({
+          where: {
+            id: sessionId,
+            userId: active.id,
+            householdId: active.activeHouseholdId,
+            status: "ACTIVE",
+          },
+        });
+        if (!session) throw new NotFoundException("Active exploration session not found");
+        if (
+          session.lastEventAt &&
+          occurredAt.getTime() <= session.lastEventAt.getTime()
+        ) {
+          throw new BadRequestException("Exploration events must be chronological");
+        }
+        let acceptedDistanceMeters = 0;
+        if (
+          session.lastLatitude !== null &&
+          session.lastLongitude !== null &&
+          session.lastEventAt
+        ) {
+          const preciseDistance = distanceBetweenMeters(
+            {
+              latitude: session.lastLatitude,
+              longitude: session.lastLongitude,
+            },
+            { latitude: event.latitude, longitude: event.longitude },
+          );
+          const elapsedSeconds =
+            (occurredAt.getTime() - session.lastEventAt.getTime()) / 1000;
+          const speedMetersPerSecond = preciseDistance / elapsedSeconds;
+          if (
+            !options.simulation &&
+            (preciseDistance > 2_000 || speedMetersPerSecond > 15 / 3.6)
+          ) {
+            throw new BadRequestException(
+              "Location jump is too fast for a walking exploration",
+            );
+          }
+          acceptedDistanceMeters = Math.max(0, Math.round(preciseDistance));
+        }
+        const nextSessionDistance =
+          session.distanceMeters + acceptedDistanceMeters;
 
-        const progress = await transaction.explorationProgress.upsert({
+        await transaction.explorationProgress.upsert({
           where: {
             userId_householdId: {
               userId: active.id,
@@ -924,34 +1627,46 @@ export class PersistentStoreService {
             },
           },
           update: {
-            totalDistanceMeters: { increment: distanceMeters },
+            totalDistanceMeters: { increment: acceptedDistanceMeters },
             lastEventAt: occurredAt,
           },
           create: {
             userId: active.id,
             householdId: active.activeHouseholdId,
-            totalDistanceMeters: distanceMeters,
+            totalDistanceMeters: acceptedDistanceMeters,
+            lastEventAt: occurredAt,
+          },
+        });
+        await transaction.explorationSession.update({
+          where: { id: session.id },
+          data: {
+            distanceMeters: nextSessionDistance,
+            lastLatitude: event.latitude,
+            lastLongitude: event.longitude,
+            lastAccuracy: event.accuracyMeters,
             lastEventAt: occurredAt,
           },
         });
         await transaction.locationEventReceipt.create({
           data: {
             eventKey: event.eventKey,
+            sessionId: session.id,
             userId: active.id,
             householdId: active.activeHouseholdId,
             coarseCell,
-            distanceMeters,
+            distanceMeters: acceptedDistanceMeters,
             occurredAt,
           },
         });
 
         const distanceQuests = await transaction.mapQuest.findMany({
           where: {
+            routeId: session.routeId,
             active: true,
             triggerType: QuestTriggerType.DISTANCE,
             unlockDistanceMeters: {
               not: null,
-              lte: progress.totalDistanceMeters,
+              lte: nextSessionDistance,
             },
           },
           select: { id: true, taskId: true },
@@ -961,7 +1676,8 @@ export class PersistentStoreService {
         >`
           SELECT "id", "taskId"
           FROM "MapQuest"
-          WHERE "active" = true
+          WHERE "routeId" = ${session.routeId}
+            AND "active" = true
             AND "triggerType" = 'GEOFENCE'::"QuestTriggerType"
             AND "latitude" IS NOT NULL
             AND "longitude" IS NOT NULL
@@ -1004,14 +1720,267 @@ export class PersistentStoreService {
             skipDuplicates: true,
           });
         }
-        return unlockedTaskIds;
+        return {
+          duplicate: false,
+          acceptedDistanceMeters,
+          newlyUnlockedTaskIds: unlockedTaskIds,
+        };
       },
     );
     return {
       ...(await this.getExplorationState(firebaseUid)),
-      duplicate: false,
-      newlyUnlockedTaskIds,
+      ...transactionResult,
     };
+  }
+
+  async endExplorationSession(firebaseUid: string, sessionId: string) {
+    const active = await this.getActiveUser(firebaseUid);
+    const session = await this.prisma.explorationSession.findFirst({
+      where: {
+        id: sessionId,
+        userId: active.id,
+        householdId: active.activeHouseholdId,
+      },
+    });
+    if (!session) throw new NotFoundException("Exploration session not found");
+    if (session.status === "ACTIVE") {
+      await this.prisma.explorationSession.update({
+        where: { id: session.id },
+        data: {
+          status: "ENDED",
+          endedAt: this.clock.now(),
+          lastLatitude: null,
+          lastLongitude: null,
+          lastAccuracy: null,
+        },
+      });
+    }
+    return this.getExplorationState(firebaseUid);
+  }
+
+  async simulateExplorationStep(
+    firebaseUid: string,
+    routeId: string,
+    step: number,
+  ): Promise<ExplorationEventResult> {
+    if (
+      process.env.NODE_ENV === "production" ||
+      process.env.LOCATION_SIMULATION_ENABLED !== "true"
+    ) {
+      throw new BadRequestException("Location simulation is disabled");
+    }
+    const route = await this.prisma.explorationRoute.findFirst({
+      where: { id: routeId, status: "PUBLISHED" },
+      include: { quests: { where: { active: true }, orderBy: { sequence: "asc" } } },
+    });
+    const quest = route?.quests[step - 1];
+    if (!route || !quest) throw new NotFoundException("Simulation step not found");
+    const session = await this.startExplorationSession(firebaseUid, routeId);
+    if (
+      quest.triggerType === "GEOFENCE" &&
+      quest.latitude !== null &&
+      quest.longitude !== null
+    ) {
+      return this.recordExplorationSessionEvent(
+        firebaseUid,
+        session.id,
+        {
+          eventKey: `simulation:${session.id}:${step}`,
+          latitude: quest.latitude,
+          longitude: quest.longitude,
+          accuracyMeters: 5,
+          occurredAt: new Date(
+            this.clock.now().getTime() + step,
+          ).toISOString(),
+        },
+        { simulation: true },
+      );
+    }
+    const active = await this.getActiveUser(firebaseUid);
+    const targetDistance = quest.unlockDistanceMeters ?? session.distanceMeters;
+    const acceptedDistanceMeters = Math.max(
+      0,
+      targetDistance - session.distanceMeters,
+    );
+    const fallbackPoint = route.quests.find(
+      (item) => item.latitude !== null && item.longitude !== null,
+    );
+    const latitude = fallbackPoint?.latitude ?? 25.03367;
+    const longitude = fallbackPoint?.longitude ?? 121.53566;
+    const eventKey = `simulation:${session.id}:${step}`;
+    const duplicate = await this.prisma.locationEventReceipt.findUnique({
+      where: { eventKey },
+    });
+    if (!duplicate) {
+      await this.prisma.$transaction(async (transaction) => {
+        await transaction.explorationSession.update({
+          where: { id: session.id },
+          data: {
+            distanceMeters: targetDistance,
+            lastLatitude: latitude,
+            lastLongitude: longitude,
+            lastAccuracy: 5,
+            lastEventAt: this.clock.now(),
+          },
+        });
+        await transaction.explorationProgress.upsert({
+          where: {
+            userId_householdId: {
+              userId: active.id,
+              householdId: active.activeHouseholdId,
+            },
+          },
+          update: {
+            totalDistanceMeters: { increment: acceptedDistanceMeters },
+            lastEventAt: this.clock.now(),
+          },
+          create: {
+            userId: active.id,
+            householdId: active.activeHouseholdId,
+            totalDistanceMeters: acceptedDistanceMeters,
+            lastEventAt: this.clock.now(),
+          },
+        });
+        await transaction.locationEventReceipt.create({
+          data: {
+            eventKey,
+            sessionId: session.id,
+            userId: active.id,
+            householdId: active.activeHouseholdId,
+            coarseCell: latLngToCell(latitude, longitude, 8),
+            distanceMeters: acceptedDistanceMeters,
+            occurredAt: this.clock.now(),
+          },
+        });
+        await transaction.questUnlock.createMany({
+          data: [
+            {
+              questId: quest.id,
+              userId: active.id,
+              householdId: active.activeHouseholdId,
+            },
+          ],
+          skipDuplicates: true,
+        });
+        await transaction.taskAssignment.createMany({
+          data: [
+            {
+              taskId: quest.taskId,
+              userId: active.id,
+              householdId: active.activeHouseholdId,
+              status: AssignmentStatus.AVAILABLE,
+            },
+          ],
+          skipDuplicates: true,
+        });
+      });
+    }
+    return {
+      ...(await this.getExplorationState(firebaseUid)),
+      duplicate: Boolean(duplicate),
+      acceptedDistanceMeters: duplicate?.distanceMeters ?? acceptedDistanceMeters,
+      newlyUnlockedTaskIds: duplicate ? [] : [quest.taskId],
+    };
+  }
+
+  private toRouteSummary(route: RouteWithTasks): ExplorationRouteSummary {
+    return {
+      id: route.id,
+      slug: route.slug,
+      name: route.name,
+      description: route.description,
+      badgeName: route.badgeName,
+      badgeAssetKey: route.badgeAssetKey,
+      version: route.version,
+      status: route.status,
+      publishedAt: route.publishedAt?.toISOString() ?? null,
+      completedQuestCount: 0,
+      totalQuestCount: route.quests.length,
+      badgeAwarded: false,
+      quests: route.quests.map((quest) => ({
+        id: quest.id,
+        taskId: quest.taskId,
+        sequence: quest.sequence,
+        locationName: quest.locationName,
+        category: quest.category,
+        safetyNote: quest.safetyNote,
+        accessibilityTags: quest.accessibilityTags,
+        sourceUrl: quest.sourceUrl,
+        title: quest.task.title,
+        description: quest.task.description,
+        verificationMode: quest.task.verificationMode as
+          | "SELF_CHECK"
+          | "TIMER",
+        minimumSeconds:
+          typeof (quest.task.verificationRule as Record<string, unknown>)
+            .minimumSeconds === "number"
+            ? (quest.task.verificationRule as Record<string, number>)
+                .minimumSeconds
+            : null,
+        growthPoints: quest.task.growthPoints,
+        triggerType: quest.triggerType,
+        latitude: quest.latitude,
+        longitude: quest.longitude,
+        radiusMeters: quest.radiusMeters,
+        unlockDistanceMeters: quest.unlockDistanceMeters,
+        unlocked: false,
+        completed: false,
+      })),
+    };
+  }
+
+  private async assertDraftRoute(routeId: string): Promise<void> {
+    const route = await this.prisma.explorationRoute.findUnique({
+      where: { id: routeId },
+      select: { status: true },
+    });
+    if (!route) throw new NotFoundException("Exploration route not found");
+    if (route.status !== "DRAFT") {
+      throw new ConflictException(
+        "Published routes are immutable; create a new draft version",
+      );
+    }
+  }
+
+  private assertValidQuestInput(input: ExplorationQuestInput): void {
+    if (!["SELF_CHECK", "TIMER"].includes(input.verificationMode)) {
+      throw new BadRequestException(
+        "Exploration quests only support SELF_CHECK or TIMER",
+      );
+    }
+    if (
+      input.verificationMode === "TIMER" &&
+      (!input.minimumSeconds ||
+        input.minimumSeconds < 30 ||
+        input.minimumSeconds > 3600)
+    ) {
+      throw new BadRequestException(
+        "Timer exploration quests require 30-3600 seconds",
+      );
+    }
+    if (
+      input.triggerType === "GEOFENCE" &&
+      (input.latitude === null ||
+        input.latitude === undefined ||
+        input.longitude === null ||
+        input.longitude === undefined ||
+        input.radiusMeters === null ||
+        input.radiusMeters === undefined ||
+        input.radiusMeters < 25 ||
+        input.radiusMeters > 150)
+    ) {
+      throw new BadRequestException(
+        "Geofence quests require a coordinate and a 25-150 meter radius",
+      );
+    }
+    if (
+      input.triggerType === "DISTANCE" &&
+      (!input.unlockDistanceMeters || input.unlockDistanceMeters < 50)
+    ) {
+      throw new BadRequestException(
+        "Distance quests require an unlock distance of at least 50 meters",
+      );
+    }
   }
 
   private async findAssignment(
@@ -1078,6 +2047,49 @@ export class PersistentStoreService {
     });
   }
 
+  private async awardCompletedRouteBadge(
+    transaction: Prisma.TransactionClient,
+    userId: string,
+    householdId: string,
+    taskId: string,
+  ): Promise<void> {
+    const quest = await transaction.mapQuest.findUnique({
+      where: { taskId },
+      include: {
+        route: {
+          include: {
+            quests: {
+              where: { active: true },
+              select: { taskId: true },
+            },
+          },
+        },
+      },
+    });
+    if (!quest || quest.route.status !== "PUBLISHED") return;
+    const taskIds = quest.route.quests.map((item) => item.taskId);
+    if (taskIds.length === 0) return;
+    const completedCount = await transaction.taskAssignment.count({
+      where: {
+        userId,
+        householdId,
+        taskId: { in: taskIds },
+        status: AssignmentStatus.COMPLETED,
+      },
+    });
+    if (completedCount !== taskIds.length) return;
+    await transaction.explorationRouteAward.createMany({
+      data: [
+        {
+          routeId: quest.routeId,
+          userId,
+          householdId,
+        },
+      ],
+      skipDuplicates: true,
+    });
+  }
+
   private toDeviceSummary(device: {
     id: string;
     serialNumber: string;
@@ -1125,6 +2137,23 @@ export class PersistentStoreService {
   }
 
   private async ensureUserContext(firebaseUid: string): Promise<void> {
+    const existing = await this.prisma.user.findUnique({
+      where: { firebaseUid },
+      select: {
+        activeHouseholdId: true,
+        householdLinks: { select: { householdId: true } },
+      },
+    });
+    if (
+      existing?.activeHouseholdId &&
+      existing.householdLinks.some(
+        (membership) =>
+          membership.householdId === existing.activeHouseholdId,
+      )
+    ) {
+      return;
+    }
+    await this.ensureTaskSeeds();
     await this.prisma.$transaction(async (transaction) => {
       await transaction.$executeRaw`
         SELECT pg_advisory_xact_lock(hashtext(${firebaseUid}))
@@ -1139,23 +2168,6 @@ export class PersistentStoreService {
           role: UserRole.PARTICIPANT,
         },
       });
-
-      for (const task of TASK_SEEDS) {
-        await transaction.task.upsert({
-          where: { id: task.id },
-          update: {
-            title: task.title,
-            description: task.description,
-            verificationMode: task.verificationMode,
-            verificationRule: task.verificationRule,
-            growthPoints: task.growthPoints,
-          },
-          create: {
-            ...task,
-            verificationRule: task.verificationRule,
-          },
-        });
-      }
 
       let memberships = await transaction.householdMember.findMany({
         where: { userId: user.id },
@@ -1224,5 +2236,26 @@ export class PersistentStoreService {
         });
       }
     });
+  }
+
+  private async ensureTaskSeeds(): Promise<void> {
+    await this.prisma.$transaction(
+      TASK_SEEDS.map((task) =>
+        this.prisma.task.upsert({
+          where: { id: task.id },
+          update: {
+            title: task.title,
+            description: task.description,
+            verificationMode: task.verificationMode,
+            verificationRule: task.verificationRule,
+            growthPoints: task.growthPoints,
+          },
+          create: {
+            ...task,
+            verificationRule: task.verificationRule,
+          },
+        }),
+      ),
+    );
   }
 }

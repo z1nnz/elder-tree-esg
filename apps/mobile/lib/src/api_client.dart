@@ -140,23 +140,36 @@ class ApiClient {
     });
   }
 
+  Future<ExplorationSessionModel> startExplorationSession(
+    String routeId,
+  ) async {
+    return ExplorationSessionModel.fromJson(
+      await _post('/exploration/sessions', {'routeId': routeId}),
+    );
+  }
+
   Future<ExplorationStateModel> recordExplorationEvent({
+    required String sessionId,
     required String eventKey,
     required double latitude,
     required double longitude,
     required double accuracyMeters,
-    required double distanceMeters,
     required DateTime occurredAt,
   }) async {
     return ExplorationStateModel.fromJson(
-      await _post('/exploration/events', {
+      await _post('/exploration/sessions/$sessionId/events', {
         'eventKey': eventKey,
         'latitude': latitude,
         'longitude': longitude,
         'accuracyMeters': accuracyMeters,
-        'distanceMeters': distanceMeters,
         'occurredAt': occurredAt.toUtc().toIso8601String(),
       }),
+    );
+  }
+
+  Future<ExplorationStateModel> endExplorationSession(String sessionId) async {
+    return ExplorationStateModel.fromJson(
+      await _post('/exploration/sessions/$sessionId/end', const {}),
     );
   }
 

@@ -7,6 +7,23 @@ on:
 jobs:
   node:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: elder_tree
+          POSTGRES_PASSWORD: elder_tree
+          POSTGRES_DB: elder_tree
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U elder_tree -d elder_tree"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://elder_tree:elder_tree@localhost:5432/elder_tree
+      RUN_PERSISTENCE_TESTS: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -14,6 +31,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm exec --workspace @elder-tree/api -- prisma migrate deploy
       - run: npm run typecheck
       - run: npm test
       - run: npm run build

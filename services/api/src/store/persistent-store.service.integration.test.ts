@@ -1,16 +1,20 @@
 import { createHash, randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { PrismaService } from "../database/prisma.service";
 import type { ClockService } from "../time/clock.service";
 import { PersistentStoreService } from "./persistent-store.service";
 
 const databaseUrl = process.env.DATABASE_URL;
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
+if (databaseUrl) {
+  vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
+}
 
 describeWithDatabase("PersistentStoreService", () => {
   const firebaseUid = `integration-${randomUUID()}`;
   const createdFirebaseUids = new Set([firebaseUid]);
   const createdTaskIds = new Set<string>();
+  const createdRouteIds = new Set<string>();
   const createdDeviceIds = new Set<string>();
   let prisma: PrismaService;
   let store: PersistentStoreService;
@@ -37,6 +41,9 @@ describeWithDatabase("PersistentStoreService", () => {
     for (const householdId of householdIds) {
       await prisma.household.deleteMany({ where: { id: householdId } });
     }
+    await prisma.explorationRoute.deleteMany({
+      where: { id: { in: [...createdRouteIds] } },
+    });
     await prisma.task.deleteMany({ where: { id: { in: [...createdTaskIds] } } });
     await prisma.$disconnect();
   });
@@ -70,7 +77,7 @@ describeWithDatabase("PersistentStoreService", () => {
           ?.status,
       ).toBe("COMPLETED");
     },
-    30_000,
+    120_000,
   );
 
   it(
@@ -120,7 +127,7 @@ describeWithDatabase("PersistentStoreService", () => {
       );
       expect((await store.getTree(joinerUid)).growthPoints).toBe(30);
     },
-    30_000,
+    120_000,
   );
 
   it(
@@ -149,7 +156,7 @@ describeWithDatabase("PersistentStoreService", () => {
       await timerStore.completeTask(timerUid, timerTask!.id);
       expect((await timerStore.getTree(timerUid)).growthPoints).toBe(60);
     },
-    30_000,
+    60_000,
   );
 
   it(
@@ -205,12 +212,46 @@ describeWithDatabase("PersistentStoreService", () => {
         }
       }
     },
-    30_000,
+    60_000,
+  );
+
+  it(
+    "keeps photo evidence locked without private storage configuration",
+    async () => {
+      delete process.env.PHOTO_EVIDENCE_ENABLED;
+      const lockedUid = `integration-photo-locked-${randomUUID()}`;
+      createdFirebaseUids.add(lockedUid);
+      const context = await store.getContext(lockedUid);
+      const photoTask = (await store.listTasks(lockedUid)).find(
+        (task) => task.verificationMode === "PHOTO_AI",
+      );
+
+      expect(context.capabilities.photoEvidence).toEqual({
+        enabled: false,
+        reason: "STORAGE_NOT_CONFIGURED",
+      });
+      expect(photoTask?.capability).toEqual({
+        enabled: false,
+        reason: "PHOTO_STORAGE_UNAVAILABLE",
+      });
+      await expect(
+        store.initializeEvidence(
+          lockedUid,
+          photoTask!.id,
+          "locked.jpg",
+          "image/jpeg",
+        ),
+      ).rejects.toThrow("private storage is configured");
+    },
+    60_000,
   );
 
   it(
     "lets another household member review photo evidence exactly once",
     async () => {
+      const previousPhotoEvidenceEnabled =
+        process.env.PHOTO_EVIDENCE_ENABLED;
+      process.env.PHOTO_EVIDENCE_ENABLED = "true";
       const submitterUid = `integration-photo-${randomUUID()}`;
       const reviewerUid = `integration-reviewer-${randomUUID()}`;
       createdFirebaseUids.add(submitterUid);
@@ -285,72 +326,258 @@ describeWithDatabase("PersistentStoreService", () => {
       expect((await photoStore.getTree(reviewerUid)).growthPoints).toBe(80);
       expect(deletedPaths.length).toBeGreaterThanOrEqual(1);
       expect(new Set(deletedPaths)).toEqual(new Set([evidence.storagePath]));
+      if (previousPhotoEvidenceEnabled === undefined) {
+        delete process.env.PHOTO_EVIDENCE_ENABLED;
+      } else {
+        process.env.PHOTO_EVIDENCE_ENABLED = previousPhotoEvidenceEnabled;
+      }
     },
-    30_000,
+    60_000,
   );
 
   it(
-    "unlocks a distance quest once without storing a precise location trail",
+    "publishes valid admin routes and keeps published versions immutable",
+    async () => {
+      const route = await store.createAdminExplorationRoute({
+        slug: `admin-route-${randomUUID()}`,
+        name: "後台測試路線",
+        description: "用公開介面驗證草稿、任務與發布後不可修改。",
+        badgeName: "後台測試徽章",
+        badgeAssetKey: "admin-test",
+      });
+      createdRouteIds.add(route.id);
+      const firstRoutes = await store.createAdminExplorationQuest({
+        routeId: route.id,
+        sequence: 1,
+        locationName: "測試地標",
+        category: "NATURE",
+        safetyNote: "待現場確認。",
+        accessibilityTags: ["待確認"],
+        title: "觀察一棵樹",
+        description: "停下來觀察一棵樹的形狀。",
+        verificationMode: "SELF_CHECK",
+        growthPoints: 5,
+        triggerType: "GEOFENCE",
+        latitude: 25.0316,
+        longitude: 121.5362,
+        radiusMeters: 50,
+      });
+      const firstDraft = firstRoutes.find((item) => item.id === route.id)!;
+      const secondRoutes = await store.createAdminExplorationQuest({
+        routeId: route.id,
+        sequence: 2,
+        locationName: "第二個測試地標",
+        category: "REST",
+        safetyNote: "待現場確認。",
+        accessibilityTags: ["待確認"],
+        title: "停下來休息",
+        description: "依自己的狀況停下來休息。",
+        verificationMode: "SELF_CHECK",
+        growthPoints: 4,
+        triggerType: "GEOFENCE",
+        latitude: 25.032,
+        longitude: 121.5368,
+        radiusMeters: 50,
+      });
+      const draft = secondRoutes.find((item) => item.id === route.id)!;
+      createdTaskIds.add(firstDraft.quests[0]!.taskId);
+      createdTaskIds.add(draft.quests[1]!.taskId);
+      const reordered = await store.reorderAdminExplorationQuests(route.id, [
+        draft.quests[1]!.id,
+        draft.quests[0]!.id,
+      ]);
+      expect(
+        reordered.find((item) => item.id === route.id)?.quests[0]?.title,
+      ).toBe("停下來休息");
+
+      const published = await store.publishAdminExplorationRoute(route.id);
+      expect(published.status).toBe("PUBLISHED");
+      expect(
+        (await store.getPublicExplorationRoute(route.slug)).totalQuestCount,
+      ).toBe(2);
+      await expect(
+        store.updateAdminExplorationRoute(route.id, { name: "不應被修改" }),
+      ).rejects.toThrow("immutable");
+    },
+    60_000,
+  );
+
+  it(
+    "computes exploration distance on the server and awards a route badge once",
     async () => {
       const explorerUid = `integration-explorer-${randomUUID()}`;
-      const questTaskId = randomUUID();
+      const routeId = randomUUID();
+      const distanceTaskId = randomUUID();
+      const placeTaskId = randomUUID();
       createdFirebaseUids.add(explorerUid);
-      createdTaskIds.add(questTaskId);
-      await prisma.task.create({
+      createdRouteIds.add(routeId);
+      createdTaskIds.add(distanceTaskId);
+      createdTaskIds.add(placeTaskId);
+      let now = new Date("2026-07-06T05:00:00.000Z");
+      const explorationStore = new PersistentStoreService(prisma, {
+        now: () => now,
+      } as ClockService);
+
+      await prisma.explorationRoute.create({
         data: {
-          id: questTaskId,
-          title: "走出第一個五百公尺",
-          description: "用自己的步調探索附近的街區。",
-          verificationMode: "LOCATION_CHECK_IN",
-          verificationRule: { source: "exploration" },
-          growthPoints: 40,
-          mapQuest: {
-            create: {
-              triggerType: "DISTANCE",
-              unlockDistanceMeters: 500,
-            },
+          id: routeId,
+          slug: `integration-route-${randomUUID()}`,
+          name: "整合測試綠徑",
+          description: "驗證伺服器計距、地標解鎖與徽章。",
+          badgeName: "整合測試徽章",
+          badgeAssetKey: "integration-leaf",
+          status: "PUBLISHED",
+          publishedAt: now,
+          quests: {
+            create: [
+              {
+                sequence: 1,
+                locationName: "第一段步行",
+                category: "DISTANCE",
+                triggerType: "DISTANCE",
+                unlockDistanceMeters: 80,
+                task: {
+                  create: {
+                    id: distanceTaskId,
+                    title: "完成第一段步行",
+                    description: "走完第一段後確認自己的狀態。",
+                    verificationMode: "SELF_CHECK",
+                    verificationRule: { source: "exploration" },
+                    growthPoints: 6,
+                  },
+                },
+              },
+              {
+                sequence: 2,
+                locationName: "測試地標",
+                category: "NATURE",
+                triggerType: "GEOFENCE",
+                latitude: 25.0338,
+                longitude: 121.5357,
+                radiusMeters: 50,
+                task: {
+                  create: {
+                    id: placeTaskId,
+                    title: "抵達測試地標",
+                    description: "抵達後完成一項自我確認。",
+                    verificationMode: "SELF_CHECK",
+                    verificationRule: { source: "exploration" },
+                    growthPoints: 8,
+                  },
+                },
+              },
+            ],
           },
         },
       });
 
-      const first = await store.recordExplorationEvent(explorerUid, {
-        eventKey: `walk-${randomUUID()}`,
-        latitude: 25.033,
-        longitude: 121.5654,
-        accuracyMeters: 12,
-        distanceMeters: 300,
-        occurredAt: new Date().toISOString(),
-      });
-      expect(first.newlyUnlockedTaskIds).toEqual([]);
+      const session = await explorationStore.startExplorationSession(
+        explorerUid,
+        routeId,
+      );
+      const firstEventKey = `walk-${randomUUID()}`;
+      const first = await explorationStore.recordExplorationSessionEvent(
+        explorerUid,
+        session.id,
+        {
+          eventKey: firstEventKey,
+          latitude: 25.0328,
+          longitude: 121.5357,
+          accuracyMeters: 10,
+          occurredAt: now.toISOString(),
+        },
+      );
+      expect(first.acceptedDistanceMeters).toBe(0);
 
-      const secondEventKey = `walk-${randomUUID()}`;
-      const second = await store.recordExplorationEvent(explorerUid, {
-        eventKey: secondEventKey,
-        latitude: 25.034,
-        longitude: 121.566,
-        accuracyMeters: 15,
-        distanceMeters: 250,
-        occurredAt: new Date().toISOString(),
-      });
-      expect(second.totalDistanceMeters).toBe(550);
-      expect(second.newlyUnlockedTaskIds).toEqual([questTaskId]);
-
-      const duplicate = await store.recordExplorationEvent(explorerUid, {
-        eventKey: secondEventKey,
-        latitude: 25.034,
-        longitude: 121.566,
-        accuracyMeters: 15,
-        distanceMeters: 250,
-        occurredAt: new Date().toISOString(),
-      });
-      expect(duplicate.duplicate).toBe(true);
-      expect(duplicate.totalDistanceMeters).toBe(550);
-      expect(
-        (await store.listTasks(explorerUid)).some(
-          (task) => task.title === "走出第一個五百公尺",
+      now = new Date("2026-07-06T05:00:01.000Z");
+      await expect(
+        explorationStore.recordExplorationSessionEvent(
+          explorerUid,
+          session.id,
+          {
+            eventKey: `walk-jump-${randomUUID()}`,
+            latitude: 25.05,
+            longitude: 121.5357,
+            accuracyMeters: 10,
+            occurredAt: now.toISOString(),
+          },
         ),
-      ).toBe(true);
+      ).rejects.toThrow("too fast");
 
+      now = new Date("2026-07-06T05:02:00.000Z");
+      const secondEventKey = `walk-${randomUUID()}`;
+      const second = await explorationStore.recordExplorationSessionEvent(
+        explorerUid,
+        session.id,
+        {
+          eventKey: secondEventKey,
+          latitude: 25.0338,
+          longitude: 121.5357,
+          accuracyMeters: 10,
+          occurredAt: now.toISOString(),
+        },
+      );
+      expect(second.acceptedDistanceMeters).toBeGreaterThanOrEqual(100);
+      expect(new Set(second.newlyUnlockedTaskIds)).toEqual(
+        new Set([distanceTaskId, placeTaskId]),
+      );
+
+      const duplicate = await explorationStore.recordExplorationSessionEvent(
+        explorerUid,
+        session.id,
+        {
+          eventKey: secondEventKey,
+          latitude: 25.0338,
+          longitude: 121.5357,
+          accuracyMeters: 10,
+          occurredAt: now.toISOString(),
+        },
+      );
+      expect(duplicate.duplicate).toBe(true);
+
+      const unlockedTasks = await explorationStore.listTasks(explorerUid);
+      const distanceTask = unlockedTasks.find(
+        (task) => task.title === "完成第一段步行",
+      );
+      const placeTask = unlockedTasks.find(
+        (task) => task.title === "抵達測試地標",
+      );
+      await explorationStore.completeTask(explorerUid, distanceTask!.id);
+      await explorationStore.completeTask(explorerUid, placeTask!.id);
+      await explorationStore.completeTask(explorerUid, placeTask!.id);
+
+      const state = await explorationStore.getExplorationState(explorerUid);
+      const completedRoute = state.routes.find((route) => route.id === routeId);
+      expect(completedRoute?.completedQuestCount).toBe(2);
+      expect(completedRoute?.badgeAwarded).toBe(true);
+      expect(
+        await prisma.explorationRouteAward.count({
+          where: { routeId, user: { firebaseUid: explorerUid } },
+        }),
+      ).toBe(1);
+
+      now = new Date("2026-07-06T09:02:01.000Z");
+      await expect(
+        explorationStore.recordExplorationSessionEvent(
+          explorerUid,
+          session.id,
+          {
+            eventKey: `walk-expired-${randomUUID()}`,
+            latitude: 25.0338,
+            longitude: 121.5357,
+            accuracyMeters: 10,
+            occurredAt: now.toISOString(),
+          },
+        ),
+      ).rejects.toThrow("Active exploration session not found");
+
+      await explorationStore.endExplorationSession(explorerUid, session.id);
+      const ended = await prisma.explorationSession.findUniqueOrThrow({
+        where: { id: session.id },
+      });
+      expect(ended.status).toBe("EXPIRED");
+      expect(ended.lastLatitude).toBeNull();
+      expect(ended.lastLongitude).toBeNull();
       const receipts = await prisma.locationEventReceipt.findMany({
         where: { user: { firebaseUid: explorerUid } },
       });
@@ -358,6 +585,6 @@ describeWithDatabase("PersistentStoreService", () => {
         true,
       );
     },
-    30_000,
+    60_000,
   );
 });

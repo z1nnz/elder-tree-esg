@@ -99,6 +99,10 @@ export interface TaskSummary {
   startedAt: string | null;
   minimumSeconds: number | null;
   dueAt: string | null;
+  capability: {
+    enabled: boolean;
+    reason: "PHOTO_STORAGE_UNAVAILABLE" | null;
+  };
 }
 
 export interface TreeSummary {
@@ -128,6 +132,12 @@ export interface AppContext {
   displayName: string;
   activeHouseholdId: string;
   households: HouseholdSummary[];
+  capabilities: {
+    photoEvidence: {
+      enabled: boolean;
+      reason: "STORAGE_NOT_CONFIGURED" | null;
+    };
+  };
 }
 
 export interface HouseholdInviteSummary {
@@ -180,25 +190,90 @@ export interface CompanionDeviceSummary {
 export interface ExplorationQuest {
   id: string;
   taskId: string;
+  sequence: number;
+  locationName: string;
+  category: string;
+  safetyNote: string | null;
+  accessibilityTags: string[];
+  sourceUrl: string | null;
   title: string;
   description: string;
+  verificationMode: "SELF_CHECK" | "TIMER";
+  minimumSeconds: number | null;
+  growthPoints: number;
   triggerType: "DISTANCE" | "GEOFENCE";
   latitude: number | null;
   longitude: number | null;
   radiusMeters: number | null;
   unlockDistanceMeters: number | null;
   unlocked: boolean;
+  completed: boolean;
+}
+
+export interface ExplorationSessionSummary {
+  id: string;
+  routeId: string;
+  status: "ACTIVE" | "ENDED" | "EXPIRED";
+  distanceMeters: number;
+  startedAt: string;
+  lastEventAt: string | null;
+}
+
+export interface ExplorationRouteSummary {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  badgeName: string;
+  badgeAssetKey: string;
+  version: number;
+  status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  publishedAt: string | null;
+  completedQuestCount: number;
+  totalQuestCount: number;
+  badgeAwarded: boolean;
+  quests: ExplorationQuest[];
 }
 
 export interface ExplorationState {
   totalDistanceMeters: number;
   coarseCell: string | null;
-  quests: ExplorationQuest[];
+  activeSession: ExplorationSessionSummary | null;
+  routes: ExplorationRouteSummary[];
 }
 
 export interface ExplorationEventResult extends ExplorationState {
   duplicate: boolean;
+  acceptedDistanceMeters: number;
   newlyUnlockedTaskIds: string[];
+}
+
+export interface ExplorationRouteInput {
+  slug: string;
+  name: string;
+  description: string;
+  badgeName: string;
+  badgeAssetKey: string;
+}
+
+export interface ExplorationQuestInput {
+  routeId: string;
+  sequence: number;
+  locationName: string;
+  category: string;
+  safetyNote?: string | null;
+  accessibilityTags: string[];
+  sourceUrl?: string | null;
+  title: string;
+  description: string;
+  verificationMode: "SELF_CHECK" | "TIMER";
+  minimumSeconds?: number | null;
+  growthPoints: number;
+  triggerType: "DISTANCE" | "GEOFENCE";
+  latitude?: number | null;
+  longitude?: number | null;
+  radiusMeters?: number | null;
+  unlockDistanceMeters?: number | null;
 }
 
 export interface DashboardSnapshot {

@@ -150,6 +150,14 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .map-legend i { width: 10px; height: 10px; border-radius: 50%; background: var(--leaf); }
 .map-legend .yellow { background: var(--yellow); }
 .map-legend .blue { background: #72a9c9; }
+.map-legend .route-badge {
+  flex-basis: 100%;
+  margin-top: 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--forest);
+}
 
 .technology { padding: 115px 0; color: white; background: #102d25; }
 .section-heading.light .eyebrow { color: var(--lime); }

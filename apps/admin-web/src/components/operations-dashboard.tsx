@@ -3,6 +3,7 @@
 import { useGSAP } from "@gsap/react";
 import type {
   DashboardSnapshot,
+  ExplorationRouteSummary,
   ImpactBatchSummary,
   ReviewItem,
 } from "@elder-tree/contracts";
@@ -23,6 +24,7 @@ import {
   Leaf,
   LoaderCircle,
   Menu,
+  MapPinned,
   Plus,
   RefreshCw,
   Search,
@@ -36,12 +38,13 @@ import {
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
+import { RouteEditor } from "./route-editor";
 
 if (typeof window !== "undefined") {
   gsap.registerPlugin(useGSAP);
 }
 
-type View = "overview" | "reviews" | "impact" | "devices";
+type View = "overview" | "reviews" | "exploration" | "impact" | "devices";
 
 interface DeviceView {
   id: string;
@@ -65,66 +68,18 @@ interface DeviceView {
 }
 
 const fallbackSnapshot: DashboardSnapshot = {
-  participantCount: 48,
-  completedTaskCount: 326,
-  pendingReviewCount: 1,
-  connectedDeviceCount: 1,
-  impactPoolPoints: 24750,
-  simulatedTreeCount: 24,
+  participantCount: 0,
+  completedTaskCount: 0,
+  pendingReviewCount: 0,
+  connectedDeviceCount: 0,
+  impactPoolPoints: 0,
+  simulatedTreeCount: 0,
 };
-
-const fallbackReviews: ReviewItem[] = [
-  {
-    id: "offline-review",
-    taskTitle: "記錄今天看到的植物",
-    participantName: "王奶奶",
-    imageUrl:
-      "https://images.unsplash.com/photo-1490750967868-88aa4486c946?auto=format&fit=crop&w=900&q=80",
-    confidence: 0.72,
-    labels: ["plant", "flower", "outdoor"],
-    explanation: "可辨識植物與戶外環境，但主體部分被遮擋，需要人工確認。",
-    createdAt: new Date().toISOString(),
-  },
-];
-
-const fallbackBatches: ImpactBatchSummary[] = [
-  {
-    id: "offline-batch",
-    title: "七月社區綠化示範批次",
-    status: "SIMULATED",
-    simulated: true,
-    allocatedPoints: 12800,
-    equivalentTrees: 12.8,
-    publishedAt: null,
-  },
-];
-
-const fallbackDevices: DeviceView[] = [
-  {
-    id: "offline-device",
-    serialNumber: "TREE-DEMO-001",
-    name: "客廳陪伴樹",
-    claimed: true,
-    desiredState: {
-      treeStage: "SPROUT",
-      ledScene: "TASK_DUE",
-      growthPoints: 180,
-    },
-    reportedState: {
-      online: true,
-      firmwareVersion: "0.1.0",
-      temperatureC: 25.6,
-      humidityPercent: 61,
-      ambientLux: 168,
-      presence: true,
-      updatedAt: new Date().toISOString(),
-    },
-  },
-];
 
 const navItems = [
   { id: "overview" as const, label: "營運總覽", icon: Gauge },
   { id: "reviews" as const, label: "任務覆核", icon: ClipboardCheck },
+  { id: "exploration" as const, label: "城市任務", icon: MapPinned },
   { id: "impact" as const, label: "公益批次", icon: Trees },
   { id: "devices" as const, label: "互動樹裝置", icon: Cpu },
 ];
@@ -135,9 +90,10 @@ export function OperationsDashboard() {
   const [view, setView] = useState<View>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [snapshot, setSnapshot] = useState(fallbackSnapshot);
-  const [reviews, setReviews] = useState(fallbackReviews);
-  const [batches, setBatches] = useState(fallbackBatches);
-  const [devices, setDevices] = useState(fallbackDevices);
+  const [reviews, setReviews] = useState<ReviewItem[]>([]);
+  const [routes, setRoutes] = useState<ExplorationRouteSummary[]>([]);
+  const [batches, setBatches] = useState<ImpactBatchSummary[]>([]);
+  const [devices, setDevices] = useState<DeviceView[]>([]);
   const [loading, setLoading] = useState(true);
   const [offlineDemo, setOfflineDemo] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -146,15 +102,17 @@ export function OperationsDashboard() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [nextSnapshot, nextReviews, nextBatches, nextDevices] =
+      const [nextSnapshot, nextReviews, nextRoutes, nextBatches, nextDevices] =
         await Promise.all([
           api.dashboard(),
           api.reviews(),
+          api.explorationRoutes(),
           api.impactBatches(),
           api.devices(),
         ]);
       setSnapshot(nextSnapshot);
       setReviews(nextReviews);
+      setRoutes(nextRoutes);
       setBatches(nextBatches);
       setDevices(nextDevices);
       setOfflineDemo(false);
@@ -224,24 +182,6 @@ export function OperationsDashboard() {
     () => navItems.find((item) => item.id === view)?.label ?? "營運總覽",
     [view],
   );
-
-  async function decide(id: string, decision: "PASS" | "FAIL") {
-    setBusyId(id);
-    try {
-      if (!offlineDemo) await api.decideReview(id, decision);
-      setReviews((items) => items.filter((item) => item.id !== id));
-      setSnapshot((value) => ({
-        ...value,
-        pendingReviewCount: Math.max(0, value.pendingReviewCount - 1),
-        completedTaskCount:
-          decision === "PASS"
-            ? value.completedTaskCount + 1
-            : value.completedTaskCount,
-      }));
-    } finally {
-      setBusyId(null);
-    }
-  }
 
   return (
     <div className="app-shell" ref={shellRef}>
@@ -344,7 +284,7 @@ export function OperationsDashboard() {
           <div className="status-line">
             <div className={offlineDemo ? "connection offline" : "connection"}>
               <span />
-              {offlineDemo ? "離線示範資料" : "API 已連線"}
+              {offlineDemo ? "API 無法連線，未顯示假資料" : "API 已連線"}
             </div>
             <button className="text-button" onClick={() => void load()}>
               <RefreshCw size={16} className={loading ? "spin" : ""} />
@@ -361,7 +301,10 @@ export function OperationsDashboard() {
             />
           ) : null}
           {view === "reviews" ? (
-            <Reviews reviews={reviews} busyId={busyId} onDecide={decide} />
+            <Reviews reviews={reviews} />
+          ) : null}
+          {view === "exploration" ? (
+            <RouteEditor routes={routes} onRoutesChange={setRoutes} />
           ) : null}
           {view === "impact" ? (
             <Impact
@@ -370,13 +313,7 @@ export function OperationsDashboard() {
               onPublish={async (id) => {
                 setBusyId(id);
                 try {
-                  const updated = offlineDemo
-                    ? {
-                        ...batches.find((batch) => batch.id === id)!,
-                        status: "PUBLISHED" as const,
-                        publishedAt: new Date().toISOString(),
-                      }
-                    : await api.publishBatch(id);
+                  const updated = await api.publishBatch(id);
                   setBatches((items) =>
                     items.map((item) => (item.id === id ? updated : item)),
                   );
@@ -395,17 +332,7 @@ export function OperationsDashboard() {
         <BatchDialog
           onClose={() => setBatchDialog(false)}
           onCreate={async (title, points) => {
-            const batch = offlineDemo
-              ? {
-                  id: crypto.randomUUID(),
-                  title,
-                  status: "DRAFT" as const,
-                  simulated: true as const,
-                  allocatedPoints: points,
-                  equivalentTrees: Math.round((points / 1000) * 10) / 10,
-                  publishedAt: null,
-                }
-              : await api.createBatch(title, points);
+            const batch = await api.createBatch(title, points);
             setBatches((items) => [batch, ...items]);
             setBatchDialog(false);
           }}
@@ -650,19 +577,15 @@ function Overview({
 
 function Reviews({
   reviews,
-  busyId,
-  onDecide,
 }: {
   reviews: ReviewItem[];
-  busyId: string | null;
-  onDecide: (id: string, decision: "PASS" | "FAIL") => Promise<void>;
 }) {
   return (
     <section className="workspace" data-view-root>
       <div className="workspace-heading">
         <div>
-          <h2>AI 人工覆核佇列</h2>
-          <p>低信心與模糊照片必須由人員確認，所有改判都會寫入稽核紀錄。</p>
+          <h2>照片覆核佇列</h2>
+          <p>Firebase Blaze 尚未啟用，照片驗證與覆核操作目前鎖定。</p>
         </div>
         <span className="queue-count">{reviews.length} 件待處理</span>
       </div>
@@ -691,24 +614,8 @@ function Reviews({
                 </div>
                 <p>{item.explanation}</p>
                 <div className="review-actions">
-                  <button
-                    className="reject-button"
-                    disabled={busyId === item.id}
-                    onClick={() => void onDecide(item.id, "FAIL")}
-                  >
-                    <X size={18} /> 不通過
-                  </button>
-                  <button
-                    className="approve-button"
-                    disabled={busyId === item.id}
-                    onClick={() => void onDecide(item.id, "PASS")}
-                  >
-                    {busyId === item.id ? (
-                      <LoaderCircle size={18} className="spin" />
-                    ) : (
-                      <Check size={18} />
-                    )}
-                    通過並成長
+                  <button className="secondary-button" disabled>
+                    照片驗證服務尚未開放
                   </button>
                 </div>
               </div>

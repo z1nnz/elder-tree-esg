@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Req } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Req,
+  ServiceUnavailableException,
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import {
   CompleteEvidenceDto,
@@ -60,6 +68,11 @@ export class TasksController {
     @Req() request: AuthenticatedRequest,
     @Body() dto: InitializeEvidenceDto,
   ) {
+    if (process.env.PHOTO_EVIDENCE_ENABLED !== "true") {
+      throw new ServiceUnavailableException(
+        "Photo evidence is disabled until private storage is configured",
+      );
+    }
     if (process.env.DEMO_MODE !== "false") {
       return {
         data: this.demoStore.initializeEvidence(dto.assignmentId, dto.fileName),
@@ -81,6 +94,11 @@ export class TasksController {
     @Param("id") id: string,
     @Body() dto: CompleteEvidenceDto,
   ) {
+    if (process.env.PHOTO_EVIDENCE_ENABLED !== "true") {
+      throw new ServiceUnavailableException(
+        "Photo evidence is disabled until private storage is configured",
+      );
+    }
     if (process.env.DEMO_MODE !== "false") {
       return { data: this.demoStore.completeEvidence(id, dto.sha256) };
     }

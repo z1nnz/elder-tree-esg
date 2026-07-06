@@ -1,6 +1,9 @@
-import { Body, Controller, Get, Post, Req } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Req } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
-import { ExplorationEventDto } from "../dto/api.dto";
+import {
+  ExplorationEventDto,
+  StartExplorationSessionDto,
+} from "../dto/api.dto";
 import type { AuthenticatedRequest } from "../security/api-auth.guard";
 import { PersistentStoreService } from "../store/persistent-store.service";
 
@@ -12,38 +15,46 @@ export class ExplorationController {
 
   @Get("state")
   async state(@Req() request: AuthenticatedRequest) {
-    if (process.env.DEMO_MODE !== "false") {
-      return {
-        data: {
-          totalDistanceMeters: 0,
-          coarseCell: null,
-          quests: [],
-        },
-      };
-    }
     return {
       data: await this.store.getExplorationState(request.user!.uid),
     };
   }
 
-  @Post("events")
+  @Post("sessions")
+  async startSession(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: StartExplorationSessionDto,
+  ) {
+    return {
+      data: await this.store.startExplorationSession(
+        request.user!.uid,
+        dto.routeId,
+      ),
+    };
+  }
+
+  @Post("sessions/:id/events")
   async recordEvent(
     @Req() request: AuthenticatedRequest,
+    @Param("id") id: string,
     @Body() dto: ExplorationEventDto,
   ) {
-    if (process.env.DEMO_MODE !== "false") {
-      return {
-        data: {
-          totalDistanceMeters: dto.distanceMeters,
-          coarseCell: null,
-          quests: [],
-          duplicate: false,
-          newlyUnlockedTaskIds: [],
-        },
-      };
-    }
     return {
-      data: await this.store.recordExplorationEvent(request.user!.uid, dto),
+      data: await this.store.recordExplorationSessionEvent(
+        request.user!.uid,
+        id,
+        dto,
+      ),
+    };
+  }
+
+  @Post("sessions/:id/end")
+  async endSession(
+    @Req() request: AuthenticatedRequest,
+    @Param("id") id: string,
+  ) {
+    return {
+      data: await this.store.endExplorationSession(request.user!.uid, id),
     };
   }
 }

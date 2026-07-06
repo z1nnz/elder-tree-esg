@@ -21,6 +21,7 @@
     "dev:ai": "cd services/ai-verifier && .venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 4400",
     "dev:simulator": "npm run build:contracts && npm run dev -w @elder-tree/device-simulator",
     "provision:device": "node scripts/provision-device.mjs",
+    "admin:grant": "node scripts/grant-platform-admin.mjs",
     "test": "npm run test -w @elder-tree/contracts && npm run test -w @elder-tree/api && npm run test -w @elder-tree/iot-bridge",
     "test:persistence": "./scripts/test-persistence.sh",
     "typecheck": "npm run build:contracts && npm run typecheck -w @elder-tree/contracts && npm run typecheck -w @elder-tree/api && npm run typecheck -w @elder-tree/admin-web && npm run typecheck -w @elder-tree/public-web && npm run typecheck -w @elder-tree/iot-bridge && npm run typecheck -w @elder-tree/device-simulator"

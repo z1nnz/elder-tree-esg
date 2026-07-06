@@ -53,6 +53,10 @@ export class DemoStoreService {
       startedAt: null,
       minimumSeconds: null,
       dueAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+      capability: {
+        enabled: false,
+        reason: "PHOTO_STORAGE_UNAVAILABLE",
+      },
     },
     {
       id: TASK_WATER_ID,
@@ -64,6 +68,7 @@ export class DemoStoreService {
       startedAt: null,
       minimumSeconds: null,
       dueAt: null,
+      capability: { enabled: true, reason: null },
     },
     {
       id: TASK_WALK_ID,
@@ -75,6 +80,7 @@ export class DemoStoreService {
       startedAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
       minimumSeconds: 600,
       dueAt: null,
+      capability: { enabled: true, reason: null },
     },
   ];
 
