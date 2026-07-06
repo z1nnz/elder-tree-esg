@@ -79,5 +79,10 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter build macos --debug
+      - name: Verify macOS Firebase Keychain capability
+        run: plutil -extract keychain-access-groups xml1 -o - macos/Runner/DebugProfile.entitlements
+      - name: Build macOS without a developer certificate
+        run: |
+          plutil -remove keychain-access-groups macos/Runner/DebugProfile.entitlements
+          flutter build macos --debug
       - run: flutter build ios --simulator --no-codesign

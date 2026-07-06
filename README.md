@@ -32,6 +32,14 @@ In another terminal:
 npm run dev:web
 ```
 
+Firebase Authentication on macOS stores session state in Keychain. Build the
+local macOS App with an Apple Development certificate so the checked-in
+Keychain Sharing entitlement is preserved:
+
+```sh
+npm run build:macos:auth
+```
+
 The public site is a separate application:
 
 ```sh

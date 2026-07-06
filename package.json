@@ -18,6 +18,7 @@
     "dev:api:neon": "./scripts/dev-api-neon.sh",
     "dev:web": "npm run build:contracts && npm run dev -w @elder-tree/admin-web",
     "dev:public": "npm run dev -w @elder-tree/public-web",
+    "build:macos:auth": "./scripts/build-macos-auth.sh",
     "dev:ai": "cd services/ai-verifier && .venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 4400",
     "dev:simulator": "npm run build:contracts && npm run dev -w @elder-tree/device-simulator",
     "provision:device": "node scripts/provision-device.mjs",
