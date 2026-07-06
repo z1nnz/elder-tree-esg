@@ -30,6 +30,7 @@ class _RootShellState extends State<RootShell> {
         onOpenTasks: () => setState(() => index = 1),
       ),
       TasksScreen(controller: widget.controller),
+      ExplorationScreen(controller: widget.controller),
       FamilyScreen(controller: widget.controller),
       ImpactScreen(controller: widget.controller),
       DeviceScreen(controller: widget.controller),
@@ -51,22 +52,51 @@ class _RootShellState extends State<RootShell> {
               child: const Icon(Icons.spa_rounded, color: forestDark),
             ),
             const SizedBox(width: 10),
-            const Column(
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   '綠伴',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
                 ),
                 Text(
-                  '今天也慢慢來',
-                  style: TextStyle(fontSize: 11, color: Color(0xFF6B756F)),
+                  widget.controller.context?.activeHousehold.name ?? '今天也慢慢來',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF6B756F),
+                  ),
                 ),
               ],
             ),
           ],
         ),
         actions: [
+          if ((widget.controller.context?.households.length ?? 0) > 1)
+            PopupMenuButton<String>(
+              tooltip: '切換家庭',
+              icon: const Icon(Icons.swap_horiz_rounded),
+              onSelected: widget.controller.switchHousehold,
+              itemBuilder: (context) => widget.controller.context!.households
+                  .map(
+                    (household) => PopupMenuItem(
+                      value: household.id,
+                      child: Row(
+                        children: [
+                          Icon(
+                            household.id ==
+                                    widget.controller.context!.activeHouseholdId
+                                ? Icons.check_circle_rounded
+                                : Icons.circle_outlined,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(household.name),
+                        ],
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
           Row(
             children: [
               const Icon(Icons.text_fields_rounded, size: 19),
@@ -97,7 +127,7 @@ class _RootShellState extends State<RootShell> {
       ),
       body: Stack(
         children: [
-          IndexedStack(index: index, children: screens),
+          KeyedSubtree(key: ValueKey(index), child: screens[index]),
           if (widget.controller.notice != null)
             Positioned(
               right: 12,
@@ -142,6 +172,11 @@ class _RootShellState extends State<RootShell> {
             icon: Icon(Icons.checklist_outlined),
             selectedIcon: Icon(Icons.checklist_rounded),
             label: '任務',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.explore_outlined),
+            selectedIcon: Icon(Icons.explore_rounded),
+            label: '探索',
           ),
           NavigationDestination(
             icon: Icon(Icons.family_restroom_outlined),

@@ -50,6 +50,8 @@ export class DemoStoreService {
       verificationMode: "PHOTO_AI",
       growthPoints: 80,
       status: "AVAILABLE",
+      startedAt: null,
+      minimumSeconds: null,
       dueAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
     },
     {
@@ -59,6 +61,8 @@ export class DemoStoreService {
       verificationMode: "SELF_CHECK",
       growthPoints: 30,
       status: "AVAILABLE",
+      startedAt: null,
+      minimumSeconds: null,
       dueAt: null,
     },
     {
@@ -68,6 +72,8 @@ export class DemoStoreService {
       verificationMode: "TIMER",
       growthPoints: 60,
       status: "IN_PROGRESS",
+      startedAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+      minimumSeconds: 600,
       dueAt: null,
     },
   ];

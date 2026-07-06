@@ -10,5 +10,7 @@ export DATABASE_URL="$(
 )"
 export DEMO_MODE=false
 export FIREBASE_PROJECT_ID=elder-tree-esg-z1nnz
+export FIREBASE_STORAGE_BUCKET="${FIREBASE_STORAGE_BUCKET:-elder-tree-esg-z1nnz.firebasestorage.app}"
+export AI_VERIFIER_URL="${AI_VERIFIER_URL:-http://127.0.0.1:4400}"
 
 exec npm run dev:api

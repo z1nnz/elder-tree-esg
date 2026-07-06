@@ -79,6 +79,7 @@ class _AuthenticatedExperienceState extends State<_AuthenticatedExperience> {
     super.initState();
     controller = AppController(
       api: ApiClient(tokenProvider: widget.auth.getIdToken),
+      initialDisplayName: widget.account.displayName,
       allowOfflineDemo: false,
     )..initialize();
   }

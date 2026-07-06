@@ -32,19 +32,21 @@ void main() {
     );
 
     await controller.initialize();
-    final task = controller.tasks.firstWhere(
-      (item) => item.verificationMode == VerificationMode.selfCheck,
+    const task = DailyTask(
+      id: 'offline-task',
+      title: '離線任務',
+      description: '不應在本地加分',
+      verificationMode: VerificationMode.selfCheck,
+      growthPoints: 30,
+      status: TaskStatus.available,
     );
     final before = controller.tree.growthPoints;
 
     await controller.completeTask(task);
 
     expect(controller.offlineDemo, isFalse);
+    expect(controller.tasks, isEmpty);
     expect(controller.tree.growthPoints, before);
-    expect(
-      controller.tasks.firstWhere((item) => item.id == task.id).status,
-      isNot(TaskStatus.completed),
-    );
     controller.dispose();
   });
 }

@@ -96,6 +96,8 @@ export interface TaskSummary {
   verificationMode: TaskVerificationMode;
   growthPoints: number;
   status: AssignmentStatus;
+  startedAt: string | null;
+  minimumSeconds: number | null;
   dueAt: string | null;
 }
 
@@ -114,6 +116,89 @@ export interface FamilyMessage {
   body: string;
   createdAt: string;
   deliveredToDeviceAt: string | null;
+}
+
+export interface HouseholdSummary {
+  id: string;
+  name: string;
+  relationship: string;
+}
+
+export interface AppContext {
+  displayName: string;
+  activeHouseholdId: string;
+  households: HouseholdSummary[];
+}
+
+export interface HouseholdInviteSummary {
+  code: string;
+  householdId: string;
+  expiresAt: string;
+}
+
+export interface EvidenceUpload {
+  id: string;
+  storagePath: string;
+  contentType: string;
+}
+
+export interface EvidenceDecision {
+  evidenceId: string;
+  decision: VerificationDecision;
+  status: AssignmentStatus;
+}
+
+export interface FamilyReviewItem {
+  id: string;
+  evidenceId: string;
+  taskTitle: string;
+  participantName: string;
+  imageUrl: string;
+  confidence: number;
+  labels: string[];
+  explanation: string;
+  createdAt: string;
+}
+
+export interface ImpactSummary {
+  householdName: string;
+  treeStage: TreeStage;
+  growthPoints: number;
+  nextStageAt: number | null;
+  contributedPoints: number;
+}
+
+export interface CompanionDeviceSummary {
+  id: string;
+  serialNumber: string;
+  name: string;
+  claimed: boolean;
+  desiredState: DeviceDesiredState;
+  reportedState: DeviceReportedState;
+}
+
+export interface ExplorationQuest {
+  id: string;
+  taskId: string;
+  title: string;
+  description: string;
+  triggerType: "DISTANCE" | "GEOFENCE";
+  latitude: number | null;
+  longitude: number | null;
+  radiusMeters: number | null;
+  unlockDistanceMeters: number | null;
+  unlocked: boolean;
+}
+
+export interface ExplorationState {
+  totalDistanceMeters: number;
+  coarseCell: string | null;
+  quests: ExplorationQuest[];
+}
+
+export interface ExplorationEventResult extends ExplorationState {
+  duplicate: boolean;
+  newlyUnlockedTaskIds: string[];
 }
 
 export interface DashboardSnapshot {

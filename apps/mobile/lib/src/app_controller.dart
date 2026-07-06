@@ -2,36 +2,70 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_client.dart';
+import 'evidence_uploader.dart';
 import 'models.dart';
 
 class AppController extends ChangeNotifier {
-  AppController({ApiClient? api, bool allowOfflineDemo = true})
-    : _api = api ?? ApiClient(),
-      _allowOfflineDemo = allowOfflineDemo;
+  AppController({
+    ApiClient? api,
+    EvidenceUploader? evidenceUploader,
+    String? initialDisplayName,
+    bool allowOfflineDemo = true,
+  }) : _api = api ?? ApiClient(),
+       _evidenceUploader = evidenceUploader,
+       _initialDisplayName = initialDisplayName,
+       _allowOfflineDemo = allowOfflineDemo {
+    if (!allowOfflineDemo) {
+      tasks = [];
+      tree = _emptyTree;
+      messages = [];
+      devices = [];
+    }
+  }
 
   final ApiClient _api;
+  EvidenceUploader? _evidenceUploader;
+  final String? _initialDisplayName;
   final bool _allowOfflineDemo;
   final ImagePicker _picker = ImagePicker();
   final List<StreamSubscription<dynamic>> _subscriptions = [];
+  StreamSubscription<Position>? _locationSubscription;
 
   bool loading = true;
   bool elderMode = true;
   bool offlineDemo = false;
+  bool exploring = false;
   String? notice;
+  AppContextModel? context;
   List<DailyTask> tasks = _fallbackTasks;
   TreeSummary tree = _fallbackTree;
   List<FamilyMessageModel> messages = _fallbackMessages;
   List<CompanionDevice> devices = _fallbackDevices;
+  List<FamilyReviewModel> reviews = [];
+  ImpactSummaryModel impact = _emptyImpact;
+  ExplorationStateModel exploration = _emptyExploration;
   List<String> discoveredTrees = [];
+  Position? _lastPosition;
+  bool _sendingLocation = false;
 
   Future<void> initialize() async {
     final preferences = await SharedPreferences.getInstance();
     elderMode = preferences.getBool('elderMode') ?? true;
     await refresh();
+    if (context?.displayName == '綠伴使用者' &&
+        (_initialDisplayName?.trim().isNotEmpty ?? false)) {
+      try {
+        context = await _api.updateDisplayName(_initialDisplayName!.trim());
+      } catch (error) {
+        notice = '名稱同步失敗：$error';
+      }
+      notifyListeners();
+    }
   }
 
   Future<void> refresh() async {
@@ -40,15 +74,23 @@ class AppController extends ChangeNotifier {
     notifyListeners();
     try {
       final results = await Future.wait([
+        _api.getContext(),
         _api.getTasks(),
         _api.getTree(),
         _api.getMessages(),
         _api.getDevices(),
+        _api.getFamilyReviews(),
+        _api.getImpactSummary(),
+        _api.getExplorationState(),
       ]);
-      tasks = results[0] as List<DailyTask>;
-      tree = results[1] as TreeSummary;
-      messages = results[2] as List<FamilyMessageModel>;
-      devices = results[3] as List<CompanionDevice>;
+      context = results[0] as AppContextModel;
+      tasks = results[1] as List<DailyTask>;
+      tree = results[2] as TreeSummary;
+      messages = results[3] as List<FamilyMessageModel>;
+      devices = results[4] as List<CompanionDevice>;
+      reviews = results[5] as List<FamilyReviewModel>;
+      impact = results[6] as ImpactSummaryModel;
+      exploration = results[7] as ExplorationStateModel;
       offlineDemo = false;
     } catch (_) {
       offlineDemo = _allowOfflineDemo;
@@ -57,6 +99,55 @@ class AppController extends ChangeNotifier {
           : '目前無法連線到服務，資料未變更，請稍後重新整理。';
     } finally {
       loading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> updateDisplayName(String displayName) async {
+    if (displayName.trim().isEmpty) return;
+    try {
+      context = await _api.updateDisplayName(displayName.trim());
+      notice = '顯示名稱已更新。';
+    } catch (error) {
+      notice = '名稱更新失敗：$error';
+    }
+    notifyListeners();
+  }
+
+  Future<void> switchHousehold(String householdId) async {
+    if (context?.activeHouseholdId == householdId) return;
+    try {
+      context = await _api.setActiveHousehold(householdId);
+      await refresh();
+      notice = '已切換到 ${context?.activeHousehold.name ?? '家庭'}。';
+      notifyListeners();
+    } catch (error) {
+      notice = '家庭切換失敗：$error';
+      notifyListeners();
+    }
+  }
+
+  Future<HouseholdInviteModel?> createHouseholdInvite() async {
+    try {
+      final invite = await _api.createHouseholdInvite();
+      notice = '邀請碼 ${invite.code}，24 小時內可使用一次。';
+      notifyListeners();
+      return invite;
+    } catch (error) {
+      notice = '邀請碼建立失敗：$error';
+      notifyListeners();
+      return null;
+    }
+  }
+
+  Future<void> joinHousehold(String code, String relationship) async {
+    try {
+      context = await _api.joinHousehold(code.trim(), relationship.trim());
+      await refresh();
+      notice = '已加入 ${context?.activeHousehold.name ?? '新的家庭'}。';
+      notifyListeners();
+    } catch (error) {
+      notice = '加入家庭失敗：$error';
       notifyListeners();
     }
   }
@@ -85,6 +176,16 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> startTask(DailyTask task) async {
+    try {
+      _replaceTask(await _api.startTask(task.id));
+      notice = '計時已開始；離開 App 後伺服器仍會保留開始時間。';
+    } catch (error) {
+      notice = '任務暫時無法開始：$error';
+    }
+    notifyListeners();
+  }
+
   Future<void> photographTask(DailyTask task) async {
     try {
       final photo = await _picker.pickImage(
@@ -94,14 +195,109 @@ class AppController extends ChangeNotifier {
       );
       if (photo == null) return;
       if (!offlineDemo) {
-        await _api.submitPhotoEvidence(task.id, photo.name);
+        final destination = await _api.initializePhotoEvidence(
+          task.id,
+          photo.name,
+        );
+        final uploader = _evidenceUploader ??= FirebaseEvidenceUploader();
+        final uploaded = await uploader.upload(photo, destination);
+        await _api.completePhotoEvidence(destination.id, uploaded.sha256);
+        tasks = await _api.getTasks();
+        tree = await _api.getTree();
+        reviews = await _api.getFamilyReviews();
+      } else {
+        _replaceTask(task.copyWith(status: TaskStatus.verifying));
       }
-      _replaceTask(task.copyWith(status: TaskStatus.verifying));
       notice = '照片已送出。AI 信心不足時會交由人工覆核，不會直接判定失敗。';
     } catch (error) {
       notice = '照片送出失敗：$error';
     }
     notifyListeners();
+  }
+
+  Future<void> decideReview(FamilyReviewModel review, String decision) async {
+    try {
+      await _api.decideFamilyReview(review.id, decision);
+      reviews = await _api.getFamilyReviews();
+      tasks = await _api.getTasks();
+      tree = await _api.getTree();
+      impact = await _api.getImpactSummary();
+      notice = decision == 'PASS' ? '已確認任務完成。' : '已退回，對方可以重新拍攝。';
+    } catch (error) {
+      notice = '覆核失敗：$error';
+    }
+    notifyListeners();
+  }
+
+  Future<void> startExploration() async {
+    if (exploring) return;
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        throw const FormatException('請先開啟定位服務');
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        throw const FormatException('未取得定位權限');
+      }
+      exploring = true;
+      notice = '探索已開始；系統只保存粗略網格與距離，不保存完整路線。';
+      notifyListeners();
+      _locationSubscription = Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 20,
+        ),
+      ).listen(_recordPosition);
+    } catch (error) {
+      exploring = false;
+      notice = '無法開始探索：$error';
+      notifyListeners();
+    }
+  }
+
+  Future<void> stopExploration() async {
+    exploring = false;
+    _lastPosition = null;
+    await _locationSubscription?.cancel();
+    _locationSubscription = null;
+    notice = '探索已暫停。';
+    notifyListeners();
+  }
+
+  Future<void> _recordPosition(Position position) async {
+    if (!exploring || _sendingLocation || position.accuracy > 100) return;
+    final previous = _lastPosition;
+    _lastPosition = position;
+    final distance = previous == null
+        ? 0.0
+        : Geolocator.distanceBetween(
+            previous.latitude,
+            previous.longitude,
+            position.latitude,
+            position.longitude,
+          );
+    _sendingLocation = true;
+    try {
+      exploration = await _api.recordExplorationEvent(
+        eventKey: 'mobile-${DateTime.now().microsecondsSinceEpoch}',
+        latitude: position.latitude,
+        longitude: position.longitude,
+        accuracyMeters: position.accuracy,
+        distanceMeters: distance.clamp(0, 2000),
+        occurredAt: position.timestamp,
+      );
+      tasks = await _api.getTasks();
+      notifyListeners();
+    } catch (error) {
+      notice = '探索進度暫時無法同步：$error';
+      notifyListeners();
+    } finally {
+      _sendingLocation = false;
+    }
   }
 
   Future<void> sendFamilyMessage(String body) async {
@@ -144,14 +340,13 @@ class AppController extends ChangeNotifier {
       await FlutterBluePlus.startScan(timeout: const Duration(seconds: 4));
       await Future<void>.delayed(const Duration(seconds: 4));
       if (discoveredTrees.isEmpty) {
-        discoveredTrees = ['ElderTree-DEMO-001'];
-        notice = '未找到實體裝置，已顯示可操作的示範裝置。';
+        notice = '附近沒有找到尚未配網的陪伴樹。';
       } else {
         notice = '找到 ${discoveredTrees.length} 台附近裝置。';
       }
     } catch (_) {
-      discoveredTrees = ['ElderTree-DEMO-001'];
-      notice = '藍牙權限尚未開啟，已切換為示範配網。';
+      discoveredTrees = [];
+      notice = '藍牙權限尚未開啟，無法搜尋附近裝置。';
     }
     notifyListeners();
   }
@@ -207,6 +402,7 @@ class AppController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _locationSubscription?.cancel();
     for (final subscription in _subscriptions) {
       subscription.cancel();
     }
@@ -214,6 +410,28 @@ class AppController extends ChangeNotifier {
     super.dispose();
   }
 }
+
+const _emptyTree = TreeSummary(
+  name: '我的陪伴樹',
+  householdName: '我的家庭',
+  stage: 'SEED',
+  growthPoints: 0,
+  nextStageAt: 100,
+);
+
+const _emptyImpact = ImpactSummaryModel(
+  householdName: '我的家庭',
+  treeStage: 'SEED',
+  growthPoints: 0,
+  nextStageAt: 100,
+  contributedPoints: 0,
+);
+
+const _emptyExploration = ExplorationStateModel(
+  totalDistanceMeters: 0,
+  coarseCell: null,
+  quests: [],
+);
 
 const _fallbackTasks = [
   DailyTask(

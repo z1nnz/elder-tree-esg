@@ -15,6 +15,7 @@ class AuthScreen extends StatefulWidget {
 
 class _AuthScreenState extends State<AuthScreen> {
   final formKey = GlobalKey<FormState>();
+  final displayNameController = TextEditingController();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   bool registering = false;
@@ -24,6 +25,7 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   void dispose() {
     emailController.dispose();
+    displayNameController.dispose();
     passwordController.dispose();
     super.dispose();
   }
@@ -39,6 +41,7 @@ class _AuthScreenState extends State<AuthScreen> {
         await widget.auth.register(
           email: emailController.text,
           password: passwordController.text,
+          displayName: displayNameController.text,
         );
       } else {
         await widget.auth.signIn(
@@ -100,6 +103,20 @@ class _AuthScreenState extends State<AuthScreen> {
                           style: const TextStyle(color: Color(0xFF66736C)),
                         ),
                         const SizedBox(height: 24),
+                        if (registering) ...[
+                          TextFormField(
+                            controller: displayNameController,
+                            decoration: const InputDecoration(
+                              labelText: '怎麼稱呼你',
+                              prefixIcon: Icon(Icons.person_outline_rounded),
+                            ),
+                            validator: (value) =>
+                                (value?.trim().isEmpty ?? true)
+                                ? '請輸入稱呼'
+                                : null,
+                          ),
+                          const SizedBox(height: 14),
+                        ],
                         TextFormField(
                           controller: emailController,
                           keyboardType: TextInputType.emailAddress,

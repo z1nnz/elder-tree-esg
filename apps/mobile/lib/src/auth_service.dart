@@ -1,10 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
 
 class AuthAccount {
-  const AuthAccount({required this.uid, required this.email});
+  const AuthAccount({required this.uid, required this.email, this.displayName});
 
   final String uid;
   final String email;
+  final String? displayName;
 }
 
 abstract class AuthService {
@@ -12,7 +13,11 @@ abstract class AuthService {
   AuthAccount? get currentAccount;
 
   Future<void> signIn({required String email, required String password});
-  Future<void> register({required String email, required String password});
+  Future<void> register({
+    required String email,
+    required String password,
+    required String displayName,
+  });
   Future<void> signOut();
   Future<String?> getIdToken();
 }
@@ -25,7 +30,11 @@ class FirebaseAuthService implements AuthService {
 
   AuthAccount? _toAccount(User? user) {
     if (user == null) return null;
-    return AuthAccount(uid: user.uid, email: user.email ?? '未設定信箱');
+    return AuthAccount(
+      uid: user.uid,
+      email: user.email ?? '未設定信箱',
+      displayName: user.displayName,
+    );
   }
 
   @override
@@ -42,11 +51,13 @@ class FirebaseAuthService implements AuthService {
   Future<void> register({
     required String email,
     required String password,
+    required String displayName,
   }) async {
-    await _auth.createUserWithEmailAndPassword(
+    final credential = await _auth.createUserWithEmailAndPassword(
       email: email.trim(),
       password: password,
     );
+    await credential.user?.updateDisplayName(displayName.trim());
   }
 
   @override

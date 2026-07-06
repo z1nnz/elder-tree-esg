@@ -17,6 +17,8 @@ class DailyTask {
     required this.verificationMode,
     required this.growthPoints,
     required this.status,
+    this.startedAt,
+    this.minimumSeconds,
     this.dueAt,
   });
 
@@ -26,15 +28,19 @@ class DailyTask {
   final VerificationMode verificationMode;
   final int growthPoints;
   final TaskStatus status;
+  final DateTime? startedAt;
+  final int? minimumSeconds;
   final DateTime? dueAt;
 
-  DailyTask copyWith({TaskStatus? status}) => DailyTask(
+  DailyTask copyWith({TaskStatus? status, DateTime? startedAt}) => DailyTask(
     id: id,
     title: title,
     description: description,
     verificationMode: verificationMode,
     growthPoints: growthPoints,
     status: status ?? this.status,
+    startedAt: startedAt ?? this.startedAt,
+    minimumSeconds: minimumSeconds,
     dueAt: dueAt,
   );
 
@@ -58,10 +64,205 @@ class DailyTask {
       'REJECTED' => TaskStatus.rejected,
       _ => TaskStatus.available,
     },
+    startedAt: json['startedAt'] == null
+        ? null
+        : DateTime.parse(json['startedAt'] as String),
+    minimumSeconds: json['minimumSeconds'] as int?,
     dueAt: json['dueAt'] == null
         ? null
         : DateTime.parse(json['dueAt'] as String),
   );
+}
+
+class HouseholdSummaryModel {
+  const HouseholdSummaryModel({
+    required this.id,
+    required this.name,
+    required this.relationship,
+  });
+
+  final String id;
+  final String name;
+  final String relationship;
+
+  factory HouseholdSummaryModel.fromJson(Map<String, dynamic> json) =>
+      HouseholdSummaryModel(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        relationship: json['relationship'] as String,
+      );
+}
+
+class AppContextModel {
+  const AppContextModel({
+    required this.displayName,
+    required this.activeHouseholdId,
+    required this.households,
+  });
+
+  final String displayName;
+  final String activeHouseholdId;
+  final List<HouseholdSummaryModel> households;
+
+  HouseholdSummaryModel get activeHousehold =>
+      households.firstWhere((household) => household.id == activeHouseholdId);
+
+  factory AppContextModel.fromJson(Map<String, dynamic> json) =>
+      AppContextModel(
+        displayName: json['displayName'] as String,
+        activeHouseholdId: json['activeHouseholdId'] as String,
+        households: (json['households'] as List)
+            .cast<Map<String, dynamic>>()
+            .map(HouseholdSummaryModel.fromJson)
+            .toList(),
+      );
+}
+
+class HouseholdInviteModel {
+  const HouseholdInviteModel({required this.code, required this.expiresAt});
+
+  final String code;
+  final DateTime expiresAt;
+
+  factory HouseholdInviteModel.fromJson(Map<String, dynamic> json) =>
+      HouseholdInviteModel(
+        code: json['code'] as String,
+        expiresAt: DateTime.parse(json['expiresAt'] as String),
+      );
+}
+
+class EvidenceUploadModel {
+  const EvidenceUploadModel({
+    required this.id,
+    required this.storagePath,
+    required this.contentType,
+  });
+
+  final String id;
+  final String storagePath;
+  final String contentType;
+
+  factory EvidenceUploadModel.fromJson(Map<String, dynamic> json) =>
+      EvidenceUploadModel(
+        id: json['id'] as String,
+        storagePath: json['storagePath'] as String,
+        contentType: json['contentType'] as String,
+      );
+}
+
+class FamilyReviewModel {
+  const FamilyReviewModel({
+    required this.id,
+    required this.taskTitle,
+    required this.participantName,
+    required this.imageUrl,
+    required this.confidence,
+    required this.explanation,
+  });
+
+  final String id;
+  final String taskTitle;
+  final String participantName;
+  final String imageUrl;
+  final double confidence;
+  final String explanation;
+
+  factory FamilyReviewModel.fromJson(Map<String, dynamic> json) =>
+      FamilyReviewModel(
+        id: json['id'] as String,
+        taskTitle: json['taskTitle'] as String,
+        participantName: json['participantName'] as String,
+        imageUrl: json['imageUrl'] as String,
+        confidence: (json['confidence'] as num).toDouble(),
+        explanation: json['explanation'] as String,
+      );
+}
+
+class ImpactSummaryModel {
+  const ImpactSummaryModel({
+    required this.householdName,
+    required this.treeStage,
+    required this.growthPoints,
+    required this.nextStageAt,
+    required this.contributedPoints,
+  });
+
+  final String householdName;
+  final String treeStage;
+  final int growthPoints;
+  final int? nextStageAt;
+  final int contributedPoints;
+
+  factory ImpactSummaryModel.fromJson(Map<String, dynamic> json) =>
+      ImpactSummaryModel(
+        householdName: json['householdName'] as String,
+        treeStage: json['treeStage'] as String,
+        growthPoints: json['growthPoints'] as int,
+        nextStageAt: json['nextStageAt'] as int?,
+        contributedPoints: json['contributedPoints'] as int,
+      );
+}
+
+class ExplorationQuestModel {
+  const ExplorationQuestModel({
+    required this.id,
+    required this.taskId,
+    required this.title,
+    required this.description,
+    required this.triggerType,
+    required this.latitude,
+    required this.longitude,
+    required this.radiusMeters,
+    required this.unlockDistanceMeters,
+    required this.unlocked,
+  });
+
+  final String id;
+  final String taskId;
+  final String title;
+  final String description;
+  final String triggerType;
+  final double? latitude;
+  final double? longitude;
+  final int? radiusMeters;
+  final int? unlockDistanceMeters;
+  final bool unlocked;
+
+  factory ExplorationQuestModel.fromJson(Map<String, dynamic> json) =>
+      ExplorationQuestModel(
+        id: json['id'] as String,
+        taskId: json['taskId'] as String,
+        title: json['title'] as String,
+        description: json['description'] as String,
+        triggerType: json['triggerType'] as String,
+        latitude: (json['latitude'] as num?)?.toDouble(),
+        longitude: (json['longitude'] as num?)?.toDouble(),
+        radiusMeters: json['radiusMeters'] as int?,
+        unlockDistanceMeters: json['unlockDistanceMeters'] as int?,
+        unlocked: json['unlocked'] as bool,
+      );
+}
+
+class ExplorationStateModel {
+  const ExplorationStateModel({
+    required this.totalDistanceMeters,
+    required this.coarseCell,
+    required this.quests,
+  });
+
+  final int totalDistanceMeters;
+  final String? coarseCell;
+  final List<ExplorationQuestModel> quests;
+
+  factory ExplorationStateModel.fromJson(Map<String, dynamic> json) =>
+      ExplorationStateModel(
+        totalDistanceMeters: json['totalDistanceMeters'] as int,
+        coarseCell: json['coarseCell'] as String?,
+        quests: (json['quests'] as List)
+            .cast<Map<String, dynamic>>()
+            .map(ExplorationQuestModel.fromJson)
+            .toList(),
+      );
 }
 
 class TreeSummary {

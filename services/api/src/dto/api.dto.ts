@@ -1,9 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import {
   IsBoolean,
+  IsDateString,
   IsIn,
   IsInt,
+  IsLatitude,
+  IsLongitude,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -11,6 +15,31 @@ import {
   Max,
   Min,
 } from "class-validator";
+
+export class UpdateProfileDto {
+  @ApiProperty()
+  @IsString()
+  @Length(1, 40)
+  displayName!: string;
+}
+
+export class SetActiveHouseholdDto {
+  @ApiProperty()
+  @IsUUID()
+  householdId!: string;
+}
+
+export class JoinHouseholdDto {
+  @ApiProperty()
+  @IsString()
+  @Length(8, 8)
+  code!: string;
+
+  @ApiProperty()
+  @IsString()
+  @Length(1, 24)
+  relationship!: string;
+}
 
 export class CompleteTaskDto {
   @ApiPropertyOptional({ description: "Prevents duplicate growth awards" })
@@ -105,6 +134,37 @@ export class DeviceEventDto {
   @ApiPropertyOptional()
   @IsOptional()
   payload?: Record<string, unknown>;
+}
+
+export class ExplorationEventDto {
+  @ApiProperty()
+  @IsString()
+  @Length(8, 100)
+  eventKey!: string;
+
+  @ApiProperty()
+  @IsLatitude()
+  latitude!: number;
+
+  @ApiProperty()
+  @IsLongitude()
+  longitude!: number;
+
+  @ApiProperty()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  accuracyMeters!: number;
+
+  @ApiProperty()
+  @IsNumber()
+  @Min(0)
+  @Max(2000)
+  distanceMeters!: number;
+
+  @ApiProperty()
+  @IsDateString()
+  occurredAt!: string;
 }
 
 export class CreateImpactBatchDto {

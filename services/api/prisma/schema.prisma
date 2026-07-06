@@ -38,6 +38,19 @@ enum VerificationDecision {
   FAIL
 }
 
+enum EvidenceStatus {
+  PENDING_UPLOAD
+  PROCESSING
+  AWAITING_REVIEW
+  RESOLVED
+  ERROR
+}
+
+enum QuestTriggerType {
+  DISTANCE
+  GEOFENCE
+}
+
 enum TreeStage {
   SEED
   SPROUT
@@ -54,27 +67,41 @@ enum ImpactBatchStatus {
 }
 
 model User {
-  id             String           @id @default(uuid())
-  firebaseUid    String           @unique
-  displayName    String
-  role           UserRole
-  householdLinks HouseholdMember[]
-  assignments    TaskAssignment[]
-  messages       FamilyMessage[]
-  auditLogs      AuditLog[]       @relation("AuditActor")
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id                String            @id @default(uuid())
+  firebaseUid       String            @unique
+  displayName       String
+  role              UserRole
+  activeHouseholdId String?
+  activeHousehold   Household?        @relation("ActiveHousehold", fields: [activeHouseholdId], references: [id], onDelete: SetNull)
+  householdLinks    HouseholdMember[]
+  assignments       TaskAssignment[]
+  messages          FamilyMessage[]
+  createdInvites    HouseholdInvite[] @relation("InviteCreator")
+  usedInvites       HouseholdInvite[] @relation("InviteUser")
+  reviews            VerificationRun[] @relation("VerificationReviewer")
+  explorationProgress ExplorationProgress[]
+  locationReceipts    LocationEventReceipt[]
+  questUnlocks        QuestUnlock[]
+  auditLogs         AuditLog[]        @relation("AuditActor")
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 }
 
 model Household {
-  id        String            @id @default(uuid())
-  name      String
-  members   HouseholdMember[]
-  devices   Device[]
-  trees     Tree[]
-  messages  FamilyMessage[]
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
+  id          String            @id @default(uuid())
+  name        String
+  activeUsers User[]            @relation("ActiveHousehold")
+  members     HouseholdMember[]
+  assignments TaskAssignment[]
+  devices     Device[]
+  trees       Tree[]
+  messages    FamilyMessage[]
+  invites     HouseholdInvite[]
+  explorationProgress ExplorationProgress[]
+  locationReceipts LocationEventReceipt[]
+  questUnlocks QuestUnlock[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
 }
 
 model HouseholdMember {
@@ -122,33 +149,109 @@ model Task {
   verificationRule Json
   growthPoints     Int
   assignments      TaskAssignment[]
+  mapQuest         MapQuest?
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
+}
+
+model MapQuest {
+  id                   String           @id @default(uuid())
+  taskId               String           @unique
+  triggerType          QuestTriggerType
+  latitude             Float?
+  longitude            Float?
+  radiusMeters         Int?
+  unlockDistanceMeters Int?
+  active               Boolean          @default(true)
+  task                 Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  unlocks              QuestUnlock[]
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+}
+
+model ExplorationProgress {
+  id                  String    @id @default(uuid())
+  userId              String
+  householdId         String
+  totalDistanceMeters Int       @default(0)
+  lastEventAt         DateTime?
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  household           Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([userId, householdId])
+}
+
+model LocationEventReceipt {
+  id             String    @id @default(uuid())
+  eventKey       String    @unique
+  userId         String
+  householdId    String
+  coarseCell     String
+  distanceMeters Int
+  occurredAt     DateTime
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  household      Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  createdAt      DateTime  @default(now())
+}
+
+model QuestUnlock {
+  id          String    @id @default(uuid())
+  questId     String
+  userId      String
+  householdId String
+  quest       MapQuest  @relation(fields: [questId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  unlockedAt  DateTime  @default(now())
+
+  @@unique([questId, userId, householdId])
 }
 
 model TaskAssignment {
   id          String           @id @default(uuid())
   taskId      String
   userId      String
+  householdId String
   status      AssignmentStatus @default(AVAILABLE)
+  startedAt   DateTime?
   dueAt       DateTime?
   completedAt DateTime?
   task        Task             @relation(fields: [taskId], references: [id])
   user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  household   Household        @relation(fields: [householdId], references: [id], onDelete: Cascade)
   evidence    Evidence[]
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
-  @@unique([taskId, userId])
+  @@unique([taskId, userId, householdId])
+}
+
+model HouseholdInvite {
+  id          String     @id @default(uuid())
+  householdId String
+  createdById String
+  codeHash    String     @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  usedById    String?
+  household   Household  @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  createdBy   User       @relation("InviteCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  usedBy      User?      @relation("InviteUser", fields: [usedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime   @default(now())
 }
 
 model Evidence {
   id           String            @id @default(uuid())
   assignmentId String
   storagePath  String
+  contentType  String
+  status       EvidenceStatus    @default(PENDING_UPLOAD)
+  errorCode    String?
   sha256       String?
   uploadedAt   DateTime?
-  assignment   TaskAssignment    @relation(fields: [assignmentId], references: [id])
+  assignment   TaskAssignment    @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
   verification VerificationRun?
   createdAt    DateTime          @default(now())
 }
@@ -165,7 +268,8 @@ model VerificationRun {
   ruleVersion    String
   reviewedById   String?
   reviewedAt     DateTime?
-  evidence       Evidence             @relation(fields: [evidenceId], references: [id])
+  evidence       Evidence             @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  reviewedBy     User?                @relation("VerificationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
 }
@@ -200,7 +304,7 @@ model FamilyMessage {
   body                String
   deliveredToDeviceAt DateTime?
   household           Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  author              User      @relation(fields: [authorId], references: [id])
+  author              User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
   createdAt           DateTime  @default(now())
 }
 

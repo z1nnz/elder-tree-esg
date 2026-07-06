@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:maplibre/maplibre.dart';
 
 import 'app_controller.dart';
 import 'models.dart';
@@ -235,6 +238,150 @@ class TasksScreen extends StatelessWidget {
   }
 }
 
+class ExplorationScreen extends StatelessWidget {
+  const ExplorationScreen({required this.controller, super.key});
+
+  final AppController controller;
+
+  static const mapStyleUrl = String.fromEnvironment(
+    'MAP_STYLE_URL',
+    defaultValue: 'https://demotiles.maplibre.org/style.json',
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final pointQuests = controller.exploration.quests
+        .where((quest) => quest.latitude != null && quest.longitude != null)
+        .toList();
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
+      children: [
+        const _PageHeading(
+          title: '城市探索',
+          subtitle: '用自己的步調走動；不論是否有家人，每一步都能解鎖新的行動。',
+        ),
+        const SizedBox(height: 14),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: SizedBox(
+            height: 320,
+            child: MapLibreMap(
+              options: const MapOptions(
+                initStyle: mapStyleUrl,
+                initCenter: Geographic(lon: 121.5654, lat: 25.033),
+                initZoom: 12,
+              ),
+              layers: [
+                if (pointQuests.isNotEmpty)
+                  CircleLayer(
+                    points: pointQuests
+                        .map(
+                          (quest) => Feature(
+                            geometry: Point(
+                              Geographic(
+                                lon: quest.longitude!,
+                                lat: quest.latitude!,
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    radius: 11,
+                    color: warmYellow,
+                    strokeWidth: 3,
+                    strokeColor: forestDark,
+                  ),
+              ],
+              children: const [
+                MapControlButtons(showTrackLocation: true),
+                SourceAttribution(),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                const CircleAvatar(
+                  backgroundColor: Color(0xFFDCEBDF),
+                  child: Icon(Icons.directions_walk_rounded, color: forest),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${controller.exploration.totalDistanceMeters} 公尺',
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const Text('目前家庭的探索距離'),
+                    ],
+                  ),
+                ),
+                FilledButton.icon(
+                  onPressed: controller.exploring
+                      ? controller.stopExploration
+                      : controller.startExploration,
+                  icon: Icon(
+                    controller.exploring
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow_rounded,
+                  ),
+                  label: Text(controller.exploring ? '暫停' : '開始探索'),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const _NoticeBand(
+          icon: Icons.shield_outlined,
+          text: '伺服器只保存粗略網格、距離與任務觸發結果，不保存完整 GPS 行走軌跡。',
+        ),
+        const SizedBox(height: 8),
+        const _SectionTitle(title: '探索任務', subtitle: '走過指定距離或進入地標範圍時自動解鎖'),
+        const SizedBox(height: 10),
+        if (controller.exploration.quests.isEmpty)
+          const _EmptyBlock(
+            icon: Icons.map_outlined,
+            title: '附近還沒有探索點',
+            text: '營運單位建立地標後會出現在這裡；距離任務仍可照常累積。',
+          )
+        else
+          ...controller.exploration.quests.map(
+            (quest) => Card(
+              child: ListTile(
+                leading: Icon(
+                  quest.triggerType == 'GEOFENCE'
+                      ? Icons.place_rounded
+                      : Icons.route_rounded,
+                  color: quest.unlocked ? forest : Colors.grey,
+                ),
+                title: Text(quest.title),
+                subtitle: Text(
+                  quest.unlocked
+                      ? '已解鎖，可到任務頁完成'
+                      : quest.triggerType == 'DISTANCE'
+                      ? '累積 ${quest.unlockDistanceMeters ?? 0} 公尺後解鎖'
+                      : '進入地標 ${quest.radiusMeters ?? 0} 公尺內解鎖',
+                ),
+                trailing: Icon(
+                  quest.unlocked ? Icons.lock_open_rounded : Icons.lock_outline,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class FamilyScreen extends StatefulWidget {
   const FamilyScreen({required this.controller, super.key});
   final AppController controller;
@@ -259,6 +406,126 @@ class _FamilyScreenState extends State<FamilyScreen> {
       children: [
         const _PageHeading(title: '家人的陪伴', subtitle: '不必在同一個地方，也能一起照顧這棵家庭樹。'),
         const SizedBox(height: 14),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.controller.context?.activeHousehold.name ?? '我的家庭',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                const Text('一個人也能使用；想有人陪伴時，再邀請親友加入。'),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: () async {
+                        final invite = await widget.controller
+                            .createHouseholdInvite();
+                        if (invite != null && context.mounted) {
+                          await showDialog<void>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('家庭邀請碼'),
+                              content: SelectableText(
+                                invite.code,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 30,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 4,
+                                ),
+                              ),
+                              actions: [
+                                FilledButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('完成'),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.person_add_alt_1_rounded),
+                      label: const Text('邀請親友'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _showJoinDialog(context),
+                      icon: const Icon(Icons.group_add_outlined),
+                      label: const Text('加入家庭'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        const _NoticeBand(
+          icon: Icons.volunteer_activism_outlined,
+          text: '沒有家人也不會被排除；社工、長照機構與志工媒合將以獨立的陪伴關係與同意機制提供。',
+        ),
+        if (widget.controller.reviews.isNotEmpty) ...[
+          const _SectionTitle(title: '等待你的確認', subtitle: '只能覆核同家庭其他成員提交的照片'),
+          const SizedBox(height: 10),
+          ...widget.controller.reviews.map(
+            (review) => Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        review.imageUrl,
+                        height: 180,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      '${review.participantName} · ${review.taskTitle}',
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(review.explanation),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () =>
+                                widget.controller.decideReview(review, 'FAIL'),
+                            child: const Text('請重新拍攝'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () =>
+                                widget.controller.decideReview(review, 'PASS'),
+                            child: const Text('確認完成'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -328,6 +595,50 @@ class _FamilyScreenState extends State<FamilyScreen> {
       ],
     );
   }
+
+  Future<void> _showJoinDialog(BuildContext context) async {
+    final code = TextEditingController();
+    final relationship = TextEditingController(text: '家人');
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('加入另一個家庭'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: code,
+              maxLength: 8,
+              textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(labelText: '8 碼邀請碼'),
+            ),
+            TextField(
+              controller: relationship,
+              decoration: const InputDecoration(labelText: '關係，例如：女兒、朋友'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              await widget.controller.joinHousehold(
+                code.text,
+                relationship.text,
+              );
+              if (context.mounted) Navigator.pop(context);
+            },
+            child: const Text('加入'),
+          ),
+        ],
+      ),
+    );
+    code.dispose();
+    relationship.dispose();
+  }
 }
 
 class ImpactScreen extends StatelessWidget {
@@ -350,26 +661,38 @@ class ImpactScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
           ),
           padding: const EdgeInsets.all(20),
-          child: const Column(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.public_rounded, color: warmYellow, size: 32),
-              SizedBox(height: 24),
+              const Icon(Icons.public_rounded, color: warmYellow, size: 32),
+              const SizedBox(height: 24),
               Text(
-                '24,750',
-                style: TextStyle(
+                '${controller.impact.growthPoints}',
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 36,
                   fontWeight: FontWeight.w900,
                 ),
               ),
-              Text('公益池累積成長值', style: TextStyle(color: Color(0xFFBDD3C7))),
-              SizedBox(height: 18),
+              Text(
+                '${controller.impact.householdName}的真實成長值',
+                style: const TextStyle(color: Color(0xFFBDD3C7)),
+              ),
+              const SizedBox(height: 18),
               LinearProgressIndicator(
-                value: .74,
+                value: controller.impact.nextStageAt == null
+                    ? 1
+                    : (controller.impact.growthPoints /
+                              controller.impact.nextStageAt!)
+                          .clamp(0, 1),
                 minHeight: 9,
                 color: warmYellow,
-                backgroundColor: Color(0xFF3C715C),
+                backgroundColor: const Color(0xFF3C715C),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                '已進入公益紀錄：${controller.impact.contributedPoints} 點',
+                style: const TextStyle(color: Colors.white),
               ),
             ],
           ),
@@ -380,56 +703,15 @@ class ImpactScreen extends StatelessWidget {
           text: '目前展示的是模擬換算，不代表已完成真實植樹，也不構成碳權。',
         ),
         const SizedBox(height: 18),
-        const _SectionTitle(title: '本期示範批次', subtitle: '每一筆分配都會保留狀態與稽核紀錄'),
+        const _SectionTitle(
+          title: '公益紀錄',
+          subtitle: '只呈現可追溯的真實資料，不用固定示範數字冒充成果',
+        ),
         const SizedBox(height: 10),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.forest_rounded, color: forest),
-                    const SizedBox(width: 9),
-                    const Expanded(
-                      child: Text(
-                        '七月社區綠化示範批次',
-                        style: TextStyle(fontWeight: FontWeight.w900),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFF1C5),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Text(
-                        'SIMULATED',
-                        style: TextStyle(
-                          color: Color(0xFF795F12),
-                          fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const Divider(height: 28),
-                const Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _ImpactValue(label: '分配成長值', value: '12,800'),
-                    _ImpactValue(label: '示範換算', value: '12.8 棵'),
-                    _ImpactValue(label: '狀態', value: '待公開'),
-                  ],
-                ),
-              ],
-            ),
-          ),
+        const _EmptyBlock(
+          icon: Icons.eco_outlined,
+          title: '尚未進入公益批次',
+          text: '家庭樹成熟後，經合作單位建立可稽核的公益紀錄才會顯示在這裡。',
         ),
       ],
     );
@@ -451,6 +733,47 @@ class DeviceScreen extends StatelessWidget {
           subtitle: '長者完成設定後，可以直接在樹上看任務、讀訊息與按鍵回應。',
         ),
         const SizedBox(height: 14),
+        if (device == null)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(22),
+              child: Column(
+                children: [
+                  const Icon(Icons.park_outlined, color: forest, size: 42),
+                  const SizedBox(height: 8),
+                  const Text(
+                    '尚未綁定陪伴樹',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 5),
+                  const Text(
+                    'App 的任務、探索與家庭功能仍可獨立使用。',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: controller.scanForCompanionTrees,
+                          icon: const Icon(Icons.bluetooth_searching_rounded),
+                          label: const Text('搜尋裝置'),
+                        ),
+                      ),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: () => _showClaimDialog(context),
+                          icon: const Icon(Icons.qr_code_scanner_rounded),
+                          label: const Text('認領裝置'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
         if (device != null)
           Card(
             child: Padding(
@@ -577,8 +900,8 @@ class DeviceScreen extends StatelessWidget {
   }
 
   Future<void> _showClaimDialog(BuildContext context) async {
-    final serial = TextEditingController(text: 'TREE-DEMO-001');
-    final code = TextEditingController(text: '246810');
+    final serial = TextEditingController();
+    final code = TextEditingController();
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -633,6 +956,10 @@ class _TaskTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final completed = task.status == TaskStatus.completed;
     final verifying = task.status == TaskStatus.verifying;
+    final supported =
+        task.verificationMode == VerificationMode.photoAi ||
+        task.verificationMode == VerificationMode.selfCheck ||
+        task.verificationMode == VerificationMode.timer;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(15),
@@ -697,11 +1024,41 @@ class _TaskTile extends StatelessWidget {
                       icon: const Icon(Icons.fact_check_outlined),
                       label: const Text('等待 AI／人工覆核'),
                     )
+                  : !supported
+                  ? OutlinedButton.icon(
+                      onPressed: null,
+                      icon: const Icon(Icons.construction_rounded),
+                      label: const Text('這類任務尚未開放'),
+                    )
+                  : task.verificationMode == VerificationMode.timer
+                  ? _TimerTaskButton(task: task, controller: controller)
                   : FilledButton.icon(
-                      onPressed: () =>
-                          task.verificationMode == VerificationMode.photoAi
-                          ? controller.photographTask(task)
-                          : controller.completeTask(task),
+                      onPressed: () async {
+                        if (task.verificationMode == VerificationMode.photoAi) {
+                          await controller.photographTask(task);
+                          return;
+                        }
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('確認完成任務'),
+                            content: Text('你已完成「${task.title}」嗎？'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text('還沒有'),
+                              ),
+                              FilledButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                child: const Text('已完成'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirmed == true) {
+                          await controller.completeTask(task);
+                        }
+                      },
                       icon: Icon(
                         task.verificationMode == VerificationMode.photoAi
                             ? Icons.camera_alt_rounded
@@ -717,6 +1074,74 @@ class _TaskTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _TimerTaskButton extends StatefulWidget {
+  const _TimerTaskButton({required this.task, required this.controller});
+
+  final DailyTask task;
+  final AppController controller;
+
+  @override
+  State<_TimerTaskButton> createState() => _TimerTaskButtonState();
+}
+
+class _TimerTaskButtonState extends State<_TimerTaskButton> {
+  Timer? timer;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.task.startedAt != null) {
+      timer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _TimerTaskButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.task.startedAt == null && widget.task.startedAt != null) {
+      timer ??= Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final startedAt = widget.task.startedAt;
+    if (startedAt == null) {
+      return FilledButton.icon(
+        onPressed: () => widget.controller.startTask(widget.task),
+        icon: const Icon(Icons.timer_outlined),
+        label: Text('開始 ${((widget.task.minimumSeconds ?? 0) / 60).ceil()} 分鐘'),
+      );
+    }
+    final elapsed = DateTime.now().difference(startedAt).inSeconds;
+    final remaining = (widget.task.minimumSeconds ?? 0) - elapsed;
+    if (remaining <= 0) {
+      return FilledButton.icon(
+        onPressed: () => widget.controller.completeTask(widget.task),
+        icon: const Icon(Icons.check_circle_outline_rounded),
+        label: const Text('時間到了，完成任務'),
+      );
+    }
+    final minutes = remaining ~/ 60;
+    final seconds = remaining % 60;
+    return OutlinedButton.icon(
+      onPressed: null,
+      icon: const Icon(Icons.timer_rounded),
+      label: Text('$minutes:${seconds.toString().padLeft(2, '0')} 後可完成'),
     );
   }
 }
@@ -855,27 +1280,6 @@ class _EmptyBlock extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _ImpactValue extends StatelessWidget {
-  const _ImpactValue({required this.label, required this.value});
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(color: Color(0xFF69736D), fontSize: 11),
-        ),
-        const SizedBox(height: 4),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w900)),
-      ],
     );
   }
 }
