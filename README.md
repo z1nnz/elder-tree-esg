@@ -7,6 +7,7 @@ simulated ESG impact batches.
 ## Repository layout
 
 - `apps/mobile`: Flutter app for participants, elders, and family members.
+- `apps/public-web`: GSAP-powered public storytelling and participation site.
 - `apps/admin-web`: Next.js operations dashboard.
 - `services/api`: NestJS REST API and Prisma data model.
 - `services/ai-verifier`: FastAPI image verification service.
@@ -31,6 +32,12 @@ In another terminal:
 npm run dev:web
 ```
 
+The public site is a separate application:
+
+```sh
+npm run dev:public
+```
+
 The API runs in seeded in-memory demo mode when `DEMO_MODE=true`, so PostgreSQL,
 Firebase, AWS, and Gemini credentials are not required for the first launch.
 
@@ -44,12 +51,34 @@ firebase deploy --only auth
 npm run dev:api:neon
 ```
 
+For photo verification, run the private verifier on its own port:
+
+```sh
+cd services/ai-verifier
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+cd ../..
+npm run dev:ai
+```
+
+Before the first real photo upload, enable Firebase Storage from the Firebase
+Console using the `asia-east1` location, configure a Firebase Admin service
+account in `.env`, and deploy the private rules:
+
+```sh
+firebase deploy --only storage --project elder-tree-esg-z1nnz
+```
+
+Firebase currently requires the Blaze plan before a new default Storage bucket
+can be created. Never commit the Admin private key or Gemini API key.
+
 Run the Flutter app in another terminal:
 
 ```sh
 cd apps/mobile
 flutter run -d macos \
-  --dart-define=API_URL=http://127.0.0.1:4100/api/v1
+  --dart-define=API_URL=http://127.0.0.1:4100/api/v1 \
+  --dart-define=MAP_STYLE_URL=https://demotiles.maplibre.org/style.json
 ```
 
 The first account created in the app is provisioned with a household, three
@@ -71,5 +100,6 @@ npm test
 npm run build
 ```
 
-See `docs/architecture.md` and `docs/hardware.md` for the production topology
-and physical prototype specification.
+See `docs/product-strategy.md`, `docs/architecture.md`, and `docs/hardware.md`
+for the product principles, production topology, and physical prototype
+specification.

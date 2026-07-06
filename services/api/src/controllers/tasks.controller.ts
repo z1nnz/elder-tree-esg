@@ -56,14 +56,40 @@ export class TasksController {
   }
 
   @Post("evidence")
-  initializeEvidence(@Body() dto: InitializeEvidenceDto) {
+  async initializeEvidence(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: InitializeEvidenceDto,
+  ) {
+    if (process.env.DEMO_MODE !== "false") {
+      return {
+        data: this.demoStore.initializeEvidence(dto.assignmentId, dto.fileName),
+      };
+    }
     return {
-      data: this.demoStore.initializeEvidence(dto.assignmentId, dto.fileName),
+      data: await this.persistentStore.initializeEvidence(
+        request.user!.uid,
+        dto.assignmentId,
+        dto.fileName,
+        dto.contentType,
+      ),
     };
   }
 
   @Post("evidence/:id/complete")
-  completeEvidence(@Param("id") id: string, @Body() dto: CompleteEvidenceDto) {
-    return { data: this.demoStore.completeEvidence(id, dto.sha256) };
+  async completeEvidence(
+    @Req() request: AuthenticatedRequest,
+    @Param("id") id: string,
+    @Body() dto: CompleteEvidenceDto,
+  ) {
+    if (process.env.DEMO_MODE !== "false") {
+      return { data: this.demoStore.completeEvidence(id, dto.sha256) };
+    }
+    return {
+      data: await this.persistentStore.completeEvidence(
+        request.user!.uid,
+        id,
+        dto.sha256,
+      ),
+    };
   }
 }
