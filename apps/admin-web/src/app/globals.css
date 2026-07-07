@@ -1499,8 +1499,93 @@ button:disabled {
   background: #f0f4ef;
 }
 
+.exploration-stack {
+  display: grid;
+  gap: 22px;
+}
+
+.radar-admin {
+  display: grid;
+  gap: 18px;
+}
+
+.radar-admin-grid {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1.2fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.radar-admin-list {
+  display: grid;
+  gap: 12px;
+}
+
+.radar-admin-list article {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 16px;
+  border: 1px solid #d9e2da;
+  border-radius: 14px;
+  background:
+    linear-gradient(135deg, rgba(191, 222, 132, 0.18), transparent 36%),
+    white;
+}
+
+.radar-admin-list h3 {
+  margin: 8px 0 5px;
+}
+
+.radar-admin-list p {
+  margin: 0 0 8px;
+  color: #5f6d64;
+}
+
+.radar-admin-list small {
+  color: #6c776f;
+  font-weight: 800;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #eef3ed;
+  color: #506057;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.status-pill.published {
+  background: #dff0e4;
+  color: #245737;
+}
+
+.status-pill.draft {
+  background: #fff1c8;
+  color: #775107;
+}
+
+.status-pill.archived {
+  background: #eceff0;
+  color: #657076;
+}
+
+.radar-admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 @media (max-width: 980px) {
-  .route-editor-grid {
+  .route-editor-grid,
+  .radar-admin-grid {
     grid-template-columns: 1fr;
   }
 

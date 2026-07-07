@@ -100,6 +100,10 @@ class ApiClient {
     return ExplorationStateModel.fromJson(await _getMap('/exploration/state'));
   }
 
+  Future<RadarStateModel> getRadarState() async {
+    return RadarStateModel.fromJson(await _getMap('/exploration/radar'));
+  }
+
   Future<List<CompanionDevice>> getDevices() async {
     final data = await _getList('/devices');
     return data.map(CompanionDevice.fromJson).toList();
@@ -184,6 +188,33 @@ class ApiClient {
   Future<ExplorationStateModel> endExplorationSession(String sessionId) async {
     return ExplorationStateModel.fromJson(
       await _post('/exploration/sessions/$sessionId/end', const {}),
+    );
+  }
+
+  Future<RadarStateModel> unlockRadarMission({
+    required String missionId,
+    required String eventKey,
+    required double latitude,
+    required double longitude,
+    required double accuracyMeters,
+    required DateTime occurredAt,
+  }) async {
+    return RadarStateModel.fromJson(
+      await _post('/exploration/radar/$missionId/unlock', {
+        'eventKey': eventKey,
+        'latitude': latitude,
+        'longitude': longitude,
+        'accuracyMeters': accuracyMeters,
+        'occurredAt': occurredAt.toUtc().toIso8601String(),
+      }),
+    );
+  }
+
+  Future<RadarStateModel> completeRadarMission(String missionId) async {
+    return RadarStateModel.fromJson(
+      await _post('/exploration/radar/$missionId/complete', {
+        'idempotencyKey': 'mobile-radar-$missionId',
+      }),
     );
   }
 

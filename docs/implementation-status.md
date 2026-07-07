@@ -1,5 +1,15 @@
 # 實作狀態
 
+## 2026-07-07：任務雷達＋公開前台雙 CTA MVP
+
+- 新增獨立的 `RadarMission` 與 `RadarMissionProgress`，和固定路線任務分開。
+- 台北市中心已種入多個雷達任務點；任務包含座標、半徑、時間窗、模式、成長值與徽章名稱。
+- App 新增任務雷達地圖光點與任務卡；前景定位會先以手機端粗略判斷候選點，再交由後端驗證半徑。
+- 雷達任務只允許 `SELF_CHECK` 與 `TIMER`；完成後用 `GrowthEntry` 冪等帳本加分，重送不重複成長。
+- 後台新增雷達任務管理，可建立草稿、設定座標／半徑／時間窗、發布與封存。
+- 公開前台新增雙 CTA：「開始使用」與「合作／陪伴」，並讀取公開雷達任務 API 作城市任務展示。
+- 照片 AI 驗證預設鎖到 Firebase Blaze／Storage 完整版；App/API 不呼叫 Storage 或 Gemini。
+
 ## 2026-07-06：城市探索 MVP（不升級 Blaze）
 
 - Neon 還原點：`backup-before-city-exploration-mvp-20260706`。

@@ -111,7 +111,7 @@ class AppContextModel {
     required this.households,
     this.photoEvidenceEnabled = false,
     this.photoEvidenceReason,
-    this.geminiPhotoVerificationEnabled = true,
+    this.geminiPhotoVerificationEnabled = false,
     this.geminiPhotoVerificationReason,
   });
 
@@ -148,12 +148,105 @@ class AppContextModel {
                         as Map<String, dynamic>?)?['geminiPhotoVerification']
                     as Map<String, dynamic>?)?['enabled']
                 as bool? ??
-            true,
+            false,
         geminiPhotoVerificationReason:
             ((json['capabilities']
                         as Map<String, dynamic>?)?['geminiPhotoVerification']
                     as Map<String, dynamic>?)?['reason']
                 as String?,
+      );
+}
+
+class RadarMissionModel {
+  const RadarMissionModel({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.category,
+    required this.tag,
+    required this.latitude,
+    required this.longitude,
+    required this.radiusMeters,
+    required this.startsAt,
+    required this.endsAt,
+    required this.remainingSeconds,
+    required this.verificationMode,
+    required this.minimumSeconds,
+    required this.growthPoints,
+    required this.badgeName,
+    required this.publicationStatus,
+    required this.status,
+    required this.unlockedAt,
+    required this.completedAt,
+  });
+
+  final String id;
+  final String title;
+  final String description;
+  final String category;
+  final String tag;
+  final double latitude;
+  final double longitude;
+  final int radiusMeters;
+  final DateTime startsAt;
+  final DateTime endsAt;
+  final int remainingSeconds;
+  final VerificationMode verificationMode;
+  final int? minimumSeconds;
+  final int growthPoints;
+  final String? badgeName;
+  final String publicationStatus;
+  final String status;
+  final DateTime? unlockedAt;
+  final DateTime? completedAt;
+
+  bool get isUnlocked => status == 'UNLOCKED' || status == 'COMPLETED';
+  bool get isCompleted => status == 'COMPLETED';
+
+  factory RadarMissionModel.fromJson(Map<String, dynamic> json) =>
+      RadarMissionModel(
+        id: json['id'] as String,
+        title: json['title'] as String,
+        description: json['description'] as String,
+        category: json['category'] as String,
+        tag: json['tag'] as String,
+        latitude: (json['latitude'] as num).toDouble(),
+        longitude: (json['longitude'] as num).toDouble(),
+        radiusMeters: json['radiusMeters'] as int,
+        startsAt: DateTime.parse(json['startsAt'] as String),
+        endsAt: DateTime.parse(json['endsAt'] as String),
+        remainingSeconds: json['remainingSeconds'] as int,
+        verificationMode: switch (json['verificationMode']) {
+          'TIMER' => VerificationMode.timer,
+          _ => VerificationMode.selfCheck,
+        },
+        minimumSeconds: json['minimumSeconds'] as int?,
+        growthPoints: json['growthPoints'] as int,
+        badgeName: json['badgeName'] as String?,
+        publicationStatus: json['publicationStatus'] as String,
+        status: json['status'] as String,
+        unlockedAt: json['unlockedAt'] == null
+            ? null
+            : DateTime.parse(json['unlockedAt'] as String),
+        completedAt: json['completedAt'] == null
+            ? null
+            : DateTime.parse(json['completedAt'] as String),
+      );
+}
+
+class RadarStateModel {
+  const RadarStateModel({required this.generatedAt, required this.missions});
+
+  final DateTime generatedAt;
+  final List<RadarMissionModel> missions;
+
+  factory RadarStateModel.fromJson(Map<String, dynamic> json) =>
+      RadarStateModel(
+        generatedAt: DateTime.parse(json['generatedAt'] as String),
+        missions: (json['missions'] as List)
+            .cast<Map<String, dynamic>>()
+            .map(RadarMissionModel.fromJson)
+            .toList(),
       );
 }
 

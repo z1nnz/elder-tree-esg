@@ -2,6 +2,8 @@ import type {
   ApiEnvelope,
   DashboardSnapshot,
   ExplorationQuestInput,
+  RadarMissionInput,
+  RadarMissionSummary,
   ExplorationRouteInput,
   ExplorationRouteSummary,
   ImpactBatchSummary,
@@ -35,6 +37,28 @@ export const api = {
   },
   dashboard: () => request<DashboardSnapshot>("/admin/dashboard"),
   reviews: () => request<ReviewItem[]>("/admin/reviews"),
+  radarMissions: () =>
+    request<RadarMissionSummary[]>("/admin/exploration/radar-missions"),
+  createRadarMission: (input: RadarMissionInput) =>
+    request<RadarMissionSummary>("/admin/exploration/radar-missions", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateRadarMission: (id: string, input: RadarMissionInput) =>
+    request<RadarMissionSummary>(`/admin/exploration/radar-missions/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  publishRadarMission: (id: string) =>
+    request<RadarMissionSummary>(
+      `/admin/exploration/radar-missions/${id}/publish`,
+      { method: "POST", body: JSON.stringify({}) },
+    ),
+  archiveRadarMission: (id: string) =>
+    request<RadarMissionSummary>(
+      `/admin/exploration/radar-missions/${id}/archive`,
+      { method: "POST", body: JSON.stringify({}) },
+    ),
   explorationRoutes: () =>
     request<ExplorationRouteSummary[]>("/admin/exploration/routes"),
   createExplorationRoute: (input: ExplorationRouteInput) =>

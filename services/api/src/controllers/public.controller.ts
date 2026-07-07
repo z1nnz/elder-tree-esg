@@ -13,4 +13,9 @@ export class PublicController {
   async route(@Param("slug") slug: string) {
     return { data: await this.store.getPublicExplorationRoute(slug) };
   }
+
+  @Get("exploration/radar")
+  async radar() {
+    return { data: await this.store.getPublicRadarState() };
+  }
 }

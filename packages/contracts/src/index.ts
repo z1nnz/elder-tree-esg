@@ -101,7 +101,11 @@ export interface TaskSummary {
   dueAt: string | null;
   capability: {
     enabled: boolean;
-    reason: "PHOTO_STORAGE_UNAVAILABLE" | "PHOTO_VERIFIER_UNAVAILABLE" | null;
+    reason:
+      | "PHOTO_STORAGE_UNAVAILABLE"
+      | "PHOTO_VERIFIER_UNAVAILABLE"
+      | "BLAZE_REQUIRED"
+      | null;
   };
 }
 
@@ -135,11 +139,11 @@ export interface AppContext {
   capabilities: {
     photoEvidence: {
       enabled: boolean;
-      reason: "STORAGE_NOT_CONFIGURED" | null;
+      reason: "STORAGE_NOT_CONFIGURED" | "BLAZE_REQUIRED" | null;
     };
     geminiPhotoVerification: {
       enabled: boolean;
-      reason: "VERIFIER_DISABLED" | null;
+      reason: "VERIFIER_DISABLED" | "BLAZE_REQUIRED" | null;
     };
   };
 }
@@ -250,6 +254,64 @@ export interface ExplorationEventResult extends ExplorationState {
   duplicate: boolean;
   acceptedDistanceMeters: number;
   newlyUnlockedTaskIds: string[];
+}
+
+export type RadarMissionStatus =
+  | "UPCOMING"
+  | "LOCKED"
+  | "UNLOCKED"
+  | "COMPLETED"
+  | "EXPIRED";
+
+export interface RadarMissionSummary {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  tag: string;
+  latitude: number;
+  longitude: number;
+  radiusMeters: number;
+  startsAt: string;
+  endsAt: string;
+  remainingSeconds: number;
+  verificationMode: "SELF_CHECK" | "TIMER";
+  minimumSeconds: number | null;
+  growthPoints: number;
+  badgeName: string | null;
+  publicationStatus: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  status: RadarMissionStatus;
+  unlockedAt: string | null;
+  completedAt: string | null;
+}
+
+export interface RadarState {
+  generatedAt: string;
+  missions: RadarMissionSummary[];
+}
+
+export interface RadarMissionInput {
+  title: string;
+  description: string;
+  category: string;
+  tag: string;
+  latitude: number;
+  longitude: number;
+  radiusMeters: number;
+  startsAt: string;
+  endsAt: string;
+  verificationMode: "SELF_CHECK" | "TIMER";
+  minimumSeconds?: number | null;
+  growthPoints: number;
+  badgeName?: string | null;
+}
+
+export interface RadarMissionUnlockInput {
+  eventKey: string;
+  latitude: number;
+  longitude: number;
+  accuracyMeters: number;
+  occurredAt: string;
 }
 
 export interface ExplorationRouteInput {

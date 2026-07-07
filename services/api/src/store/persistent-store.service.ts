@@ -15,6 +15,10 @@ import type {
   FamilyReviewItem,
   HouseholdInviteSummary,
   ImpactSummary,
+  RadarMissionInput,
+  RadarMissionSummary,
+  RadarMissionStatus,
+  RadarState,
   ReviewItem,
   TaskSummary,
   TreeSummary,
@@ -102,6 +106,10 @@ type RouteWithTasks = Prisma.ExplorationRouteGetPayload<{
   include: { quests: { include: { task: true } } };
 }>;
 
+type RadarMissionWithProgress = Prisma.RadarMissionGetPayload<{
+  include: { progress: true };
+}>;
+
 interface GeminiPhotoTaskInput {
   imageBase64: string;
   contentType: string;
@@ -116,7 +124,8 @@ function toTaskSummary(assignment: AssignmentWithTask): TaskSummary {
       ? (assignment.task.verificationRule as Record<string, unknown>)
       : {};
   const geminiPhotoVerificationEnabled =
-    process.env.PHOTO_VERIFICATION_ENABLED !== "false";
+    process.env.PHOTO_EVIDENCE_ENABLED === "true" &&
+    process.env.PHOTO_VERIFICATION_ENABLED === "true";
   return {
     id: assignment.id,
     title: assignment.task.title,
@@ -135,7 +144,7 @@ function toTaskSummary(assignment: AssignmentWithTask): TaskSummary {
       reason:
         assignment.task.verificationMode === VerificationMode.PHOTO_AI &&
         !geminiPhotoVerificationEnabled
-          ? "PHOTO_VERIFIER_UNAVAILABLE"
+          ? "BLAZE_REQUIRED"
           : null,
     },
   };
@@ -202,18 +211,12 @@ export class PersistentStoreService {
       })),
       capabilities: {
         photoEvidence: {
-          enabled: process.env.PHOTO_EVIDENCE_ENABLED === "true",
-          reason:
-            process.env.PHOTO_EVIDENCE_ENABLED === "true"
-              ? null
-              : "STORAGE_NOT_CONFIGURED",
+          enabled: false,
+          reason: "BLAZE_REQUIRED",
         },
         geminiPhotoVerification: {
-          enabled: process.env.PHOTO_VERIFICATION_ENABLED !== "false",
-          reason:
-            process.env.PHOTO_VERIFICATION_ENABLED === "false"
-              ? "VERIFIER_DISABLED"
-              : null,
+          enabled: false,
+          reason: "BLAZE_REQUIRED",
         },
       },
     };
@@ -459,8 +462,13 @@ export class PersistentStoreService {
     assignmentId: string,
     input: GeminiPhotoTaskInput,
   ): Promise<TaskSummary> {
-    if (process.env.PHOTO_VERIFICATION_ENABLED === "false") {
-      throw new BadRequestException("Photo verification is disabled");
+    if (
+      process.env.PHOTO_EVIDENCE_ENABLED !== "true" ||
+      process.env.PHOTO_VERIFICATION_ENABLED !== "true"
+    ) {
+      throw new BadRequestException(
+        "Photo verification requires Firebase Blaze and private storage",
+      );
     }
     const active = await this.getActiveUser(firebaseUid);
     const assignment = await this.prisma.taskAssignment.findFirst({
@@ -1462,6 +1470,271 @@ export class PersistentStoreService {
     return this.toRouteSummary(archived);
   }
 
+  async getRadarState(firebaseUid: string): Promise<RadarState> {
+    const active = await this.getActiveUser(firebaseUid);
+    const now = this.clock.now();
+    const missions = await this.prisma.radarMission.findMany({
+      where: {
+        status: "PUBLISHED",
+        OR: [
+          { endsAt: { gte: now } },
+          {
+            progress: {
+              some: {
+                userId: active.id,
+                householdId: active.activeHouseholdId,
+              },
+            },
+          },
+        ],
+      },
+      include: {
+        progress: {
+          where: {
+            userId: active.id,
+            householdId: active.activeHouseholdId,
+          },
+        },
+      },
+      orderBy: [{ endsAt: "asc" }, { createdAt: "asc" }],
+    });
+    return {
+      generatedAt: now.toISOString(),
+      missions: missions.map((mission) =>
+        this.toRadarMissionSummary(mission, now),
+      ),
+    };
+  }
+
+  async getPublicRadarState(): Promise<RadarState> {
+    const now = this.clock.now();
+    const missions = await this.prisma.radarMission.findMany({
+      where: {
+        status: "PUBLISHED",
+        endsAt: { gte: now },
+      },
+      include: { progress: { take: 0 } },
+      orderBy: [{ endsAt: "asc" }, { createdAt: "asc" }],
+      take: 12,
+    });
+    return {
+      generatedAt: now.toISOString(),
+      missions: missions.map((mission) =>
+        this.toRadarMissionSummary({ ...mission, progress: [] }, now),
+      ),
+    };
+  }
+
+  async listAdminRadarMissions(): Promise<RadarMissionSummary[]> {
+    const missions = await this.prisma.radarMission.findMany({
+      include: { progress: { take: 0 } },
+      orderBy: [{ createdAt: "desc" }],
+    });
+    const now = this.clock.now();
+    return missions.map((mission) =>
+      this.toRadarMissionSummary({ ...mission, progress: [] }, now),
+    );
+  }
+
+  async createAdminRadarMission(
+    input: RadarMissionInput,
+  ): Promise<RadarMissionSummary> {
+    this.assertValidRadarMissionInput(input);
+    const mission = await this.prisma.radarMission.create({
+      data: this.toRadarMissionData(input),
+      include: { progress: { take: 0 } },
+    });
+    return this.toRadarMissionSummary(
+      { ...mission, progress: [] },
+      this.clock.now(),
+    );
+  }
+
+  async updateAdminRadarMission(
+    missionId: string,
+    input: RadarMissionInput,
+  ): Promise<RadarMissionSummary> {
+    this.assertValidRadarMissionInput(input);
+    const existing = await this.prisma.radarMission.findUnique({
+      where: { id: missionId },
+    });
+    if (!existing) throw new NotFoundException("Radar mission not found");
+    if (existing.status !== "DRAFT") {
+      throw new BadRequestException("Published radar missions are immutable");
+    }
+    const mission = await this.prisma.radarMission.update({
+      where: { id: missionId },
+      data: this.toRadarMissionData(input),
+      include: { progress: { take: 0 } },
+    });
+    return this.toRadarMissionSummary(
+      { ...mission, progress: [] },
+      this.clock.now(),
+    );
+  }
+
+  async publishAdminRadarMission(
+    missionId: string,
+  ): Promise<RadarMissionSummary> {
+    const existing = await this.prisma.radarMission.findUnique({
+      where: { id: missionId },
+    });
+    if (!existing) throw new NotFoundException("Radar mission not found");
+    if (existing.verificationMode === VerificationMode.PHOTO_AI) {
+      throw new BadRequestException("PHOTO_AI radar missions require Blaze");
+    }
+    const mission = await this.prisma.radarMission.update({
+      where: { id: missionId },
+      data: {
+        status: "PUBLISHED",
+        publishedAt: this.clock.now(),
+        archivedAt: null,
+      },
+      include: { progress: { take: 0 } },
+    });
+    return this.toRadarMissionSummary(
+      { ...mission, progress: [] },
+      this.clock.now(),
+    );
+  }
+
+  async archiveAdminRadarMission(
+    missionId: string,
+  ): Promise<RadarMissionSummary> {
+    const existing = await this.prisma.radarMission.findUnique({
+      where: { id: missionId },
+    });
+    if (!existing) throw new NotFoundException("Radar mission not found");
+    const mission = await this.prisma.radarMission.update({
+      where: { id: missionId },
+      data: {
+        status: "ARCHIVED",
+        archivedAt: this.clock.now(),
+      },
+      include: { progress: { take: 0 } },
+    });
+    return this.toRadarMissionSummary(
+      { ...mission, progress: [] },
+      this.clock.now(),
+    );
+  }
+
+  async unlockRadarMission(
+    firebaseUid: string,
+    missionId: string,
+    event: {
+      eventKey: string;
+      latitude: number;
+      longitude: number;
+      accuracyMeters: number;
+      occurredAt: string;
+    },
+  ): Promise<RadarState> {
+    if (event.accuracyMeters > 50) {
+      throw new BadRequestException(
+        "Location accuracy must be within 50 meters",
+      );
+    }
+    const occurredAt = new Date(event.occurredAt);
+    if (Number.isNaN(occurredAt.getTime())) {
+      throw new BadRequestException("Invalid radar event time");
+    }
+    const eventAge = this.clock.now().getTime() - occurredAt.getTime();
+    if (eventAge > 5 * 60 * 1000 || eventAge < -60 * 1000) {
+      throw new BadRequestException("Radar event time is outside the accepted window");
+    }
+    const active = await this.getActiveUser(firebaseUid);
+    const mission = await this.prisma.radarMission.findFirst({
+      where: { id: missionId, status: "PUBLISHED" },
+    });
+    if (!mission) throw new NotFoundException("Published radar mission not found");
+    const now = this.clock.now();
+    if (now < mission.startsAt || now > mission.endsAt) {
+      throw new BadRequestException("Radar mission is not currently available");
+    }
+    const distanceMeters = distanceBetweenMeters(
+      { latitude: mission.latitude, longitude: mission.longitude },
+      { latitude: event.latitude, longitude: event.longitude },
+    );
+    if (distanceMeters > mission.radiusMeters) {
+      throw new BadRequestException("You must be inside the mission radius");
+    }
+
+    await this.prisma.radarMissionProgress.upsert({
+      where: {
+        missionId_userId_householdId: {
+          missionId,
+          userId: active.id,
+          householdId: active.activeHouseholdId,
+        },
+      },
+      update: { lastEventKey: event.eventKey },
+      create: {
+        missionId,
+        userId: active.id,
+        householdId: active.activeHouseholdId,
+        unlockedAt: now,
+        lastEventKey: event.eventKey,
+      },
+    });
+    return this.getRadarState(firebaseUid);
+  }
+
+  async completeRadarMission(
+    firebaseUid: string,
+    missionId: string,
+    _idempotencyKey?: string,
+  ): Promise<RadarState> {
+    const active = await this.getActiveUser(firebaseUid);
+    const now = this.clock.now();
+    await this.prisma.$transaction(async (transaction) => {
+      const progress = await transaction.radarMissionProgress.findUnique({
+        where: {
+          missionId_userId_householdId: {
+            missionId,
+            userId: active.id,
+            householdId: active.activeHouseholdId,
+          },
+        },
+        include: { mission: true },
+      });
+      if (!progress) throw new NotFoundException("Radar mission is not unlocked");
+      if (progress.completedAt) return;
+      if (progress.mission.status !== "PUBLISHED") {
+        throw new BadRequestException("Radar mission is not published");
+      }
+      if (now > progress.mission.endsAt) {
+        throw new BadRequestException("Radar mission has expired");
+      }
+      if (progress.mission.verificationMode === VerificationMode.PHOTO_AI) {
+        throw new BadRequestException("PHOTO_AI radar missions require Blaze");
+      }
+      if (progress.mission.verificationMode === VerificationMode.TIMER) {
+        const minimumSeconds = progress.mission.minimumSeconds ?? 0;
+        const elapsedSeconds = Math.floor(
+          (now.getTime() - progress.unlockedAt.getTime()) / 1000,
+        );
+        if (elapsedSeconds < minimumSeconds) {
+          throw new BadRequestException(
+            `Radar timer requires ${minimumSeconds - elapsedSeconds} more seconds`,
+          );
+        }
+      }
+      await this.awardRadarMissionGrowth(
+        transaction,
+        progress.id,
+        progress.missionId,
+        progress.mission.growthPoints,
+        active.activeHouseholdId,
+      );
+      await transaction.radarMissionProgress.update({
+        where: { id: progress.id },
+        data: { completedAt: now },
+      });
+    });
+    return this.getRadarState(firebaseUid);
+  }
+
   async getExplorationState(firebaseUid: string): Promise<ExplorationState> {
     const active = await this.getActiveUser(firebaseUid);
     const expirationCutoff = new Date(
@@ -2164,6 +2437,96 @@ export class PersistentStoreService {
     }
   }
 
+  private assertValidRadarMissionInput(input: RadarMissionInput): void {
+    if (!["SELF_CHECK", "TIMER"].includes(input.verificationMode)) {
+      throw new BadRequestException(
+        "Radar missions only support SELF_CHECK or TIMER until Blaze is enabled",
+      );
+    }
+    const startsAt = new Date(input.startsAt);
+    const endsAt = new Date(input.endsAt);
+    if (
+      Number.isNaN(startsAt.getTime()) ||
+      Number.isNaN(endsAt.getTime()) ||
+      endsAt <= startsAt
+    ) {
+      throw new BadRequestException("Radar mission requires a valid time window");
+    }
+    if (input.radiusMeters < 25 || input.radiusMeters > 150) {
+      throw new BadRequestException("Radar mission radius must be 25-150 meters");
+    }
+    if (
+      input.verificationMode === "TIMER" &&
+      (!input.minimumSeconds ||
+        input.minimumSeconds < 30 ||
+        input.minimumSeconds > 3600)
+    ) {
+      throw new BadRequestException(
+        "Timer radar missions require 30-3600 seconds",
+      );
+    }
+  }
+
+  private toRadarMissionData(input: RadarMissionInput) {
+    return {
+      title: input.title.trim(),
+      description: input.description.trim(),
+      category: input.category.trim().toUpperCase(),
+      tag: input.tag.trim(),
+      latitude: input.latitude,
+      longitude: input.longitude,
+      radiusMeters: input.radiusMeters,
+      startsAt: new Date(input.startsAt),
+      endsAt: new Date(input.endsAt),
+      verificationMode: input.verificationMode,
+      minimumSeconds:
+        input.verificationMode === "TIMER" ? input.minimumSeconds : null,
+      growthPoints: input.growthPoints,
+      badgeName: input.badgeName?.trim() || null,
+    };
+  }
+
+  private toRadarMissionSummary(
+    mission: RadarMissionWithProgress,
+    now: Date,
+  ): RadarMissionSummary {
+    const progress = mission.progress[0];
+    let status: RadarMissionStatus = "LOCKED";
+    if (progress?.completedAt) {
+      status = "COMPLETED";
+    } else if (now < mission.startsAt) {
+      status = "UPCOMING";
+    } else if (now > mission.endsAt) {
+      status = "EXPIRED";
+    } else if (progress) {
+      status = "UNLOCKED";
+    }
+    return {
+      id: mission.id,
+      title: mission.title,
+      description: mission.description,
+      category: mission.category,
+      tag: mission.tag,
+      latitude: mission.latitude,
+      longitude: mission.longitude,
+      radiusMeters: mission.radiusMeters,
+      startsAt: mission.startsAt.toISOString(),
+      endsAt: mission.endsAt.toISOString(),
+      remainingSeconds: Math.max(
+        0,
+        Math.floor((mission.endsAt.getTime() - now.getTime()) / 1000),
+      ),
+      verificationMode: mission.verificationMode as "SELF_CHECK" | "TIMER",
+      minimumSeconds: mission.minimumSeconds,
+      growthPoints: mission.growthPoints,
+      badgeName: mission.badgeName,
+      publicationStatus: mission.status,
+      status,
+      unlockedAt: progress?.unlockedAt.toISOString() ?? null,
+      completedAt: progress?.completedAt?.toISOString() ?? null,
+    };
+  }
+
   private async findAssignment(
     firebaseUid: string,
     assignmentId: string,
@@ -2219,6 +2582,40 @@ export class PersistentStoreService {
     const updatedTree = await transaction.tree.update({
       where: { id: tree.id },
       data: { growthPoints: { increment: assignment.task.growthPoints } },
+    });
+    await transaction.tree.update({
+      where: { id: tree.id },
+      data: {
+        stage: stageForPoints(updatedTree.growthPoints) as PrismaTreeStage,
+      },
+    });
+  }
+
+  private async awardRadarMissionGrowth(
+    transaction: Prisma.TransactionClient,
+    progressId: string,
+    missionId: string,
+    growthPoints: number,
+    householdId: string,
+  ): Promise<void> {
+    const tree = await transaction.tree.findFirst({
+      where: { householdId },
+      orderBy: { createdAt: "asc" },
+    });
+    if (!tree) throw new NotFoundException("Companion tree not found");
+    const canonicalIdempotencyKey = `radar:${progressId}`;
+    const inserted = await transaction.$executeRaw`
+      INSERT INTO "GrowthEntry"
+        ("id", "treeId", "idempotencyKey", "points", "reason", "sourceId", "createdAt")
+      VALUES
+        (${randomUUID()}, ${tree.id}, ${canonicalIdempotencyKey},
+         ${growthPoints}, 'RADAR_MISSION_COMPLETED', ${missionId}, NOW())
+      ON CONFLICT ("idempotencyKey") DO NOTHING
+    `;
+    if (inserted !== 1) return;
+    const updatedTree = await transaction.tree.update({
+      where: { id: tree.id },
+      data: { growthPoints: { increment: growthPoints } },
     });
     await transaction.tree.update({
       where: { id: tree.id },

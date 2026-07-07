@@ -1,6 +1,9 @@
 "use client";
 
-import type { ExplorationRouteSummary } from "@elder-tree/contracts";
+import type {
+  ExplorationRouteSummary,
+  RadarState,
+} from "@elder-tree/contracts";
 import { useEffect, useRef, useState } from "react";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
@@ -68,8 +71,8 @@ const productHighlights = [
   },
   {
     icon: Camera,
-    title: "Gemini 拍照驗證",
-    body: "花草、植物、水杯等低風險任務可以由 AI 先判斷，只保存驗證摘要，不把原圖當成果展示。",
+    title: "Blaze 後開放的 AI 拍照驗證",
+    body: "花草、植物、水杯等低風險任務未來可由 AI 先判斷；正式開放前，App 不上傳照片也不呼叫 Gemini。",
   },
   {
     icon: Trees,
@@ -112,11 +115,19 @@ const contactHref = (subject: string) => {
     : "https://github.com/z1nnz/elder-tree-esg";
 };
 
+const formatRemaining = (seconds: number) => {
+  if (seconds <= 0) return "已結束";
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return hours > 0 ? `剩 ${hours} 小時 ${minutes} 分` : `剩 ${minutes} 分`;
+};
+
 export function PublicExperience() {
   const root = useRef<HTMLElement>(null);
   const [routeData, setRouteData] = useState<ExplorationRouteSummary | null>(
     null,
   );
+  const [publicRadar, setPublicRadar] = useState<RadarState | null>(null);
 
   useEffect(() => {
     const apiUrl =
@@ -134,8 +145,32 @@ export function PublicExperience() {
       })
       .then(({ data }) => setRouteData(data))
       .catch(() => undefined);
+    void fetch(`${apiUrl}/public/exploration/radar`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("radar unavailable");
+        return (await response.json()) as { data: RadarState };
+      })
+      .then(({ data }) => setPublicRadar(data))
+      .catch(() => undefined);
     return () => controller.abort();
   }, []);
+
+  const missionShowcase =
+    publicRadar?.missions.slice(0, 3).map((mission, index) => ({
+      icon:
+        mission.category === "HYDRATION"
+          ? Camera
+          : mission.category === "WALK"
+            ? Footprints
+            : Leaf,
+      label: mission.title,
+      distance: `${mission.radiusMeters}m 內`,
+      time: formatRemaining(mission.remainingSeconds),
+      points: `+${mission.growthPoints}`,
+      className: ["mission-plant", "mission-water", "mission-walk"][index]!,
+    })) ?? radarMissions;
 
   useGSAP(
     () => {
@@ -422,14 +457,14 @@ export function PublicExperience() {
                 <LocateFixed size={25} />
                 <span>你</span>
               </div>
-              {radarMissions.map(({ icon: Icon, label, className }) => (
+              {missionShowcase.map(({ icon: Icon, label, className }) => (
                 <div className={`mission-dot ${className}`} key={label}>
                   <Icon size={18} />
                 </div>
               ))}
             </div>
             <div className="mission-list">
-              {radarMissions.map(({ icon: Icon, label, distance, time, points }) => (
+              {missionShowcase.map(({ icon: Icon, label, distance, time, points }) => (
                 <article key={label}>
                   <span>
                     <Icon size={18} />
@@ -557,19 +592,13 @@ export function PublicExperience() {
           <a href={contactHref("我想開始使用綠伴")} data-reveal>
             <Sprout size={24} />
             <strong>我想開始</strong>
-            <span>自主探索與生活任務</span>
+            <span>下載 App、開始探索、培養自己的樹</span>
             <ArrowUpRight />
           </a>
-          <a href={contactHref("我想成為陪伴志工")} data-reveal>
+          <a href={contactHref("綠伴合作與陪伴計畫")} data-reveal>
             <HeartHandshake size={24} />
-            <strong>我想陪伴</strong>
-            <span>志工、朋友與社區夥伴</span>
-            <ArrowUpRight />
-          </a>
-          <a href={contactHref("綠伴機構合作")} data-reveal>
-            <Building2 size={24} />
-            <strong>機構合作</strong>
-            <span>長照、社福、協會與企業</span>
+            <strong>我想合作／陪伴</strong>
+            <span>社福、長照、協會、企業與審核志工</span>
             <ArrowUpRight />
           </a>
         </div>

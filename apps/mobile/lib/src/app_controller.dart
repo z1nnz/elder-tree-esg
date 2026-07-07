@@ -46,6 +46,7 @@ class AppController extends ChangeNotifier {
   List<FamilyReviewModel> reviews = [];
   ImpactSummaryModel impact = _emptyImpact;
   ExplorationStateModel exploration = _emptyExploration;
+  RadarStateModel radar = _emptyRadar;
   List<String> discoveredTrees = [];
   bool _sendingLocation = false;
 
@@ -78,6 +79,7 @@ class AppController extends ChangeNotifier {
         _api.getFamilyReviews(),
         _api.getImpactSummary(),
         _api.getExplorationState(),
+        _api.getRadarState(),
       ]);
       context = results[0] as AppContextModel;
       tasks = results[1] as List<DailyTask>;
@@ -87,6 +89,7 @@ class AppController extends ChangeNotifier {
       reviews = results[5] as List<FamilyReviewModel>;
       impact = results[6] as ImpactSummaryModel;
       exploration = results[7] as ExplorationStateModel;
+      radar = results[8] as RadarStateModel;
       offlineDemo = false;
     } catch (_) {
       offlineDemo = _allowOfflineDemo;
@@ -185,7 +188,7 @@ class AppController extends ChangeNotifier {
   Future<void> photographTask(DailyTask task) async {
     if (!task.capabilityEnabled ||
         context?.geminiPhotoVerificationEnabled == false) {
-      notice = 'Gemini 拍照辨識暫時無法使用；其他任務與城市探索仍可正常使用。';
+      notice = '照片 AI 驗證將於 Firebase Blaze／Storage 啟用後開放；其他任務與城市探索仍可正常使用。';
       notifyListeners();
       return;
     }
@@ -240,8 +243,8 @@ class AppController extends ChangeNotifier {
       final route = exploration.routes.isEmpty
           ? null
           : exploration.routes.first;
-      if (route == null) {
-        throw const FormatException('目前沒有已發布的探索路線');
+      if (route == null && radar.missions.isEmpty) {
+        throw const FormatException('目前沒有已發布的探索路線或雷達任務');
       }
       if (!await Geolocator.isLocationServiceEnabled()) {
         throw const FormatException('請先開啟定位服務');
@@ -254,15 +257,20 @@ class AppController extends ChangeNotifier {
           permission == LocationPermission.deniedForever) {
         throw const FormatException('未取得定位權限');
       }
-      final session =
-          exploration.activeSession ??
-          await _api.startExplorationSession(route.id);
-      exploration = await _api.getExplorationState();
-      if (exploration.activeSession?.id != session.id) {
-        throw const FormatException('探索 Session 建立失敗');
+      ExplorationSessionModel? session;
+      if (route != null) {
+        session =
+            exploration.activeSession ??
+            await _api.startExplorationSession(route.id);
+        exploration = await _api.getExplorationState();
+        if (exploration.activeSession?.id != session.id) {
+          throw const FormatException('探索 Session 建立失敗');
+        }
       }
       exploring = true;
-      notice = '探索已開始；精確座標只暫存最新一點，結束後立即清除。';
+      notice = route == null
+          ? '任務雷達已開始；只會把候選座標送到後端驗證接取範圍。'
+          : '探索已開始；精確座標只暫存最新一點，結束後立即清除。';
       notifyListeners();
       _locationSubscription =
           Geolocator.getPositionStream(
@@ -320,17 +328,19 @@ class AppController extends ChangeNotifier {
       return;
     }
     final sessionId = exploration.activeSession?.id;
-    if (sessionId == null) return;
     _sendingLocation = true;
     try {
-      exploration = await _api.recordExplorationEvent(
-        sessionId: sessionId,
-        eventKey: 'mobile-${DateTime.now().microsecondsSinceEpoch}',
-        latitude: position.latitude,
-        longitude: position.longitude,
-        accuracyMeters: position.accuracy,
-        occurredAt: position.timestamp,
-      );
+      if (sessionId != null) {
+        exploration = await _api.recordExplorationEvent(
+          sessionId: sessionId,
+          eventKey: 'mobile-${DateTime.now().microsecondsSinceEpoch}',
+          latitude: position.latitude,
+          longitude: position.longitude,
+          accuracyMeters: position.accuracy,
+          occurredAt: position.timestamp,
+        );
+      }
+      await _unlockNearbyRadarMissions(position);
       tasks = await _api.getTasks();
       notifyListeners();
     } catch (error) {
@@ -339,6 +349,47 @@ class AppController extends ChangeNotifier {
     } finally {
       _sendingLocation = false;
     }
+  }
+
+  Future<void> _unlockNearbyRadarMissions(Position position) async {
+    if (offlineDemo) return;
+    for (final mission in radar.missions) {
+      if (mission.status != 'LOCKED') continue;
+      final distance = Geolocator.distanceBetween(
+        position.latitude,
+        position.longitude,
+        mission.latitude,
+        mission.longitude,
+      );
+      if (distance > mission.radiusMeters) continue;
+      radar = await _api.unlockRadarMission(
+        missionId: mission.id,
+        eventKey:
+            'mobile-radar-${mission.id}-${DateTime.now().microsecondsSinceEpoch}',
+        latitude: position.latitude,
+        longitude: position.longitude,
+        accuracyMeters: position.accuracy,
+        occurredAt: position.timestamp,
+      );
+    }
+  }
+
+  Future<void> completeRadarMission(RadarMissionModel mission) async {
+    if (mission.status == 'COMPLETED') return;
+    if (mission.status != 'UNLOCKED') {
+      notice = '請先走進「${mission.title}」的任務範圍再完成。';
+      notifyListeners();
+      return;
+    }
+    try {
+      radar = await _api.completeRadarMission(mission.id);
+      tree = await _api.getTree();
+      impact = await _api.getImpactSummary();
+      notice = '完成了「${mission.title}」，陪伴樹獲得 ${mission.growthPoints} 點成長值。';
+    } catch (error) {
+      notice = '雷達任務暫時無法完成：$error';
+    }
+    notifyListeners();
   }
 
   Future<void> sendFamilyMessage(String body) async {
@@ -476,6 +527,11 @@ const _emptyExploration = ExplorationStateModel(
   routes: [],
 );
 
+final _emptyRadar = RadarStateModel(
+  generatedAt: DateTime.fromMillisecondsSinceEpoch(0),
+  missions: const [],
+);
+
 const _fallbackTasks = [
   DailyTask(
     id: '11111111-1111-4111-8111-111111111111',
@@ -484,6 +540,8 @@ const _fallbackTasks = [
     verificationMode: VerificationMode.photoAi,
     growthPoints: 80,
     status: TaskStatus.available,
+    capabilityEnabled: false,
+    capabilityReason: 'BLAZE_REQUIRED',
   ),
   DailyTask(
     id: '55555555-5555-4555-8555-555555555555',
@@ -492,6 +550,8 @@ const _fallbackTasks = [
     verificationMode: VerificationMode.photoAi,
     growthPoints: 35,
     status: TaskStatus.available,
+    capabilityEnabled: false,
+    capabilityReason: 'BLAZE_REQUIRED',
   ),
   DailyTask(
     id: '22222222-2222-4222-8222-222222222222',

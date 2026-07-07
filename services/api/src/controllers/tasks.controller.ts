@@ -70,6 +70,14 @@ export class TasksController {
     @Param("id") id: string,
     @Body() dto: CompleteGeminiPhotoTaskDto,
   ) {
+    if (
+      process.env.PHOTO_EVIDENCE_ENABLED !== "true" ||
+      process.env.PHOTO_VERIFICATION_ENABLED !== "true"
+    ) {
+      throw new ServiceUnavailableException(
+        "Photo AI verification is locked until Firebase Blaze and private storage are enabled",
+      );
+    }
     if (process.env.DEMO_MODE !== "false") {
       return {
         data: this.demoStore.completeGeminiPhotoTask(id, dto.idempotencyKey),

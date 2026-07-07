@@ -347,6 +347,108 @@ export class ReorderExplorationQuestsDto {
   questIds!: string[];
 }
 
+export class RadarMissionEventDto {
+  @ApiProperty()
+  @IsString()
+  @Length(8, 100)
+  eventKey!: string;
+
+  @ApiProperty()
+  @IsLatitude()
+  latitude!: number;
+
+  @ApiProperty()
+  @IsLongitude()
+  longitude!: number;
+
+  @ApiProperty()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  accuracyMeters!: number;
+
+  @ApiProperty()
+  @IsDateString()
+  occurredAt!: string;
+}
+
+export class CompleteRadarMissionDto {
+  @ApiPropertyOptional({ description: "Prevents duplicate growth awards" })
+  @IsOptional()
+  @IsString()
+  @Length(8, 120)
+  idempotencyKey?: string;
+}
+
+export class CreateRadarMissionDto {
+  @ApiProperty()
+  @IsString()
+  @Length(2, 100)
+  title!: string;
+
+  @ApiProperty()
+  @IsString()
+  @Length(8, 500)
+  description!: string;
+
+  @ApiProperty()
+  @IsString()
+  @Length(2, 40)
+  category!: string;
+
+  @ApiProperty()
+  @IsString()
+  @Length(1, 40)
+  tag!: string;
+
+  @ApiProperty()
+  @IsLatitude()
+  latitude!: number;
+
+  @ApiProperty()
+  @IsLongitude()
+  longitude!: number;
+
+  @ApiProperty()
+  @IsInt()
+  @Min(25)
+  @Max(150)
+  radiusMeters!: number;
+
+  @ApiProperty()
+  @IsDateString()
+  startsAt!: string;
+
+  @ApiProperty()
+  @IsDateString()
+  endsAt!: string;
+
+  @ApiProperty({ enum: ["SELF_CHECK", "TIMER"] })
+  @IsIn(["SELF_CHECK", "TIMER"])
+  verificationMode!: "SELF_CHECK" | "TIMER";
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(30)
+  @Max(3600)
+  minimumSeconds?: number;
+
+  @ApiProperty()
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  growthPoints!: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(2, 80)
+  badgeName?: string;
+}
+
+export class UpdateRadarMissionDto extends CreateRadarMissionDto {}
+
 export class CreateImpactBatchDto {
   @ApiProperty()
   @IsString()

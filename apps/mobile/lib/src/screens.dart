@@ -326,6 +326,7 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
     final pointQuests = controller.exploration.quests
         .where((quest) => quest.latitude != null && quest.longitude != null)
         .toList();
+    final radarMissions = controller.radar.missions;
     final mapPresentation = explorationMapPresentation(
       _mapMode,
       streetStyleUrl: ExplorationScreen.mapStyleUrl,
@@ -384,19 +385,30 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
                       layers: const [],
                       children: [
                         WidgetLayer(
-                          markers: pointQuests
-                              .map(
-                                (quest) => Marker(
-                                  point: Geographic(
-                                    lon: quest.longitude!,
-                                    lat: quest.latitude!,
-                                  ),
-                                  size: const Size(58, 72),
-                                  alignment: Alignment.bottomCenter,
-                                  child: _QuestBeacon(quest: quest),
+                          markers: [
+                            ...pointQuests.map(
+                              (quest) => Marker(
+                                point: Geographic(
+                                  lon: quest.longitude!,
+                                  lat: quest.latitude!,
                                 ),
-                              )
-                              .toList(),
+                                size: const Size(58, 72),
+                                alignment: Alignment.bottomCenter,
+                                child: _QuestBeacon(quest: quest),
+                              ),
+                            ),
+                            ...radarMissions.map(
+                              (mission) => Marker(
+                                point: Geographic(
+                                  lon: mission.longitude,
+                                  lat: mission.latitude,
+                                ),
+                                size: const Size(64, 76),
+                                alignment: Alignment.bottomCenter,
+                                child: _RadarBeacon(mission: mission),
+                              ),
+                            ),
+                          ],
                         ),
                         const MapControlButtons(showTrackLocation: true),
                         const SourceAttribution(),
@@ -469,6 +481,25 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
           icon: Icons.shield_outlined,
           text: '只在此頁開啟定位。伺服器暫存最新一點，結束探索後清除；歷史只留粗略網格。',
         ),
+        const SizedBox(height: 8),
+        const _SectionTitle(title: '任務雷達', subtitle: '台北市中心限時任務，進入半徑後可接取'),
+        const SizedBox(height: 10),
+        if (radarMissions.isEmpty)
+          const _EmptyBlock(
+            icon: Icons.radar_rounded,
+            title: '目前沒有雷達任務',
+            text: '營運單位發布城市任務後，會在這裡顯示剩餘時間與接取半徑。',
+          )
+        else
+          ...radarMissions.map(
+            (mission) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _RadarMissionCard(
+                mission: mission,
+                controller: controller,
+              ),
+            ),
+          ),
         const SizedBox(height: 8),
         const _SectionTitle(title: '探索任務', subtitle: '走過指定距離或進入地標範圍時自動解鎖'),
         const SizedBox(height: 10),
@@ -834,6 +865,208 @@ class _QuestBeacon extends StatelessWidget {
   }
 }
 
+class _RadarBeacon extends StatelessWidget {
+  const _RadarBeacon({required this.mission});
+
+  final RadarMissionModel mission;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _radarAccentColor(mission);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.94),
+            borderRadius: BorderRadius.circular(999),
+            boxShadow: const [
+              BoxShadow(color: Colors.black26, blurRadius: 8),
+            ],
+          ),
+          child: Text(
+            mission.tag,
+            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 3),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: 0.35),
+                blurRadius: 18,
+                offset: const Offset(0, 7),
+              ),
+            ],
+          ),
+          child: Icon(_radarIcon(mission), color: Colors.white, size: 23),
+        ),
+        Container(width: 5, height: 12, color: color),
+        Container(
+          width: 20,
+          height: 6,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(999),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RadarMissionCard extends StatelessWidget {
+  const _RadarMissionCard({required this.mission, required this.controller});
+
+  final RadarMissionModel mission;
+  final AppController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = _radarAccentColor(mission);
+    final completed = mission.status == 'COMPLETED';
+    final unlocked = mission.status == 'UNLOCKED';
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(left: BorderSide(color: accent, width: 5)),
+        ),
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: completed ? 1 : 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    _radarIcon(mission),
+                    color: completed ? Colors.white : accent,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              mission.title,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                          _RadarStatusChip(status: mission.status),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        mission.description,
+                        style: const TextStyle(
+                          color: Color(0xFF66706A),
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _InfoPill(
+                  icon: Icons.radar_rounded,
+                  label: '${mission.radiusMeters}m 內接取',
+                ),
+                _InfoPill(
+                  icon: Icons.timer_outlined,
+                  label: _formatRemaining(mission.remainingSeconds),
+                ),
+                _InfoPill(
+                  icon: Icons.energy_savings_leaf_outlined,
+                  label: '+${mission.growthPoints}',
+                ),
+                if (mission.badgeName != null)
+                  _InfoPill(
+                    icon: Icons.workspace_premium_outlined,
+                    label: mission.badgeName!,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: completed
+                  ? OutlinedButton.icon(
+                      onPressed: null,
+                      icon: const Icon(Icons.done_all_rounded),
+                      label: const Text('已完成'),
+                    )
+                  : unlocked
+                  ? FilledButton.icon(
+                      onPressed: () async {
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('完成雷達任務'),
+                            content: Text('確認完成「${mission.title}」嗎？'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text('還沒有'),
+                              ),
+                              FilledButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                child: const Text('已完成'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirmed == true) {
+                          await controller.completeRadarMission(mission);
+                        }
+                      },
+                      icon: const Icon(Icons.check_circle_outline_rounded),
+                      label: const Text('完成任務'),
+                    )
+                  : OutlinedButton.icon(
+                      onPressed: null,
+                      icon: Icon(
+                        mission.status == 'EXPIRED'
+                            ? Icons.event_busy_rounded
+                            : Icons.location_searching_rounded,
+                      ),
+                      label: Text(_radarActionText(mission.status)),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _QuestEventCard extends StatelessWidget {
   const _QuestEventCard({required this.quest});
 
@@ -1017,6 +1250,63 @@ class _QuestStatusChip extends StatelessWidget {
           fontWeight: FontWeight.w900,
         ),
       ),
+    );
+  }
+}
+
+class _RadarStatusChip extends StatelessWidget {
+  const _RadarStatusChip({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (status) {
+      'COMPLETED' => forest,
+      'UNLOCKED' => const Color(0xFF2F80ED),
+      'EXPIRED' => const Color(0xFF8A5A44),
+      'UPCOMING' => const Color(0xFFD98A00),
+      _ => const Color(0xFF6A7770),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: status == 'COMPLETED' ? 1 : 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        switch (status) {
+          'COMPLETED' => '完成',
+          'UNLOCKED' => '可完成',
+          'EXPIRED' => '已結束',
+          'UPCOMING' => '即將開始',
+          _ => '靠近解鎖',
+        },
+        style: TextStyle(
+          color: status == 'COMPLETED' ? Colors.white : color,
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoPill extends StatelessWidget {
+  const _InfoPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Chip(
+      avatar: Icon(icon, size: 16, color: forest),
+      label: Text(label),
+      visualDensity: VisualDensity.compact,
+      backgroundColor: const Color(0xFFF4F7F5),
+      side: const BorderSide(color: Color(0xFFDCE5DF)),
+      labelStyle: const TextStyle(fontWeight: FontWeight.w800),
     );
   }
 }
@@ -1667,7 +1957,7 @@ class _TaskTile extends StatelessWidget {
                   ? OutlinedButton.icon(
                       onPressed: () => controller.photographTask(task),
                       icon: const Icon(Icons.lock_outline_rounded),
-                      label: const Text('Gemini 辨識暫時無法使用'),
+                      label: const Text('照片 AI 等 Blaze 開放'),
                     )
                   : !supported
                   ? OutlinedButton.icon(
@@ -2008,6 +2298,45 @@ String _questUnlockText(ExplorationQuestModel quest) {
     return '本次路線累積 ${quest.unlockDistanceMeters ?? 0} 公尺後開啟';
   }
   return '進入地標 ${quest.radiusMeters ?? 0} 公尺範圍內開啟';
+}
+
+String _formatRemaining(int seconds) {
+  if (seconds <= 0) return '已結束';
+  final hours = seconds ~/ 3600;
+  final minutes = (seconds % 3600) ~/ 60;
+  if (hours > 0) return '剩 $hours 小時 $minutes 分';
+  return '剩 $minutes 分';
+}
+
+String _radarActionText(String status) => switch (status) {
+  'UPCOMING' => '尚未開始',
+  'EXPIRED' => '任務已結束',
+  _ => '走進半徑後可接取',
+};
+
+IconData _radarIcon(RadarMissionModel mission) {
+  if (mission.status == 'COMPLETED') return Icons.check_rounded;
+  if (mission.status == 'UNLOCKED') return Icons.radio_button_checked_rounded;
+  return switch (mission.category) {
+    'NATURE' => Icons.eco_rounded,
+    'WELLNESS' => Icons.self_improvement_rounded,
+    'HYDRATION' => Icons.water_drop_rounded,
+    'WALK' => Icons.directions_walk_rounded,
+    _ => Icons.radar_rounded,
+  };
+}
+
+Color _radarAccentColor(RadarMissionModel mission) {
+  if (mission.status == 'COMPLETED') return forest;
+  if (mission.status == 'UNLOCKED') return const Color(0xFF2F80ED);
+  if (mission.status == 'EXPIRED') return const Color(0xFF8A5A44);
+  return switch (mission.category) {
+    'NATURE' => const Color(0xFF1B7A4A),
+    'WELLNESS' => const Color(0xFF7357D8),
+    'HYDRATION' => const Color(0xFF2F80ED),
+    'WALK' => const Color(0xFFD98A00),
+    _ => const Color(0xFF6A7770),
+  };
 }
 
 IconData _questIcon(ExplorationQuestModel quest) {
