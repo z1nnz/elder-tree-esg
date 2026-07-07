@@ -85,4 +85,6 @@ jobs:
         run: |
           plutil -remove keychain-access-groups macos/Runner/DebugProfile.entitlements
           flutter build macos --debug
+      - name: Patch MapLibre iOS SwiftPM deployment target
+        run: bash tool/patch_maplibre_ios_spm.sh
       - run: flutter build ios --simulator --no-codesign
