@@ -81,7 +81,7 @@ jobs:
       - run: flutter pub get
       - name: Verify macOS Firebase Keychain capability
         run: plutil -extract keychain-access-groups xml1 -o - macos/Runner/DebugProfile.entitlements
-      - name: Patch Flutter SwiftPM deployment targets
+      - name: Patch Flutter Apple build compatibility
         run: bash tool/patch_maplibre_ios_spm.sh
       - name: Build macOS without a developer certificate
         run: |

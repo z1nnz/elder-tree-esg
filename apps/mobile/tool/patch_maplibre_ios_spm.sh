@@ -34,3 +34,35 @@ done
 if [[ "$patched" == "0" ]]; then
   echo "No Flutter SwiftPM manifests needed patching."
 fi
+
+device_info_glob="$pub_cache/hosted/pub.dev"/device_info_plus-*/ios/device_info_plus/Sources/device_info_plus/FPPDeviceInfoPlusPlugin.m
+for plugin_source in $device_info_glob; do
+  [[ -f "$plugin_source" ]] || continue
+  if grep -q "\\[info isiOSAppOnVision\\]" "$plugin_source"; then
+    python3 - "$plugin_source" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+content = path.read_text()
+old = """    NSNumber *isiOSAppOnVision = [NSNumber numberWithBool:NO];
+    if (@available(iOS 26.1, *)) {
+      isiOSAppOnVision = [NSNumber numberWithBool:[info isiOSAppOnVision]];
+    }
+"""
+new = """    NSNumber *isiOSAppOnVision = [NSNumber numberWithBool:NO];
+    SEL isiOSAppOnVisionSelector = NSSelectorFromString(@\"isiOSAppOnVision\");
+    if ([info respondsToSelector:isiOSAppOnVisionSelector]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored \"-Warc-performSelector-leaks\"
+      isiOSAppOnVision = [NSNumber numberWithBool:((BOOL (*)(id, SEL))[info methodForSelector:isiOSAppOnVisionSelector])(info, isiOSAppOnVisionSelector)];
+#pragma clang diagnostic pop
+    }
+"""
+if old not in content:
+    raise SystemExit(f"Expected device_info_plus isiOSAppOnVision block not found in {path}")
+path.write_text(content.replace(old, new))
+PY
+    echo "Patched $plugin_source for Xcode SDKs without NSProcessInfo.isiOSAppOnVision"
+  fi
+done
