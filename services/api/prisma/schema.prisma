@@ -51,6 +51,18 @@ enum QuestTriggerType {
   GEOFENCE
 }
 
+enum ExplorationRouteStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ExplorationSessionStatus {
+  ACTIVE
+  ENDED
+  EXPIRED
+}
+
 enum TreeStage {
   SEED
   SPROUT
@@ -80,6 +92,8 @@ model User {
   usedInvites       HouseholdInvite[] @relation("InviteUser")
   reviews            VerificationRun[] @relation("VerificationReviewer")
   explorationProgress ExplorationProgress[]
+  explorationSessions ExplorationSession[]
+  explorationAwards   ExplorationRouteAward[]
   locationReceipts    LocationEventReceipt[]
   questUnlocks        QuestUnlock[]
   auditLogs         AuditLog[]        @relation("AuditActor")
@@ -98,6 +112,8 @@ model Household {
   messages    FamilyMessage[]
   invites     HouseholdInvite[]
   explorationProgress ExplorationProgress[]
+  explorationSessions ExplorationSession[]
+  explorationAwards ExplorationRouteAward[]
   locationReceipts LocationEventReceipt[]
   questUnlocks QuestUnlock[]
   createdAt   DateTime          @default(now())
@@ -157,6 +173,13 @@ model Task {
 model MapQuest {
   id                   String           @id @default(uuid())
   taskId               String           @unique
+  routeId              String
+  sequence             Int
+  locationName         String
+  category             String
+  safetyNote           String?
+  accessibilityTags    String[]         @default([])
+  sourceUrl            String?
   triggerType          QuestTriggerType
   latitude             Float?
   longitude            Float?
@@ -164,9 +187,67 @@ model MapQuest {
   unlockDistanceMeters Int?
   active               Boolean          @default(true)
   task                 Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  route                ExplorationRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
   unlocks              QuestUnlock[]
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
+
+  @@unique([routeId, sequence])
+  @@index([routeId, active])
+}
+
+model ExplorationRoute {
+  id            String                 @id @default(uuid())
+  slug          String                 @unique
+  name          String
+  description   String
+  badgeName     String
+  badgeAssetKey String
+  version       Int                    @default(1)
+  status        ExplorationRouteStatus @default(DRAFT)
+  publishedAt   DateTime?
+  archivedAt    DateTime?
+  quests        MapQuest[]
+  sessions      ExplorationSession[]
+  awards        ExplorationRouteAward[]
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+}
+
+model ExplorationSession {
+  id             String                   @id @default(uuid())
+  routeId        String
+  userId         String
+  householdId    String
+  status         ExplorationSessionStatus @default(ACTIVE)
+  distanceMeters Int                      @default(0)
+  lastLatitude   Float?
+  lastLongitude  Float?
+  lastAccuracy   Float?
+  lastEventAt    DateTime?
+  startedAt      DateTime                 @default(now())
+  endedAt        DateTime?
+  route          ExplorationRoute         @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  user           User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  household      Household                @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  receipts       LocationEventReceipt[]
+
+  @@index([userId, householdId, status])
+  @@index([routeId, status])
+}
+
+model ExplorationRouteAward {
+  id          String           @id @default(uuid())
+  routeId     String
+  userId      String
+  householdId String
+  route       ExplorationRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  household   Household        @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  awardedAt   DateTime         @default(now())
+
+  @@unique([routeId, userId, householdId])
+  @@index([userId, householdId])
 }
 
 model ExplorationProgress {
@@ -186,6 +267,7 @@ model ExplorationProgress {
 model LocationEventReceipt {
   id             String    @id @default(uuid())
   eventKey       String    @unique
+  sessionId      String?
   userId         String
   householdId    String
   coarseCell     String
@@ -193,7 +275,10 @@ model LocationEventReceipt {
   occurredAt     DateTime
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   household      Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  session        ExplorationSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   createdAt      DateTime  @default(now())
+
+  @@index([sessionId, occurredAt])
 }
 
 model QuestUnlock {
@@ -222,10 +307,29 @@ model TaskAssignment {
   user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   household   Household        @relation(fields: [householdId], references: [id], onDelete: Cascade)
   evidence    Evidence[]
+  photoVerificationAttempts PhotoVerificationAttempt[]
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
   @@unique([taskId, userId, householdId])
+}
+
+model PhotoVerificationAttempt {
+  id             String               @id @default(uuid())
+  assignmentId   String
+  idempotencyKey String
+  decision       VerificationDecision
+  labels         Json
+  matchedLabels  String[]             @default([])
+  confidence     Float
+  reasonCodes    String[]             @default([])
+  model          String
+  ruleVersion    String
+  assignment     TaskAssignment       @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  createdAt      DateTime             @default(now())
+
+  @@unique([assignmentId, idempotencyKey])
+  @@index([assignmentId, createdAt])
 }
 
 model HouseholdInvite {

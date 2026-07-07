@@ -1,10 +1,12 @@
 import json
 import os
+from base64 import b64decode
+from binascii import Error as Base64Error
 
 from google import genai
 from google.genai import types
 
-from .image_pipeline import download_and_sanitize
+from .image_pipeline import download_and_sanitize, sanitize_image_bytes
 from .schemas import (
     ModelClassification,
     PhotoVerificationRequest,
@@ -31,7 +33,11 @@ def apply_rules(
         reason_codes.append("UNSAFE_CONTENT")
     if forbidden.intersection(labels):
         reason_codes.append("FORBIDDEN_LABEL")
-    missing = required.difference(labels)
+    missing = (
+        set()
+        if request.match_any_required and (not required or required.intersection(labels))
+        else required.difference(labels)
+    )
     if missing:
         reason_codes.append("MISSING_REQUIRED_LABEL")
     if classification.contains_face:
@@ -79,15 +85,25 @@ async def verify_photo(request: PhotoVerificationRequest) -> VerificationResult:
 
     api_key = os.getenv("GEMINI_API_KEY")
     model_name = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
-    if not api_key or request.image_url is None:
+    if not api_key or (request.image_url is None and request.image_base64 is None):
         classification = ModelClassification(
             labels=[],
             confidence=0,
-            description="No Gemini key or image URL was configured.",
+            description="No Gemini key or image was configured.",
         )
         return apply_rules(request, classification, "rules-only")
 
-    image_bytes, mime_type = await download_and_sanitize(str(request.image_url))
+    if request.image_base64 is not None:
+        try:
+            raw_bytes = b64decode(request.image_base64, validate=True)
+        except Base64Error as error:
+            raise ValueError("Image payload is not valid base64") from error
+        image_bytes, mime_type = sanitize_image_bytes(
+            raw_bytes,
+            request.content_type or "image/jpeg",
+        )
+    else:
+        image_bytes, mime_type = await download_and_sanitize(str(request.image_url))
     prompt = f"""
 You verify low-pressure daily activity evidence. The task is:
 {request.task_title}

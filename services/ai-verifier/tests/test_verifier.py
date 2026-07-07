@@ -55,6 +55,19 @@ def test_missing_required_label_never_auto_passes():
     assert "MISSING_REQUIRED_LABEL" in result.reason_codes
 
 
+def test_match_any_required_accepts_one_matching_label():
+    result = apply_rules(
+        request(required_labels=["plant", "flower"], match_any_required=True),
+        ModelClassification(
+            labels=["flower"],
+            confidence=0.93,
+            description="A flower is clearly visible.",
+        ),
+        "test-model",
+    )
+    assert result.decision == "PASS"
+
+
 def test_unsafe_content_fails():
     result = apply_rules(
         request(),

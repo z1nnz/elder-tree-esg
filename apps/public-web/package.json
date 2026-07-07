@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@elder-tree/contracts": "*",
     "@gsap/react": "^2.1.2",
     "gsap": "^3.15.0",
     "lucide-react": "^0.525.0",

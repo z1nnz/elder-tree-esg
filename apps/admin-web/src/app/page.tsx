@@ -1,5 +1,5 @@
-import { OperationsDashboard } from "../components/operations-dashboard";
+import { AdminAuthShell } from "../components/admin-auth-shell";
 
 export default function Page() {
-  return <OperationsDashboard />;
+  return <AdminAuthShell />;
 }

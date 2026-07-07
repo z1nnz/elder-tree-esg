@@ -23,7 +23,15 @@ async def download_and_sanitize(url: str) -> tuple[bytes, str]:
                     raise ValueError("Image exceeds 12 MB")
                 chunks.append(chunk)
 
-    image = Image.open(BytesIO(b"".join(chunks)))
+    return sanitize_image_bytes(b"".join(chunks), content_type)
+
+
+def sanitize_image_bytes(source: bytes, content_type: str) -> tuple[bytes, str]:
+    if content_type not in {"image/jpeg", "image/png", "image/heic", "image/webp"}:
+        raise ValueError("Unsupported image content type")
+    if not source or len(source) > MAX_DOWNLOAD_BYTES:
+        raise ValueError("Image exceeds 12 MB")
+    image = Image.open(BytesIO(source))
     image = ImageOps.exif_transpose(image).convert("RGB")
     image.thumbnail((MAX_DIMENSION, MAX_DIMENSION))
     output = BytesIO()

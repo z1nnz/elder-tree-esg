@@ -13,11 +13,9 @@ import 'models.dart';
 class AppController extends ChangeNotifier {
   AppController({
     ApiClient? api,
-    EvidenceUploader? evidenceUploader,
     String? initialDisplayName,
     bool allowOfflineDemo = true,
   }) : _api = api ?? ApiClient(),
-       _evidenceUploader = evidenceUploader,
        _initialDisplayName = initialDisplayName,
        _allowOfflineDemo = allowOfflineDemo {
     if (!allowOfflineDemo) {
@@ -29,7 +27,6 @@ class AppController extends ChangeNotifier {
   }
 
   final ApiClient _api;
-  EvidenceUploader? _evidenceUploader;
   final String? _initialDisplayName;
   final bool _allowOfflineDemo;
   final ImagePicker _picker = ImagePicker();
@@ -50,7 +47,6 @@ class AppController extends ChangeNotifier {
   ImpactSummaryModel impact = _emptyImpact;
   ExplorationStateModel exploration = _emptyExploration;
   List<String> discoveredTrees = [];
-  Position? _lastPosition;
   bool _sendingLocation = false;
 
   Future<void> initialize() async {
@@ -187,6 +183,12 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> photographTask(DailyTask task) async {
+    if (!task.capabilityEnabled ||
+        context?.geminiPhotoVerificationEnabled == false) {
+      notice = 'Gemini 拍照辨識暫時無法使用；其他任務與城市探索仍可正常使用。';
+      notifyListeners();
+      return;
+    }
     try {
       final photo = await _picker.pickImage(
         source: ImageSource.camera,
@@ -195,22 +197,25 @@ class AppController extends ChangeNotifier {
       );
       if (photo == null) return;
       if (!offlineDemo) {
-        final destination = await _api.initializePhotoEvidence(
-          task.id,
-          photo.name,
+        final prepared = await preparePhotoEvidence(photo);
+        _replaceTask(
+          await _api.completeGeminiPhotoTask(
+            taskId: task.id,
+            imageBase64: prepared.base64Image,
+            contentType: prepared.contentType,
+            idempotencyKey: 'mobile-gemini-${task.id}-${prepared.sha256}',
+          ),
         );
-        final uploader = _evidenceUploader ??= FirebaseEvidenceUploader();
-        final uploaded = await uploader.upload(photo, destination);
-        await _api.completePhotoEvidence(destination.id, uploaded.sha256);
-        tasks = await _api.getTasks();
         tree = await _api.getTree();
         reviews = await _api.getFamilyReviews();
       } else {
-        _replaceTask(task.copyWith(status: TaskStatus.verifying));
+        _replaceTask(task.copyWith(status: TaskStatus.completed));
+        _applyLocalGrowth(task.growthPoints);
       }
-      notice = '照片已送出。AI 信心不足時會交由人工覆核，不會直接判定失敗。';
+      notice =
+          'Gemini 已辨識照片並完成「${task.title}」，陪伴樹獲得 ${task.growthPoints} 點成長值。';
     } catch (error) {
-      notice = '照片送出失敗：$error';
+      notice = '照片辨識失敗：$error。請讓主體更清楚後再拍一次。';
     }
     notifyListeners();
   }
@@ -232,6 +237,12 @@ class AppController extends ChangeNotifier {
   Future<void> startExploration() async {
     if (exploring) return;
     try {
+      final route = exploration.routes.isEmpty
+          ? null
+          : exploration.routes.first;
+      if (route == null) {
+        throw const FormatException('目前沒有已發布的探索路線');
+      }
       if (!await Geolocator.isLocationServiceEnabled()) {
         throw const FormatException('請先開啟定位服務');
       }
@@ -243,15 +254,29 @@ class AppController extends ChangeNotifier {
           permission == LocationPermission.deniedForever) {
         throw const FormatException('未取得定位權限');
       }
+      final session =
+          exploration.activeSession ??
+          await _api.startExplorationSession(route.id);
+      exploration = await _api.getExplorationState();
+      if (exploration.activeSession?.id != session.id) {
+        throw const FormatException('探索 Session 建立失敗');
+      }
       exploring = true;
-      notice = '探索已開始；系統只保存粗略網格與距離，不保存完整路線。';
+      notice = '探索已開始；精確座標只暫存最新一點，結束後立即清除。';
       notifyListeners();
-      _locationSubscription = Geolocator.getPositionStream(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: 20,
-        ),
-      ).listen(_recordPosition);
+      _locationSubscription =
+          Geolocator.getPositionStream(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 20,
+            ),
+          ).listen(
+            _recordPosition,
+            onError: (Object error) {
+              notice = '暫時收不到定位，請確認定位服務與網路後重試：$error';
+              notifyListeners();
+            },
+          );
     } catch (error) {
       exploring = false;
       notice = '無法開始探索：$error';
@@ -261,39 +286,55 @@ class AppController extends ChangeNotifier {
 
   Future<void> stopExploration() async {
     exploring = false;
-    _lastPosition = null;
     await _locationSubscription?.cancel();
     _locationSubscription = null;
-    notice = '探索已暫停。';
+    final sessionId = exploration.activeSession?.id;
+    if (!offlineDemo && sessionId != null) {
+      try {
+        exploration = await _api.endExplorationSession(sessionId);
+      } catch (error) {
+        notice = '定位已停止，但探索結束狀態暫時無法同步：$error';
+        notifyListeners();
+        return;
+      }
+    }
+    notice = '探索已結束，最新精確座標已清除。';
+    notifyListeners();
+  }
+
+  Future<void> pauseExplorationTracking() async {
+    if (!exploring) return;
+    exploring = false;
+    await _locationSubscription?.cancel();
+    _locationSubscription = null;
+    notice = 'App 已進入背景，定位追蹤已暫停；回到探索頁可繼續同一趟路線。';
     notifyListeners();
   }
 
   Future<void> _recordPosition(Position position) async {
-    if (!exploring || _sendingLocation || position.accuracy > 100) return;
-    final previous = _lastPosition;
-    _lastPosition = position;
-    final distance = previous == null
-        ? 0.0
-        : Geolocator.distanceBetween(
-            previous.latitude,
-            previous.longitude,
-            position.latitude,
-            position.longitude,
-          );
+    if (!exploring || _sendingLocation) return;
+    if (position.accuracy > 50) {
+      notice =
+          '目前定位誤差約 ${position.accuracy.round()} 公尺，需要 50 公尺內；App 會自動等待下一個定位點。';
+      notifyListeners();
+      return;
+    }
+    final sessionId = exploration.activeSession?.id;
+    if (sessionId == null) return;
     _sendingLocation = true;
     try {
       exploration = await _api.recordExplorationEvent(
+        sessionId: sessionId,
         eventKey: 'mobile-${DateTime.now().microsecondsSinceEpoch}',
         latitude: position.latitude,
         longitude: position.longitude,
         accuracyMeters: position.accuracy,
-        distanceMeters: distance.clamp(0, 2000),
         occurredAt: position.timestamp,
       );
       tasks = await _api.getTasks();
       notifyListeners();
     } catch (error) {
-      notice = '探索進度暫時無法同步：$error';
+      notice = '這個定位點未被接受，請保持網路連線；App 會在下一點自動重試：$error';
       notifyListeners();
     } finally {
       _sendingLocation = false;
@@ -353,9 +394,10 @@ class AppController extends ChangeNotifier {
 
   Future<void> claimDevice(String serial, String code) async {
     try {
-      final device = offlineDemo
-          ? _fallbackDevices.first
-          : await _api.claimDevice(serial.trim(), code.trim());
+      if (offlineDemo) {
+        throw const FormatException('裝置認領需要連線到後端驗證序號與認領碼');
+      }
+      final device = await _api.claimDevice(serial.trim(), code.trim());
       devices = [device];
       notice = '已認領 ${device.name}，下一步可透過藍牙傳送 Wi-Fi 設定。';
     } catch (error) {
@@ -430,7 +472,8 @@ const _emptyImpact = ImpactSummaryModel(
 const _emptyExploration = ExplorationStateModel(
   totalDistanceMeters: 0,
   coarseCell: null,
-  quests: [],
+  activeSession: null,
+  routes: [],
 );
 
 const _fallbackTasks = [
@@ -440,6 +483,14 @@ const _fallbackTasks = [
     description: '找一株植物，拍下讓你停下來多看一眼的地方。',
     verificationMode: VerificationMode.photoAi,
     growthPoints: 80,
+    status: TaskStatus.available,
+  ),
+  DailyTask(
+    id: '55555555-5555-4555-8555-555555555555',
+    title: '拍下今天的水杯',
+    description: '讓水杯或水瓶清楚入鏡，提醒自己慢慢補水。',
+    verificationMode: VerificationMode.photoAi,
+    growthPoints: 35,
     status: TaskStatus.available,
   ),
   DailyTask(
@@ -478,16 +529,4 @@ final _fallbackMessages = [
   ),
 ];
 
-const _fallbackDevices = [
-  CompanionDevice(
-    id: '44444444-4444-4444-8444-444444444444',
-    serialNumber: 'TREE-DEMO-001',
-    name: '客廳陪伴樹',
-    online: true,
-    firmwareVersion: '0.1.0',
-    temperatureC: 25.6,
-    humidityPercent: 61,
-    ambientLux: 168,
-    presence: true,
-  ),
-];
+const _fallbackDevices = <CompanionDevice>[];

@@ -32,14 +32,23 @@ In another terminal:
 npm run dev:web
 ```
 
+Firebase Authentication on macOS stores session state in Keychain. Build the
+local macOS App with an Apple Development certificate so the checked-in
+Keychain Sharing entitlement is preserved:
+
+```sh
+npm run build:macos:auth
+```
+
 The public site is a separate application:
 
 ```sh
 npm run dev:public
 ```
 
-The API runs in seeded in-memory demo mode when `DEMO_MODE=true`, so PostgreSQL,
-Firebase, AWS, and Gemini credentials are not required for the first launch.
+The checked-in example uses `DEMO_MODE=false`, so App and dashboard data are
+persisted in PostgreSQL. The legacy seeded mode is available only when
+`DEMO_MODE=true` is set explicitly in a non-production environment.
 
 ### Firebase login and Neon persistence
 
@@ -61,9 +70,11 @@ cd ../..
 npm run dev:ai
 ```
 
-Before the first real photo upload, enable Firebase Storage from the Firebase
-Console using the `asia-east1` location, configure a Firebase Admin service
-account in `.env`, and deploy the private rules:
+Photo evidence is intentionally locked while the project remains off Blaze.
+Keep `PHOTO_EVIDENCE_ENABLED=false`; the app will show the task as unavailable
+and the API will not call Storage or Gemini. When the plan changes, enable
+Firebase Storage in `asia-east1`, configure a Firebase Admin service account,
+and then deploy the private rules:
 
 ```sh
 firebase deploy --only storage --project elder-tree-esg-z1nnz
@@ -78,7 +89,7 @@ Run the Flutter app in another terminal:
 cd apps/mobile
 flutter run -d macos \
   --dart-define=API_URL=http://127.0.0.1:4100/api/v1 \
-  --dart-define=MAP_STYLE_URL=https://demotiles.maplibre.org/style.json
+  --dart-define=MAP_STYLE_URL=https://tiles.openfreemap.org/styles/liberty
 ```
 
 The first account created in the app is provisioned with a household, three
@@ -91,6 +102,18 @@ To verify the persistence contract against Neon:
 ```sh
 npm run test:persistence
 ```
+
+Grant an existing Firebase user access to the operations dashboard:
+
+```sh
+export DATABASE_URL="postgresql://..."
+npm run admin:grant -- FIREBASE_UID
+```
+
+The city exploration seed contains the published `都市綠肺初探` route. Location
+simulation is accepted only outside production when
+`LOCATION_SIMULATION_ENABLED=true`; production ignores demo-role headers and
+rejects simulation endpoints.
 
 ## Verification
 

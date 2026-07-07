@@ -112,6 +112,20 @@ class ApiClient {
     return DailyTask.fromJson(data);
   }
 
+  Future<DailyTask> completeGeminiPhotoTask({
+    required String taskId,
+    required String imageBase64,
+    required String contentType,
+    required String idempotencyKey,
+  }) async {
+    final data = await _post('/tasks/$taskId/photo-verification', {
+      'imageBase64': imageBase64,
+      'contentType': contentType,
+      'idempotencyKey': idempotencyKey,
+    });
+    return DailyTask.fromJson(data);
+  }
+
   Future<DailyTask> startTask(String taskId) async {
     return DailyTask.fromJson(await _post('/tasks/$taskId/start', const {}));
   }
@@ -140,23 +154,36 @@ class ApiClient {
     });
   }
 
+  Future<ExplorationSessionModel> startExplorationSession(
+    String routeId,
+  ) async {
+    return ExplorationSessionModel.fromJson(
+      await _post('/exploration/sessions', {'routeId': routeId}),
+    );
+  }
+
   Future<ExplorationStateModel> recordExplorationEvent({
+    required String sessionId,
     required String eventKey,
     required double latitude,
     required double longitude,
     required double accuracyMeters,
-    required double distanceMeters,
     required DateTime occurredAt,
   }) async {
     return ExplorationStateModel.fromJson(
-      await _post('/exploration/events', {
+      await _post('/exploration/sessions/$sessionId/events', {
         'eventKey': eventKey,
         'latitude': latitude,
         'longitude': longitude,
         'accuracyMeters': accuracyMeters,
-        'distanceMeters': distanceMeters,
         'occurredAt': occurredAt.toUtc().toIso8601String(),
       }),
+    );
+  }
+
+  Future<ExplorationStateModel> endExplorationSession(String sessionId) async {
+    return ExplorationStateModel.fromJson(
+      await _post('/exploration/sessions/$sessionId/end', const {}),
     );
   }
 

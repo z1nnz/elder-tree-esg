@@ -19,6 +19,7 @@ import { randomUUID } from "node:crypto";
 import { nextStageAt, stageForPoints } from "./tree-growth";
 
 const TASK_PHOTO_ID = "11111111-1111-4111-8111-111111111111";
+const TASK_HYDRATION_PHOTO_ID = "55555555-5555-4555-8555-555555555555";
 const TASK_WATER_ID = "22222222-2222-4222-8222-222222222222";
 const TASK_WALK_ID = "33333333-3333-4333-8333-333333333333";
 const DEVICE_ID = "44444444-4444-4444-8444-444444444444";
@@ -53,6 +54,19 @@ export class DemoStoreService {
       startedAt: null,
       minimumSeconds: null,
       dueAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+      capability: { enabled: true, reason: null },
+    },
+    {
+      id: TASK_HYDRATION_PHOTO_ID,
+      title: "拍下今天的水杯",
+      description: "讓水杯或水瓶清楚入鏡，提醒自己慢慢補水。",
+      verificationMode: "PHOTO_AI",
+      growthPoints: 35,
+      status: "AVAILABLE",
+      startedAt: null,
+      minimumSeconds: null,
+      dueAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+      capability: { enabled: true, reason: null },
     },
     {
       id: TASK_WATER_ID,
@@ -64,6 +78,7 @@ export class DemoStoreService {
       startedAt: null,
       minimumSeconds: null,
       dueAt: null,
+      capability: { enabled: true, reason: null },
     },
     {
       id: TASK_WALK_ID,
@@ -75,6 +90,7 @@ export class DemoStoreService {
       startedAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
       minimumSeconds: 600,
       dueAt: null,
+      capability: { enabled: true, reason: null },
     },
   ];
 
@@ -183,6 +199,23 @@ export class DemoStoreService {
     if (!this.idempotencyKeys.has(key)) {
       this.idempotencyKeys.add(key);
       this.addGrowth(task.growthPoints, `task:${id}`);
+    }
+    task.status = "COMPLETED";
+    return structuredClone(task);
+  }
+
+  completeGeminiPhotoTask(id: string, idempotencyKey?: string): TaskSummary {
+    const task = this.requireTask(id);
+    if (task.verificationMode !== "PHOTO_AI") {
+      throw new BadRequestException("This task does not accept photo verification");
+    }
+    if (task.status === "COMPLETED") {
+      return structuredClone(task);
+    }
+    const key = idempotencyKey ?? `gemini-photo:${id}`;
+    if (!this.idempotencyKeys.has(key)) {
+      this.idempotencyKeys.add(key);
+      this.addGrowth(task.growthPoints, `gemini-photo:${id}`);
     }
     task.status = "COMPLETED";
     return structuredClone(task);

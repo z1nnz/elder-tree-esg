@@ -1,5 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
   IsBoolean,
   IsDateString,
   IsIn,
@@ -13,6 +16,7 @@ import {
   IsUUID,
   Length,
   Max,
+  MaxLength,
   Min,
 } from "class-validator";
 
@@ -69,6 +73,23 @@ export class CompleteEvidenceDto {
   @IsString()
   @Length(8, 128)
   sha256!: string;
+}
+
+export class CompleteGeminiPhotoTaskDto {
+  @ApiProperty({ example: "image/jpeg" })
+  @IsIn(["image/jpeg", "image/png", "image/webp", "image/heic"])
+  contentType!: string;
+
+  @ApiProperty({ description: "Base64-encoded sanitized image bytes" })
+  @IsString()
+  @MaxLength(14_000_000)
+  imageBase64!: string;
+
+  @ApiPropertyOptional({ description: "Prevents duplicate growth awards" })
+  @IsOptional()
+  @IsString()
+  @Length(8, 120)
+  idempotencyKey?: string;
 }
 
 export class ReviewDecisionDto {
@@ -157,14 +178,173 @@ export class ExplorationEventDto {
   accuracyMeters!: number;
 
   @ApiProperty()
-  @IsNumber()
-  @Min(0)
-  @Max(2000)
-  distanceMeters!: number;
-
-  @ApiProperty()
   @IsDateString()
   occurredAt!: string;
+}
+
+export class StartExplorationSessionDto {
+  @ApiProperty()
+  @IsUUID()
+  routeId!: string;
+}
+
+export class CreateExplorationRouteDto {
+  @ApiProperty()
+  @IsString()
+  @Length(3, 80)
+  slug!: string;
+
+  @ApiProperty()
+  @IsString()
+  @Length(2, 80)
+  name!: string;
+
+  @ApiProperty()
+  @IsString()
+  @Length(8, 500)
+  description!: string;
+
+  @ApiProperty()
+  @IsString()
+  @Length(2, 80)
+  badgeName!: string;
+
+  @ApiProperty()
+  @IsString()
+  @Length(2, 80)
+  badgeAssetKey!: string;
+}
+
+export class UpdateExplorationRouteDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(2, 80)
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(8, 500)
+  description?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(2, 80)
+  badgeName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(2, 80)
+  badgeAssetKey?: string;
+}
+
+export class CreateExplorationQuestDto {
+  @ApiProperty()
+  @IsUUID()
+  routeId!: string;
+
+  @ApiProperty()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  sequence!: number;
+
+  @ApiProperty()
+  @IsString()
+  @Length(2, 100)
+  locationName!: string;
+
+  @ApiProperty()
+  @IsString()
+  @Length(2, 40)
+  category!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(2, 300)
+  safetyNote?: string;
+
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @ArrayMaxSize(12)
+  @IsString({ each: true })
+  accessibilityTags!: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(8, 500)
+  sourceUrl?: string;
+
+  @ApiProperty()
+  @IsString()
+  @Length(2, 100)
+  title!: string;
+
+  @ApiProperty()
+  @IsString()
+  @Length(4, 500)
+  description!: string;
+
+  @ApiProperty({ enum: ["SELF_CHECK", "TIMER"] })
+  @IsIn(["SELF_CHECK", "TIMER"])
+  verificationMode!: "SELF_CHECK" | "TIMER";
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(30)
+  @Max(3600)
+  minimumSeconds?: number;
+
+  @ApiProperty()
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  growthPoints!: number;
+
+  @ApiProperty({ enum: ["DISTANCE", "GEOFENCE"] })
+  @IsIn(["DISTANCE", "GEOFENCE"])
+  triggerType!: "DISTANCE" | "GEOFENCE";
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsLatitude()
+  latitude?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsLongitude()
+  longitude?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(25)
+  @Max(150)
+  radiusMeters?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(50)
+  @Max(20_000)
+  unlockDistanceMeters?: number;
+}
+
+export class UpdateExplorationQuestDto extends CreateExplorationQuestDto {}
+
+export class ReorderExplorationQuestsDto {
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @IsUUID("4", { each: true })
+  questIds!: string[];
 }
 
 export class CreateImpactBatchDto {
