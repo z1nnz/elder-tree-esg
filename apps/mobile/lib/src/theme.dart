@@ -7,6 +7,8 @@ const warmYellow = Color(0xFFF4C95D);
 const coral = Color(0xFFEF755F);
 const ink = Color(0xFF17201C);
 const canvas = Color(0xFFF5F7F5);
+const cream = Color(0xFFFFF7DE);
+const skyMint = Color(0xFFDFF8E8);
 
 ThemeData buildAppTheme(bool elderMode) {
   final base = ThemeData(
@@ -47,7 +49,7 @@ ThemeData buildAppTheme(bool elderMode) {
       elevation: 0,
       color: Colors.white,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(8)),
+        borderRadius: BorderRadius.all(Radius.circular(22)),
         side: BorderSide(color: Color(0xFFDDE4DF)),
       ),
     ),
@@ -62,7 +64,7 @@ ThemeData buildAppTheme(bool elderMode) {
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         minimumSize: Size(48, elderMode ? 54 : 48),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         textStyle: const TextStyle(
           fontWeight: FontWeight.w800,
           letterSpacing: 0,
@@ -72,7 +74,7 @@ ThemeData buildAppTheme(bool elderMode) {
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         minimumSize: Size(48, elderMode ? 54 : 48),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         textStyle: const TextStyle(
           fontWeight: FontWeight.w800,
           letterSpacing: 0,

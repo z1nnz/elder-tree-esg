@@ -118,6 +118,7 @@ const contactHref = (subject: string) => {
 const formatRemaining = (seconds: number) => {
   if (seconds <= 0) return "已結束";
   const hours = Math.floor(seconds / 3600);
+  if (hours >= 72) return "長期開放";
   const minutes = Math.floor((seconds % 3600) / 60);
   return hours > 0 ? `剩 ${hours} 小時 ${minutes} 分` : `剩 ${minutes} 分`;
 };
@@ -212,6 +213,11 @@ export function PublicExperience() {
               ".orbit-card",
               { scale: 0.6, autoAlpha: 0, stagger: 0.08 },
               "<0.2",
+            )
+            .from(
+              ".growth-burst",
+              { scale: 0, autoAlpha: 0, stagger: 0.06 },
+              "<0.2",
             );
 
           ScrollTrigger.batch("[data-reveal]", {
@@ -233,12 +239,55 @@ export function PublicExperience() {
           });
 
           if (desktop) {
-            gsap.to(".tree-crown", {
-              y: -10,
-              rotation: 1.5,
-              duration: 2.8,
+            gsap.to(".life-tree-crown", {
+              y: -8,
+              scale: 1.015,
+              rotation: 0.8,
+              duration: 3.4,
               repeat: -1,
               yoyo: true,
+              ease: "sine.inOut",
+            });
+            gsap.to(".life-tree-branch", {
+              rotation: (index) => (index % 2 === 0 ? 1.4 : -1.2),
+              duration: 3.6,
+              repeat: -1,
+              yoyo: true,
+              stagger: 0.18,
+              ease: "sine.inOut",
+              transformOrigin: "50% 100%",
+            });
+            gsap.to(".floating-leaf", {
+              x: (index) => [14, -18, 20, -12, 16, -16][index % 6],
+              y: (index) => [-18, -12, -22, -10, -16, -14][index % 6],
+              rotation: (index) => [18, -24, 32, -16, 26, -20][index % 6],
+              duration: (index) => 3.4 + index * 0.35,
+              repeat: -1,
+              yoyo: true,
+              stagger: 0.2,
+              ease: "sine.inOut",
+            });
+            gsap.fromTo(
+              ".falling-leaf",
+              { y: -60, x: 0, rotation: -18, autoAlpha: 0 },
+              {
+                y: 430,
+                x: (index) => [50, -36, 72, -58][index % 4],
+                rotation: (index) => [170, -220, 260, -180][index % 4],
+                autoAlpha: 0.82,
+                duration: (index) => 8.2 + index * 1.1,
+                repeat: -1,
+                delay: (index) => index * 1.3,
+                ease: "sine.inOut",
+              },
+            );
+            gsap.to(".growth-burst", {
+              scale: 1.08,
+              autoAlpha: 0.72,
+              duration: 1.6,
+              repeat: -1,
+              yoyo: true,
+              stagger: 0.16,
               ease: "sine.inOut",
             });
             gsap.to(".radar-sweep", {
@@ -334,10 +383,10 @@ export function PublicExperience() {
           </p>
           <div className="hero-actions">
             <a className="button primary" href="#join">
-              看看怎麼參與 <ArrowDown size={17} />
+              開始使用 <ArrowDown size={17} />
             </a>
-            <a className="button ghost" href="#technology">
-              看見背後科技
+            <a className="button ghost" href={contactHref("綠伴合作與陪伴計畫")}>
+              成為合作夥伴／陪伴者
             </a>
           </div>
           <div className="trust-row">
@@ -350,29 +399,63 @@ export function PublicExperience() {
           </div>
         </div>
 
-        <div className="hero-visual" aria-label="從種子長成城市森林的視覺">
+        <div className="hero-visual life-tree-stage" aria-label="一棵有樹葉飄動與落葉動畫的生命樹">
           <div className="sun" />
+          <div className="tree-aura" />
+          <span className="floating-leaf leaf-a" />
+          <span className="floating-leaf leaf-b" />
+          <span className="floating-leaf leaf-c" />
+          <span className="floating-leaf leaf-d" />
+          <span className="falling-leaf fall-a" />
+          <span className="falling-leaf fall-b" />
+          <span className="falling-leaf fall-c" />
+          <span className="falling-leaf fall-d" />
           <svg viewBox="0 0 520 600" role="img" aria-hidden="true">
-            <path className="hill hill-back" d="M0 480 Q130 380 260 470 T520 450 V600 H0Z" />
-            <path className="hill hill-front" d="M0 520 Q120 430 270 520 T520 490 V600 H0Z" />
-            <g className="tree">
-              <path className="tree-trunk" d="M260 505 C248 410 274 350 260 250" />
-              <g className="tree-crown">
-                <circle cx="260" cy="224" r="92" />
-                <circle cx="195" cy="282" r="66" />
-                <circle cx="330" cy="286" r="72" />
-                <circle cx="250" cy="315" r="82" />
+            <defs>
+              <linearGradient id="trunkGradient" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0%" stopColor="#9c7145" />
+                <stop offset="58%" stopColor="#6b4a32" />
+                <stop offset="100%" stopColor="#3f2b22" />
+              </linearGradient>
+              <linearGradient id="leafGradient" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0%" stopColor="#e9ff88" />
+                <stop offset="48%" stopColor="#78c85a" />
+                <stop offset="100%" stopColor="#237a52" />
+              </linearGradient>
+            </defs>
+            <path className="hill hill-back" d="M0 475 Q130 382 260 462 T520 448 V600 H0Z" />
+            <path className="hill hill-front" d="M0 520 Q120 430 270 520 T520 492 V600 H0Z" />
+            <path className="tree-shadow" d="M142 520 C206 494 319 493 382 522 C318 550 205 552 142 520Z" />
+            <g className="life-tree">
+              <path className="life-tree-trunk" d="M259 520 C248 453 263 392 263 330 C263 286 246 253 257 217 C274 260 296 287 300 329 C307 402 283 458 286 520Z" />
+              <path className="life-tree-root" d="M257 505 C225 499 195 514 168 540 M282 506 C318 500 348 514 378 538 M268 500 C260 531 242 548 217 565" />
+              <path className="life-tree-branch branch-left" d="M268 335 C225 305 190 272 166 230" />
+              <path className="life-tree-branch branch-right" d="M276 315 C323 285 359 252 384 210" />
+              <path className="life-tree-branch branch-mid" d="M270 270 C268 230 272 198 292 158" />
+              <g className="life-tree-crown">
+                <ellipse cx="258" cy="178" rx="96" ry="86" />
+                <ellipse cx="178" cy="237" rx="78" ry="69" />
+                <ellipse cx="345" cy="237" rx="86" ry="76" />
+                <ellipse cx="252" cy="286" rx="112" ry="88" />
+                <ellipse cx="230" cy="218" rx="72" ry="62" />
+                <ellipse cx="304" cy="196" rx="70" ry="60" />
+              </g>
+              <g className="leaf-sparkles">
+                <circle className="growth-burst" cx="176" cy="230" r="7" />
+                <circle className="growth-burst" cx="308" cy="160" r="5" />
+                <circle className="growth-burst" cx="365" cy="255" r="6" />
+                <circle className="growth-burst" cx="245" cy="302" r="5" />
               </g>
             </g>
             <path className="walk-path" d="M70 552 C160 500 205 540 270 510 S400 480 470 520" />
           </svg>
           <div className="orbit-card card-map">
             <MapPinned size={19} />
-            <span>探索任務已解鎖</span>
+            <span>任務雷達亮起</span>
           </div>
           <div className="orbit-card card-tree">
             <Trees size={19} />
-            <span>家庭樹 +40</span>
+            <span>生命樹長出新葉 +40</span>
           </div>
           <div className="orbit-card card-care">
             <HeartHandshake size={19} />

@@ -337,152 +337,123 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
     final sessionDistance =
         controller.exploration.activeSession?.distanceMeters ?? 0;
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 30),
       children: [
-        const _PageHeading(
-          title: '城市探索',
-          subtitle: '用自己的步調走動；不論是否有家人，每一步都能解鎖新的行動。',
+        _ExplorationHeroCard(
+          route: route,
+          progress: routeProgress,
+          active: controller.exploring,
+          radarCount: radarMissions.length,
+          unlockedCount: radarMissions
+              .where((mission) => mission.status == 'UNLOCKED')
+              .length,
         ),
-        if (route != null) ...[
-          const SizedBox(height: 12),
-          _RouteProgressCard(route: route, progress: routeProgress),
-        ],
         const SizedBox(height: 14),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: Column(
-            children: [
-              Container(
-                width: double.infinity,
-                color: Colors.white,
-                padding: const EdgeInsets.all(8),
-                child: Align(
-                  alignment: Alignment.centerLeft,
+        Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: Colors.white, width: 3),
+            boxShadow: [
+              BoxShadow(
+                color: forestDark.withValues(alpha: 0.18),
+                blurRadius: 28,
+                offset: const Offset(0, 14),
+              ),
+            ],
+          ),
+          child: SizedBox(
+            height: 430,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                MapLibreMap(
+                  key: ValueKey(_mapMode),
+                  options: MapOptions(
+                    initStyle: mapPresentation.style,
+                    initCenter: const Geographic(lon: 121.5362, lat: 25.0316),
+                    initZoom: mapPresentation.zoom,
+                    initPitch: mapPresentation.pitch,
+                    initBearing: mapPresentation.bearing,
+                    maxPitch: 60,
+                  ),
+                  layers: const [],
+                  children: [
+                    WidgetLayer(
+                      markers: [
+                        ...pointQuests.map(
+                          (quest) => Marker(
+                            point: Geographic(
+                              lon: quest.longitude!,
+                              lat: quest.latitude!,
+                            ),
+                            size: const Size(62, 78),
+                            alignment: Alignment.bottomCenter,
+                            child: _QuestBeacon(quest: quest),
+                          ),
+                        ),
+                        ...radarMissions.map(
+                          (mission) => Marker(
+                            point: Geographic(
+                              lon: mission.longitude,
+                              lat: mission.latitude,
+                            ),
+                            size: const Size(74, 88),
+                            alignment: Alignment.bottomCenter,
+                            child: _RadarBeacon(mission: mission),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const MapControlButtons(showTrackLocation: true),
+                    const SourceAttribution(),
+                  ],
+                ),
+                const _AdventureMapOverlay(),
+                Positioned(
+                  left: 14,
+                  top: 14,
                   child: _MapModeSwitch(
                     mode: _mapMode,
                     onChanged: (mode) => setState(() => _mapMode = mode),
                   ),
                 ),
-              ),
-              SizedBox(
-                height: 340,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    MapLibreMap(
-                      key: ValueKey(_mapMode),
-                      options: MapOptions(
-                        initStyle: mapPresentation.style,
-                        initCenter: const Geographic(
-                          lon: 121.5362,
-                          lat: 25.0316,
-                        ),
-                        initZoom: mapPresentation.zoom,
-                        initPitch: mapPresentation.pitch,
-                        initBearing: mapPresentation.bearing,
-                        maxPitch: 60,
-                      ),
-                      layers: const [],
-                      children: [
-                        WidgetLayer(
-                          markers: [
-                            ...pointQuests.map(
-                              (quest) => Marker(
-                                point: Geographic(
-                                  lon: quest.longitude!,
-                                  lat: quest.latitude!,
-                                ),
-                                size: const Size(58, 72),
-                                alignment: Alignment.bottomCenter,
-                                child: _QuestBeacon(quest: quest),
-                              ),
-                            ),
-                            ...radarMissions.map(
-                              (mission) => Marker(
-                                point: Geographic(
-                                  lon: mission.longitude,
-                                  lat: mission.latitude,
-                                ),
-                                size: const Size(64, 76),
-                                alignment: Alignment.bottomCenter,
-                                child: _RadarBeacon(mission: mission),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const MapControlButtons(showTrackLocation: true),
-                        const SourceAttribution(),
-                      ],
-                    ),
-                    if (_mapMode == ExplorationMapMode.adventure)
-                      const Positioned(
-                        left: 12,
-                        bottom: 12,
-                        child: _AdventureMapHint(),
-                      ),
-                    const Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 78,
-                      child: IgnorePointer(child: _ExplorerAvatar()),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                const CircleAvatar(
-                  backgroundColor: Color(0xFFDCEBDF),
-                  child: Icon(Icons.directions_walk_rounded, color: forest),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '$sessionDistance 公尺',
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      Text(
-                        controller.exploration.activeSession == null
-                            ? '本次路線尚未開始'
-                            : '本次路線由伺服器計算',
-                      ),
-                    ],
+                if (_mapMode == ExplorationMapMode.adventure)
+                  const Positioned(
+                    left: 14,
+                    bottom: 92,
+                    child: _AdventureMapHint(),
                   ),
+                const Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 124,
+                  child: IgnorePointer(child: _ExplorerAvatar()),
                 ),
-                FilledButton.icon(
-                  onPressed: controller.exploring
-                      ? controller.stopExploration
-                      : controller.startExploration,
-                  icon: Icon(
-                    controller.exploring
-                        ? Icons.pause_rounded
-                        : Icons.play_arrow_rounded,
+                Positioned(
+                  left: 14,
+                  right: 14,
+                  bottom: 14,
+                  child: _ExplorationStartPanel(
+                    distanceMeters: sessionDistance,
+                    exploring: controller.exploring,
+                    hasSession: controller.exploration.activeSession != null,
+                    onPressed: controller.exploring
+                        ? controller.stopExploration
+                        : controller.startExploration,
                   ),
-                  label: Text(controller.exploring ? '暫停' : '開始探索'),
                 ),
               ],
             ),
           ),
         ),
+        const SizedBox(height: 14),
         const _NoticeBand(
           icon: Icons.shield_outlined,
-          text: '只在此頁開啟定位。伺服器暫存最新一點，結束探索後清除；歷史只留粗略網格。',
+          text: '只在探索頁開啟定位。完成任務會讓生命樹成長；重送不會重複增加成長值。',
         ),
         const SizedBox(height: 8),
-        const _SectionTitle(title: '任務雷達', subtitle: '台北市中心限時任務，進入半徑後可接取'),
+        const _SectionTitle(title: '任務雷達', subtitle: '靠近光點後接取任務，完成後生命樹長出新葉'),
         const SizedBox(height: 10),
         if (radarMissions.isEmpty)
           const _EmptyBlock(
@@ -521,111 +492,312 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
   }
 }
 
-class _RouteProgressCard extends StatelessWidget {
-  const _RouteProgressCard({required this.route, required this.progress});
+class _ExplorationHeroCard extends StatelessWidget {
+  const _ExplorationHeroCard({
+    required this.route,
+    required this.progress,
+    required this.active,
+    required this.radarCount,
+    required this.unlockedCount,
+  });
 
-  final ExplorationRouteModel route;
+  final ExplorationRouteModel? route;
   final double progress;
+  final bool active;
+  final int radarCount;
+  final int unlockedCount;
 
   @override
   Widget build(BuildContext context) {
-    final awarded = route.badgeAwarded;
-    return Card(
-      color: awarded ? const Color(0xFFFFF5D8) : const Color(0xFFEAF4EC),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 54,
-                  height: 54,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: awarded
-                          ? const [Color(0xFFFFD36B), Color(0xFFD98A00)]
-                          : const [Color(0xFFBDE66B), Color(0xFF1B7A4A)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+    final routeName = route?.name ?? '台北城市任務雷達';
+    final badgeName = route?.badgeName ?? '今日綠伴徽章';
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFFF7DE), Color(0xFFDFF8E8)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: Colors.white, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: forest.withValues(alpha: 0.12),
+            blurRadius: 26,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(
+                    colors: [lime, forest],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: lime.withValues(alpha: 0.42),
+                      blurRadius: 22,
+                      offset: const Offset(0, 8),
                     ),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: (awarded ? warmYellow : forest).withValues(
-                          alpha: 0.26,
+                  ],
+                ),
+                child: const Icon(Icons.auto_awesome_rounded, color: ink),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: active ? forestDark : Colors.white,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            active ? '探索中' : '溫柔冒險模式',
+                            style: TextStyle(
+                              color: active ? Colors.white : forestDark,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
                         ),
-                        blurRadius: 18,
-                        offset: const Offset(0, 8),
+                      ],
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      routeName,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        height: 1.05,
+                        fontWeight: FontWeight.w900,
                       ),
-                    ],
-                  ),
-                  child: Icon(
-                    awarded
-                        ? Icons.workspace_premium_rounded
-                        : Icons.park_rounded,
-                    color: awarded ? ink : Colors.white,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            route?.description ??
+                '像 Pokémon GO 一樣看見城市任務，但目標是補水、觀察自然、慢慢走，讓生命樹長出新的葉子。',
+            style: const TextStyle(
+              color: Color(0xFF536159),
+              height: 1.55,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _AdventureStatPill(
+                  icon: Icons.radar_rounded,
+                  label: '雷達任務',
+                  value: '$radarCount 個',
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: _AdventureStatPill(
+                  icon: Icons.location_on_rounded,
+                  label: '可接取',
+                  value: '$unlockedCount 個',
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: _AdventureStatPill(
+                  icon: Icons.workspace_premium_rounded,
+                  label: '徽章',
+                  value: badgeName,
+                ),
+              ),
+            ],
+          ),
+          if (route != null) ...[
+            const SizedBox(height: 15),
+            TweenAnimationBuilder<double>(
+              tween: Tween<double>(end: progress),
+              duration: const Duration(milliseconds: 760),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, child) => ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  value: value,
+                  minHeight: 10,
+                  color: forest,
+                  backgroundColor: Colors.white.withValues(alpha: 0.72),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _AdventureStatPill extends StatelessWidget {
+  const _AdventureStatPill({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 78),
+      padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: forest, size: 18),
+          const Spacer(),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF68746D),
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdventureMapOverlay extends StatelessWidget {
+  const _AdventureMapOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              forestDark.withValues(alpha: 0.1),
+              Colors.transparent,
+              forestDark.withValues(alpha: 0.28),
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ExplorationStartPanel extends StatelessWidget {
+  const _ExplorationStartPanel({
+    required this.distanceMeters,
+    required this.exploring,
+    required this.hasSession,
+    required this.onPressed,
+  });
+
+  final int distanceMeters;
+  final bool exploring;
+  final bool hasSession;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: forestDark.withValues(alpha: 0.2),
+            blurRadius: 22,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: exploring ? forestDark : const Color(0xFFEAF5DE),
+            ),
+            child: Icon(
+              exploring ? Icons.directions_walk_rounded : Icons.spa_rounded,
+              color: exploring ? lime : forest,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$distanceMeters 公尺',
+                  style: const TextStyle(
+                    fontSize: 21,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        route.name,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        awarded
-                            ? '已取得「${route.badgeName}」徽章'
-                            : '完成全部事件解鎖「${route.badgeName}」徽章',
-                        style: const TextStyle(
-                          color: Color(0xFF516159),
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.82),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    '${route.completedQuestCount}/${route.totalQuestCount}',
-                    style: const TextStyle(fontWeight: FontWeight.w900),
+                Text(
+                  hasSession ? '伺服器計算距離，生命樹等待成長' : '按下開始後，附近任務光點會被偵測',
+                  style: const TextStyle(
+                    color: Color(0xFF68746D),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            Text(route.description),
-            const SizedBox(height: 14),
-            TweenAnimationBuilder<double>(
-              tween: Tween<double>(end: progress),
-              duration: const Duration(milliseconds: 680),
-              curve: Curves.easeOutCubic,
-              builder: (context, value, child) => LinearProgressIndicator(
-                value: value,
-                minHeight: 9,
-                borderRadius: BorderRadius.circular(6),
-                color: awarded ? const Color(0xFFD98A00) : forest,
-                backgroundColor: Colors.white,
-              ),
+          ),
+          FilledButton.icon(
+            onPressed: onPressed,
+            icon: Icon(
+              exploring ? Icons.pause_rounded : Icons.play_arrow_rounded,
             ),
-          ],
-        ),
+            label: Text(exploring ? '暫停' : '開始'),
+          ),
+        ],
       ),
     );
   }
@@ -741,12 +913,16 @@ class _ExplorerAvatar extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Container(
-            width: 46,
-            height: 46,
+            width: 54,
+            height: 54,
             decoration: BoxDecoration(
-              color: forestDark,
+              gradient: const LinearGradient(
+                colors: [forestDark, forest],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
               shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 3),
+              border: Border.all(color: Colors.white, width: 4),
               boxShadow: [
                 BoxShadow(
                   color: forestDark.withValues(alpha: 0.32),
@@ -756,9 +932,9 @@ class _ExplorerAvatar extends StatelessWidget {
               ],
             ),
             child: const Icon(
-              Icons.directions_walk_rounded,
+              Icons.emoji_people_rounded,
               color: warmYellow,
-              size: 26,
+              size: 30,
             ),
           ),
           Container(
@@ -799,17 +975,21 @@ class _QuestBeacon extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 50,
-            height: 50,
+            width: 54,
+            height: 54,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: color,
+              gradient: LinearGradient(
+                colors: [color.withValues(alpha: 0.82), color],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
               border: Border.all(color: Colors.white, width: 3),
-              boxShadow: const [
+              boxShadow: [
                 BoxShadow(
-                  color: Colors.black26,
-                  blurRadius: 10,
-                  offset: Offset(0, 5),
+                  color: color.withValues(alpha: 0.35),
+                  blurRadius: 18,
+                  offset: const Offset(0, 7),
                 ),
               ],
             ),
@@ -873,6 +1053,8 @@ class _RadarBeacon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _radarAccentColor(mission);
+    final completed = mission.status == 'COMPLETED';
+    final unlocked = mission.status == 'UNLOCKED';
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -881,9 +1063,7 @@ class _RadarBeacon extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.94),
             borderRadius: BorderRadius.circular(999),
-            boxShadow: const [
-              BoxShadow(color: Colors.black26, blurRadius: 8),
-            ],
+            boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8)],
           ),
           child: Text(
             mission.tag,
@@ -892,21 +1072,34 @@ class _RadarBeacon extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Container(
-          width: 48,
-          height: 48,
+          width: 56,
+          height: 56,
           decoration: BoxDecoration(
-            color: color,
+            gradient: LinearGradient(
+              colors: completed
+                  ? [forestDark, forest]
+                  : unlocked
+                  ? [warmYellow, color]
+                  : [Colors.white, color.withValues(alpha: 0.82)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             shape: BoxShape.circle,
             border: Border.all(color: Colors.white, width: 3),
             boxShadow: [
               BoxShadow(
-                color: color.withValues(alpha: 0.35),
-                blurRadius: 18,
-                offset: const Offset(0, 7),
+                color: color.withValues(alpha: 0.36),
+                blurRadius: 22,
+                spreadRadius: unlocked ? 2 : 0,
+                offset: const Offset(0, 9),
               ),
             ],
           ),
-          child: Icon(_radarIcon(mission), color: Colors.white, size: 23),
+          child: Icon(
+            completed ? Icons.done_all_rounded : _radarIcon(mission),
+            color: completed || unlocked ? Colors.white : color,
+            size: 25,
+          ),
         ),
         Container(width: 5, height: 12, color: color),
         Container(
@@ -933,13 +1126,27 @@ class _RadarMissionCard extends StatelessWidget {
     final accent = _radarAccentColor(mission);
     final completed = mission.status == 'COMPLETED';
     final unlocked = mission.status == 'UNLOCKED';
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border(left: BorderSide(color: accent, width: 5)),
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          colors: completed
+              ? const [Color(0xFFE8F6DF), Color(0xFFFFFFFF)]
+              : [accent.withValues(alpha: 0.14), Colors.white],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        padding: const EdgeInsets.all(14),
+        border: Border.all(color: accent.withValues(alpha: 0.22)),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: 0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(15),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -950,8 +1157,22 @@ class _RadarMissionCard extends StatelessWidget {
                   width: 50,
                   height: 50,
                   decoration: BoxDecoration(
-                    color: accent.withValues(alpha: completed ? 1 : 0.15),
+                    gradient: LinearGradient(
+                      colors: completed
+                          ? [forest, accent]
+                          : [Colors.white, accent.withValues(alpha: 0.22)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                     shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: accent.withValues(alpha: 0.22),
+                        blurRadius: 16,
+                        offset: const Offset(0, 7),
+                      ),
+                    ],
                   ),
                   child: Icon(
                     _radarIcon(mission),
@@ -982,7 +1203,8 @@ class _RadarMissionCard extends StatelessWidget {
                         mission.description,
                         style: const TextStyle(
                           color: Color(0xFF66706A),
-                          height: 1.4,
+                          height: 1.45,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
@@ -1005,7 +1227,7 @@ class _RadarMissionCard extends StatelessWidget {
                 ),
                 _InfoPill(
                   icon: Icons.energy_savings_leaf_outlined,
-                  label: '+${mission.growthPoints}',
+                  label: '生命樹 +${mission.growthPoints}',
                 ),
                 if (mission.badgeName != null)
                   _InfoPill(
@@ -1021,7 +1243,7 @@ class _RadarMissionCard extends StatelessWidget {
                   ? OutlinedButton.icon(
                       onPressed: null,
                       icon: const Icon(Icons.done_all_rounded),
-                      label: const Text('已完成'),
+                      label: const Text('已完成，生命樹已成長'),
                     )
                   : unlocked
                   ? FilledButton.icon(
@@ -1030,7 +1252,7 @@ class _RadarMissionCard extends StatelessWidget {
                           context: context,
                           builder: (context) => AlertDialog(
                             title: const Text('完成雷達任務'),
-                            content: Text('確認完成「${mission.title}」嗎？'),
+                            content: Text('確認完成「${mission.title}」，讓生命樹長出新葉嗎？'),
                             actions: [
                               TextButton(
                                 onPressed: () => Navigator.pop(context, false),
@@ -1048,7 +1270,7 @@ class _RadarMissionCard extends StatelessWidget {
                         }
                       },
                       icon: const Icon(Icons.check_circle_outline_rounded),
-                      label: const Text('完成任務'),
+                      label: const Text('完成並讓樹成長'),
                     )
                   : OutlinedButton.icon(
                       onPressed: null,
