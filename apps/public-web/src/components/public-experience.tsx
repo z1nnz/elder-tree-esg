@@ -10,13 +10,19 @@ import {
   ArrowUpRight,
   Bot,
   Building2,
+  Camera,
   Cpu,
+  Footprints,
   HeartHandshake,
+  Leaf,
+  LocateFixed,
   MapPinned,
+  Radar,
   ShieldCheck,
   Smartphone,
   Sparkles,
   Sprout,
+  TimerReset,
   Trees,
   Users,
 } from "lucide-react";
@@ -52,6 +58,51 @@ const techFlow = [
   { icon: Bot, label: "AI 驗證", detail: "低信心交給人判斷" },
   { icon: Cpu, label: "實體樹", detail: "把成長帶進生活空間" },
   { icon: Building2, label: "營運平台", detail: "安全、稽核與機構協作" },
+];
+
+const productHighlights = [
+  {
+    icon: Radar,
+    title: "城市任務雷達",
+    body: "把城市變成溫柔版冒險地圖：任務在安全地點附近出現，靠近才解鎖，不鼓勵危險競速。",
+  },
+  {
+    icon: Camera,
+    title: "Gemini 拍照驗證",
+    body: "花草、植物、水杯等低風險任務可以由 AI 先判斷，只保存驗證摘要，不把原圖當成果展示。",
+  },
+  {
+    icon: Trees,
+    title: "家庭樹與實體樹",
+    body: "任務不是冷冰冰的點數，而是長成一棵家裡看得到、社區也看得到的樹。",
+  },
+];
+
+const radarMissions = [
+  {
+    icon: Leaf,
+    label: "觀察花草",
+    distance: "120m",
+    time: "剩 18 分",
+    points: "+8",
+    className: "mission-plant",
+  },
+  {
+    icon: Camera,
+    label: "拍下水杯",
+    distance: "附近",
+    time: "剩 32 分",
+    points: "+6",
+    className: "mission-water",
+  },
+  {
+    icon: Footprints,
+    label: "溫和步行",
+    distance: "400m",
+    time: "常駐",
+    points: "+10",
+    className: "mission-walk",
+  },
 ];
 
 const contactHref = (subject: string) => {
@@ -153,6 +204,21 @@ export function PublicExperience() {
               duration: 2.8,
               repeat: -1,
               yoyo: true,
+              ease: "sine.inOut",
+            });
+            gsap.to(".radar-sweep", {
+              rotation: 360,
+              duration: 5.5,
+              repeat: -1,
+              ease: "none",
+              transformOrigin: "50% 100%",
+            });
+            gsap.to(".mission-dot", {
+              scale: 1.16,
+              duration: 1.35,
+              repeat: -1,
+              yoyo: true,
+              stagger: 0.22,
               ease: "sine.inOut",
             });
           }
@@ -317,6 +383,71 @@ export function PublicExperience() {
               <p>{body}</p>
             </article>
           ))}
+        </div>
+      </section>
+
+      <section className="product section-shell" id="product">
+        <div className="section-heading" data-reveal>
+          <p className="eyebrow">科技產品型：不是普通長照 App</p>
+          <h2>地圖、AI、任務與樹，讓照顧變成城市裡可被看見的行動。</h2>
+          <p>
+            產品不靠恐嚇、不靠排行榜壓力，而是把「願意出門、願意補水、願意觀察自然」做成可驗證、可累積、可分享的日常循環。
+          </p>
+        </div>
+        <div className="product-grid">
+          {productHighlights.map(({ icon: Icon, title, body }) => (
+            <article className="product-card" data-reveal key={title}>
+              <Icon size={26} />
+              <h3>{title}</h3>
+              <p>{body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="radar-showcase">
+        <div className="section-shell radar-layout">
+          <div className="section-heading light" data-reveal>
+            <p className="eyebrow">城市探索：任務像光點一樣長出來</p>
+            <h2>不是追逐寶可夢，而是追逐一個更願意生活的自己。</h2>
+            <p>
+              任務雷達可以把地圖上的限時任務、接取半徑、剩餘時間與徽章感做出來；第一版會先用安全地點與低風險任務，避免把人導向危險場域。
+            </p>
+          </div>
+          <div className="radar-panel" data-reveal aria-label="城市任務雷達概念展示">
+            <div className="radar-map">
+              <div className="radar-grid" />
+              <div className="radar-sweep" />
+              <div className="player-pin">
+                <LocateFixed size={25} />
+                <span>你</span>
+              </div>
+              {radarMissions.map(({ icon: Icon, label, className }) => (
+                <div className={`mission-dot ${className}`} key={label}>
+                  <Icon size={18} />
+                </div>
+              ))}
+            </div>
+            <div className="mission-list">
+              {radarMissions.map(({ icon: Icon, label, distance, time, points }) => (
+                <article key={label}>
+                  <span>
+                    <Icon size={18} />
+                  </span>
+                  <div>
+                    <strong>{label}</strong>
+                    <small>
+                      {distance}・{time}
+                    </small>
+                  </div>
+                  <b>{points}</b>
+                </article>
+              ))}
+              <p>
+                <TimerReset size={16} /> 倒數結束後任務消失；完成請求保持冪等，不重複加樹。
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 

@@ -89,22 +89,10 @@ class HomeScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 15),
-                        LinearProgressIndicator(
-                          value: progress,
-                          minHeight: 9,
-                          borderRadius: BorderRadius.circular(5),
-                          backgroundColor: Colors.white24,
-                          color: warmYellow,
-                        ),
-                        const SizedBox(height: 7),
-                        Text(
-                          nextStage == null
-                              ? '這棵樹已經成熟'
-                              : '再 ${nextStage - controller.tree.growthPoints} 點進入下一階段',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                          ),
+                        _AnimatedTreeProgress(
+                          progress: progress,
+                          growthPoints: controller.tree.growthPoints,
+                          nextStage: nextStage,
                         ),
                       ],
                     ),
@@ -198,6 +186,78 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
+class _AnimatedTreeProgress extends StatelessWidget {
+  const _AnimatedTreeProgress({
+    required this.progress,
+    required this.growthPoints,
+    required this.nextStage,
+  });
+
+  final double progress;
+  final int growthPoints;
+  final int? nextStage;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TweenAnimationBuilder<double>(
+          tween: Tween<double>(end: progress),
+          duration: const Duration(milliseconds: 850),
+          curve: Curves.easeOutCubic,
+          builder: (context, value, child) => Stack(
+            clipBehavior: Clip.none,
+            children: [
+              LinearProgressIndicator(
+                value: value,
+                minHeight: 11,
+                borderRadius: BorderRadius.circular(7),
+                backgroundColor: Colors.white24,
+                color: warmYellow,
+              ),
+              Positioned(
+                left: (MediaQuery.sizeOf(context).width - 72) * value,
+                top: -12,
+                child: Transform.scale(
+                  scale: 0.86 + (value * 0.18),
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: warmYellow,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: warmYellow.withValues(alpha: 0.45),
+                          blurRadius: 18,
+                          spreadRadius: 3,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.eco_rounded, color: ink, size: 17),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 320),
+          child: Text(
+            nextStage == null
+                ? '這棵樹已經成熟'
+                : '再 ${(nextStage! - growthPoints).clamp(0, nextStage!)} 點進入下一階段',
+            key: ValueKey('$growthPoints-$nextStage'),
+            style: const TextStyle(color: Colors.white, fontSize: 12),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class TasksScreen extends StatelessWidget {
   const TasksScreen({required this.controller, super.key});
   final AppController controller;
@@ -284,62 +344,7 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
         ),
         if (route != null) ...[
           const SizedBox(height: 12),
-          Card(
-            color: const Color(0xFFEAF4EC),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.park_rounded, color: forest),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          route.name,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        '${route.completedQuestCount}/${route.totalQuestCount}',
-                        style: const TextStyle(fontWeight: FontWeight.w900),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(route.description),
-                  const SizedBox(height: 12),
-                  LinearProgressIndicator(
-                    value: routeProgress,
-                    minHeight: 8,
-                    borderRadius: BorderRadius.circular(5),
-                    color: forest,
-                    backgroundColor: Colors.white,
-                  ),
-                  if (route.badgeAwarded) ...[
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.workspace_premium_rounded,
-                          color: Color(0xFFD98A00),
-                        ),
-                        const SizedBox(width: 7),
-                        Text(
-                          '已取得「${route.badgeName}」徽章',
-                          style: const TextStyle(fontWeight: FontWeight.w900),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
+          _RouteProgressCard(route: route, progress: routeProgress),
         ],
         const SizedBox(height: 14),
         ClipRRect(
@@ -403,6 +408,12 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
                         bottom: 12,
                         child: _AdventureMapHint(),
                       ),
+                    const Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 78,
+                      child: IgnorePointer(child: _ExplorerAvatar()),
+                    ),
                   ],
                 ),
               ),
@@ -469,85 +480,122 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
           )
         else
           ...route.quests.map(
-            (quest) => Card(
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    CircleAvatar(
-                      backgroundColor: quest.completed
-                          ? forest
-                          : quest.unlocked
-                          ? warmYellow
-                          : const Color(0xFFE3E7E4),
-                      foregroundColor: quest.completed
-                          ? Colors.white
-                          : forestDark,
-                      child: Icon(
-                        quest.completed
-                            ? Icons.check_rounded
-                            : quest.triggerType == 'GEOFENCE'
-                            ? Icons.place_rounded
-                            : Icons.route_rounded,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${quest.sequence}. ${quest.locationName}',
-                            style: const TextStyle(fontWeight: FontWeight.w900),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(quest.title),
-                          const SizedBox(height: 5),
-                          Text(
-                            quest.completed
-                                ? '已完成'
-                                : quest.unlocked
-                                ? '已解鎖，可到任務頁完成'
-                                : quest.triggerType == 'DISTANCE'
-                                ? '本次路線 ${quest.unlockDistanceMeters ?? 0} 公尺後解鎖'
-                                : '進入地標 ${quest.radiusMeters ?? 0} 公尺內解鎖',
-                            style: TextStyle(
-                              color: quest.unlocked ? forest : Colors.black54,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          if (quest.safetyNote != null) ...[
-                            const SizedBox(height: 7),
-                            Text(
-                              '安全提醒：${quest.safetyNote}',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                          ],
-                          if (quest.accessibilityTags.isNotEmpty) ...[
-                            const SizedBox(height: 7),
-                            Wrap(
-                              spacing: 6,
-                              runSpacing: 6,
-                              children: quest.accessibilityTags
-                                  .map(
-                                    (tag) => Chip(
-                                      visualDensity: VisualDensity.compact,
-                                      label: Text(tag),
-                                    ),
-                                  )
-                                  .toList(),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            (quest) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _QuestEventCard(quest: quest),
             ),
           ),
       ],
+    );
+  }
+}
+
+class _RouteProgressCard extends StatelessWidget {
+  const _RouteProgressCard({required this.route, required this.progress});
+
+  final ExplorationRouteModel route;
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final awarded = route.badgeAwarded;
+    return Card(
+      color: awarded ? const Color(0xFFFFF5D8) : const Color(0xFFEAF4EC),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: awarded
+                          ? const [Color(0xFFFFD36B), Color(0xFFD98A00)]
+                          : const [Color(0xFFBDE66B), Color(0xFF1B7A4A)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: (awarded ? warmYellow : forest).withValues(
+                          alpha: 0.26,
+                        ),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    awarded
+                        ? Icons.workspace_premium_rounded
+                        : Icons.park_rounded,
+                    color: awarded ? ink : Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        route.name,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        awarded
+                            ? '已取得「${route.badgeName}」徽章'
+                            : '完成全部事件解鎖「${route.badgeName}」徽章',
+                        style: const TextStyle(
+                          color: Color(0xFF516159),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.82),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${route.completedQuestCount}/${route.totalQuestCount}',
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(route.description),
+            const SizedBox(height: 14),
+            TweenAnimationBuilder<double>(
+              tween: Tween<double>(end: progress),
+              duration: const Duration(milliseconds: 680),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, child) => LinearProgressIndicator(
+                value: value,
+                minHeight: 9,
+                borderRadius: BorderRadius.circular(6),
+                color: awarded ? const Color(0xFFD98A00) : forest,
+                backgroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -620,6 +668,74 @@ class _AdventureMapHint extends StatelessWidget {
               color: Colors.white,
               fontSize: 12,
               fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExplorerAvatar extends StatelessWidget {
+  const _ExplorerAvatar();
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(999),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 10,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: const Text(
+              '你',
+              style: TextStyle(
+                color: forestDark,
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: forestDark,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 3),
+              boxShadow: [
+                BoxShadow(
+                  color: forestDark.withValues(alpha: 0.32),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.directions_walk_rounded,
+              color: warmYellow,
+              size: 26,
+            ),
+          ),
+          Container(
+            width: 28,
+            height: 9,
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(999),
             ),
           ),
         ],
@@ -713,6 +829,193 @@ class _QuestBeacon extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _QuestEventCard extends StatelessWidget {
+  const _QuestEventCard({required this.quest});
+
+  final ExplorationQuestModel quest;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = _questAccentColor(quest);
+    final icon = _questIcon(quest);
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(left: BorderSide(color: accent, width: 5)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: accent.withValues(
+                        alpha: quest.completed ? 1 : 0.16,
+                      ),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: quest.unlocked || quest.completed
+                            ? accent
+                            : const Color(0xFFD4DAD6),
+                        width: 2,
+                      ),
+                    ),
+                    child: Icon(
+                      icon,
+                      color: quest.completed ? Colors.white : accent,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '${quest.sequence}. ${quest.locationName}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                            _QuestStatusChip(quest: quest),
+                          ],
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          quest.title,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          quest.description,
+                          style: const TextStyle(
+                            color: Color(0xFF66706A),
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF4F7F5),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      quest.triggerType == 'DISTANCE'
+                          ? Icons.route_rounded
+                          : Icons.location_on_rounded,
+                      color: accent,
+                      size: 19,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _questUnlockText(quest),
+                        style: TextStyle(
+                          color: quest.unlocked ? forest : Colors.black54,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (quest.safetyNote != null) ...[
+                const SizedBox(height: 10),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.health_and_safety_outlined,
+                      color: forest,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Text(
+                        '安全提醒：${quest.safetyNote}',
+                        style: const TextStyle(fontSize: 12, height: 1.4),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              if (quest.accessibilityTags.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: quest.accessibilityTags
+                      .map(
+                        (tag) => Chip(
+                          visualDensity: VisualDensity.compact,
+                          backgroundColor: Colors.white,
+                          side: const BorderSide(color: Color(0xFFDCE5DF)),
+                          label: Text(tag),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QuestStatusChip extends StatelessWidget {
+  const _QuestStatusChip({required this.quest});
+
+  final ExplorationQuestModel quest;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _questAccentColor(quest);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: quest.completed ? 1 : 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        quest.completed
+            ? '完成'
+            : quest.unlocked
+            ? '事件開啟'
+            : '未解鎖',
+        style: TextStyle(
+          color: quest.completed ? Colors.white : color,
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+        ),
       ),
     );
   }
@@ -1696,6 +1999,38 @@ class _SensorCell extends StatelessWidget {
       ),
     );
   }
+}
+
+String _questUnlockText(ExplorationQuestModel quest) {
+  if (quest.completed) return '已完成，樹成長值已記錄';
+  if (quest.unlocked) return '已解鎖，可前往任務頁完成行動';
+  if (quest.triggerType == 'DISTANCE') {
+    return '本次路線累積 ${quest.unlockDistanceMeters ?? 0} 公尺後開啟';
+  }
+  return '進入地標 ${quest.radiusMeters ?? 0} 公尺範圍內開啟';
+}
+
+IconData _questIcon(ExplorationQuestModel quest) {
+  if (quest.completed) return Icons.check_rounded;
+  if (!quest.unlocked) return Icons.lock_rounded;
+  if (quest.triggerType == 'DISTANCE') return Icons.route_rounded;
+  return switch (quest.category) {
+    'NATURE' => Icons.eco_rounded,
+    'WELLNESS' => Icons.self_improvement_rounded,
+    'HYDRATION' => Icons.water_drop_rounded,
+    _ => Icons.place_rounded,
+  };
+}
+
+Color _questAccentColor(ExplorationQuestModel quest) {
+  if (quest.completed) return forest;
+  if (!quest.unlocked) return const Color(0xFF7A8680);
+  return switch (quest.category) {
+    'NATURE' => const Color(0xFF1B7A4A),
+    'WELLNESS' => const Color(0xFF7357D8),
+    'HYDRATION' => const Color(0xFF2F80ED),
+    _ => const Color(0xFFD98A00),
+  };
 }
 
 IconData _taskIcon(VerificationMode mode) => switch (mode) {

@@ -216,7 +216,7 @@ describeWithDatabase("PersistentStoreService", () => {
   );
 
   it(
-    "keeps photo evidence locked without private storage configuration",
+    "keeps private photo evidence upload locked without storage while inline Gemini stays available",
     async () => {
       delete process.env.PHOTO_EVIDENCE_ENABLED;
       const lockedUid = `integration-photo-locked-${randomUUID()}`;
@@ -230,9 +230,13 @@ describeWithDatabase("PersistentStoreService", () => {
         enabled: false,
         reason: "STORAGE_NOT_CONFIGURED",
       });
+      expect(context.capabilities.geminiPhotoVerification).toEqual({
+        enabled: true,
+        reason: null,
+      });
       expect(photoTask?.capability).toEqual({
-        enabled: false,
-        reason: "PHOTO_STORAGE_UNAVAILABLE",
+        enabled: true,
+        reason: null,
       });
       await expect(
         store.initializeEvidence(
