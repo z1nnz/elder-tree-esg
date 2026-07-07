@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test(
-    'parses route progress, active session, badge, and locked photo task',
+    'parses route progress, active session, badge, and disabled photo verifier',
     () {
       final state = ExplorationStateModel.fromJson({
         'totalDistanceMeters': 120,
@@ -60,14 +60,17 @@ void main() {
         'startedAt': null,
         'minimumSeconds': null,
         'dueAt': null,
-        'capability': {'enabled': false, 'reason': 'PHOTO_STORAGE_UNAVAILABLE'},
+        'capability': {
+          'enabled': false,
+          'reason': 'PHOTO_VERIFIER_UNAVAILABLE',
+        },
       });
 
       expect(state.activeSession?.distanceMeters, 120);
       expect(state.routes.single.badgeAwarded, isTrue);
       expect(state.quests.single.completed, isTrue);
       expect(photo.capabilityEnabled, isFalse);
-      expect(photo.capabilityReason, 'PHOTO_STORAGE_UNAVAILABLE');
+      expect(photo.capabilityReason, 'PHOTO_VERIFIER_UNAVAILABLE');
     },
   );
 }

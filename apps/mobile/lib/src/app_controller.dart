@@ -13,11 +13,9 @@ import 'models.dart';
 class AppController extends ChangeNotifier {
   AppController({
     ApiClient? api,
-    EvidenceUploader? evidenceUploader,
     String? initialDisplayName,
     bool allowOfflineDemo = true,
   }) : _api = api ?? ApiClient(),
-       _evidenceUploader = evidenceUploader,
        _initialDisplayName = initialDisplayName,
        _allowOfflineDemo = allowOfflineDemo {
     if (!allowOfflineDemo) {
@@ -29,7 +27,6 @@ class AppController extends ChangeNotifier {
   }
 
   final ApiClient _api;
-  EvidenceUploader? _evidenceUploader;
   final String? _initialDisplayName;
   final bool _allowOfflineDemo;
   final ImagePicker _picker = ImagePicker();
@@ -186,8 +183,9 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> photographTask(DailyTask task) async {
-    if (!task.capabilityEnabled || context?.photoEvidenceEnabled != true) {
-      notice = '照片驗證服務尚未開放；其他任務與城市探索仍可正常使用。';
+    if (!task.capabilityEnabled ||
+        context?.geminiPhotoVerificationEnabled == false) {
+      notice = 'Gemini 拍照辨識暫時無法使用；其他任務與城市探索仍可正常使用。';
       notifyListeners();
       return;
     }
@@ -199,22 +197,25 @@ class AppController extends ChangeNotifier {
       );
       if (photo == null) return;
       if (!offlineDemo) {
-        final destination = await _api.initializePhotoEvidence(
-          task.id,
-          photo.name,
+        final prepared = await preparePhotoEvidence(photo);
+        _replaceTask(
+          await _api.completeGeminiPhotoTask(
+            taskId: task.id,
+            imageBase64: prepared.base64Image,
+            contentType: prepared.contentType,
+            idempotencyKey: 'mobile-gemini-${task.id}-${prepared.sha256}',
+          ),
         );
-        final uploader = _evidenceUploader ??= FirebaseEvidenceUploader();
-        final uploaded = await uploader.upload(photo, destination);
-        await _api.completePhotoEvidence(destination.id, uploaded.sha256);
-        tasks = await _api.getTasks();
         tree = await _api.getTree();
         reviews = await _api.getFamilyReviews();
       } else {
-        _replaceTask(task.copyWith(status: TaskStatus.verifying));
+        _replaceTask(task.copyWith(status: TaskStatus.completed));
+        _applyLocalGrowth(task.growthPoints);
       }
-      notice = '照片已送出。AI 信心不足時會交由人工覆核，不會直接判定失敗。';
+      notice =
+          'Gemini 已辨識照片並完成「${task.title}」，陪伴樹獲得 ${task.growthPoints} 點成長值。';
     } catch (error) {
-      notice = '照片送出失敗：$error';
+      notice = '照片辨識失敗：$error。請讓主體更清楚後再拍一次。';
     }
     notifyListeners();
   }
@@ -483,8 +484,14 @@ const _fallbackTasks = [
     verificationMode: VerificationMode.photoAi,
     growthPoints: 80,
     status: TaskStatus.available,
-    capabilityEnabled: false,
-    capabilityReason: 'PHOTO_STORAGE_UNAVAILABLE',
+  ),
+  DailyTask(
+    id: '55555555-5555-4555-8555-555555555555',
+    title: '拍下今天的水杯',
+    description: '讓水杯或水瓶清楚入鏡，提醒自己慢慢補水。',
+    verificationMode: VerificationMode.photoAi,
+    growthPoints: 35,
+    status: TaskStatus.available,
   ),
   DailyTask(
     id: '22222222-2222-4222-8222-222222222222',

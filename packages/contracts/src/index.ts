@@ -101,7 +101,7 @@ export interface TaskSummary {
   dueAt: string | null;
   capability: {
     enabled: boolean;
-    reason: "PHOTO_STORAGE_UNAVAILABLE" | null;
+    reason: "PHOTO_STORAGE_UNAVAILABLE" | "PHOTO_VERIFIER_UNAVAILABLE" | null;
   };
 }
 
@@ -136,6 +136,10 @@ export interface AppContext {
     photoEvidence: {
       enabled: boolean;
       reason: "STORAGE_NOT_CONFIGURED" | null;
+    };
+    geminiPhotoVerification: {
+      enabled: boolean;
+      reason: "VERIFIER_DISABLED" | null;
     };
   };
 }

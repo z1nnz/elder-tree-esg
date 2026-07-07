@@ -14,8 +14,11 @@ class PhotoVerificationRequest(BaseModel):
     evidence_id: str
     task_title: str
     image_url: HttpUrl | None = None
+    image_base64: str | None = Field(default=None, max_length=14_000_000)
+    content_type: str | None = None
     required_labels: list[str] = Field(default_factory=list, max_length=10)
     forbidden_labels: list[str] = Field(default_factory=list, max_length=10)
+    match_any_required: bool = False
     demo_labels: list[str] | None = Field(default=None, max_length=20)
     demo_confidence: float | None = Field(default=None, ge=0, le=1)
     rule_version: str = "1.0.0"

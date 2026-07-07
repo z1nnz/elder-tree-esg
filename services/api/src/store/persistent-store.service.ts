@@ -18,6 +18,7 @@ import type {
   ReviewItem,
   TaskSummary,
   TreeSummary,
+  VerificationResult,
 } from "@elder-tree/contracts";
 import {
   BadRequestException,
@@ -54,8 +55,26 @@ const TASK_SEEDS = [
     title: "拍下今天的一抹綠",
     description: "找一株植物，拍下讓你停下來多看一眼的地方。",
     verificationMode: VerificationMode.PHOTO_AI,
-    verificationRule: { subject: "plant", minimumConfidence: 0.85 },
+    verificationRule: {
+      subject: "plant",
+      requiredLabels: ["plant", "flower", "tree", "grass", "leaf"],
+      matchAnyRequired: true,
+      minimumConfidence: 0.75,
+    },
     growthPoints: 80,
+  },
+  {
+    id: "55555555-5555-4555-8555-555555555555",
+    title: "拍下今天的水杯",
+    description: "讓水杯或水瓶清楚入鏡，提醒自己慢慢補水。",
+    verificationMode: VerificationMode.PHOTO_AI,
+    verificationRule: {
+      subject: "hydration",
+      requiredLabels: ["water bottle", "bottle", "cup", "glass", "drink"],
+      matchAnyRequired: true,
+      minimumConfidence: 0.7,
+    },
+    growthPoints: 35,
   },
   {
     id: "22222222-2222-4222-8222-222222222222",
@@ -83,6 +102,12 @@ type RouteWithTasks = Prisma.ExplorationRouteGetPayload<{
   include: { quests: { include: { task: true } } };
 }>;
 
+interface GeminiPhotoTaskInput {
+  imageBase64: string;
+  contentType: string;
+  idempotencyKey?: string;
+}
+
 function toTaskSummary(assignment: AssignmentWithTask): TaskSummary {
   const rule =
     assignment.task.verificationRule &&
@@ -90,6 +115,8 @@ function toTaskSummary(assignment: AssignmentWithTask): TaskSummary {
     !Array.isArray(assignment.task.verificationRule)
       ? (assignment.task.verificationRule as Record<string, unknown>)
       : {};
+  const geminiPhotoVerificationEnabled =
+    process.env.PHOTO_VERIFICATION_ENABLED !== "false";
   return {
     id: assignment.id,
     title: assignment.task.title,
@@ -104,11 +131,11 @@ function toTaskSummary(assignment: AssignmentWithTask): TaskSummary {
     capability: {
       enabled:
         assignment.task.verificationMode !== VerificationMode.PHOTO_AI ||
-        process.env.PHOTO_EVIDENCE_ENABLED === "true",
+        geminiPhotoVerificationEnabled,
       reason:
         assignment.task.verificationMode === VerificationMode.PHOTO_AI &&
-        process.env.PHOTO_EVIDENCE_ENABLED !== "true"
-          ? "PHOTO_STORAGE_UNAVAILABLE"
+        !geminiPhotoVerificationEnabled
+          ? "PHOTO_VERIFIER_UNAVAILABLE"
           : null,
     },
   };
@@ -180,6 +207,13 @@ export class PersistentStoreService {
             process.env.PHOTO_EVIDENCE_ENABLED === "true"
               ? null
               : "STORAGE_NOT_CONFIGURED",
+        },
+        geminiPhotoVerification: {
+          enabled: process.env.PHOTO_VERIFICATION_ENABLED !== "false",
+          reason:
+            process.env.PHOTO_VERIFICATION_ENABLED === "false"
+              ? "VERIFIER_DISABLED"
+              : null,
         },
       },
     };
@@ -420,6 +454,152 @@ export class PersistentStoreService {
     });
   }
 
+  async completeGeminiPhotoTask(
+    firebaseUid: string,
+    assignmentId: string,
+    input: GeminiPhotoTaskInput,
+  ): Promise<TaskSummary> {
+    if (process.env.PHOTO_VERIFICATION_ENABLED === "false") {
+      throw new BadRequestException("Photo verification is disabled");
+    }
+    const active = await this.getActiveUser(firebaseUid);
+    const assignment = await this.prisma.taskAssignment.findFirst({
+      where: {
+        id: assignmentId,
+        userId: active.id,
+        householdId: active.activeHouseholdId,
+      },
+      include: { task: true },
+    });
+    if (!assignment) throw new NotFoundException("Task assignment not found");
+    if (assignment.task.verificationMode !== VerificationMode.PHOTO_AI) {
+      throw new BadRequestException("This task does not accept photo verification");
+    }
+    if (assignment.status === AssignmentStatus.COMPLETED) {
+      return toTaskSummary(assignment);
+    }
+    const idempotencyKey =
+      input.idempotencyKey ?? `gemini-photo:${assignment.id}:${input.imageBase64.slice(0, 48)}`;
+    const existingAttempt = await this.prisma.photoVerificationAttempt.findUnique({
+      where: {
+        assignmentId_idempotencyKey: {
+          assignmentId: assignment.id,
+          idempotencyKey,
+        },
+      },
+      include: { assignment: { include: { task: true } } },
+    });
+    if (existingAttempt) {
+      if (existingAttempt.decision === PrismaVerificationDecision.PASS) {
+        return toTaskSummary(existingAttempt.assignment);
+      }
+      throw new BadRequestException("Photo verification did not pass");
+    }
+
+    const estimatedBytes = Math.floor((input.imageBase64.length * 3) / 4);
+    if (estimatedBytes <= 0 || estimatedBytes > 10 * 1024 * 1024) {
+      throw new BadRequestException("Photo image must be between 1 byte and 10 MB");
+    }
+
+    const rule = assignment.task.verificationRule as Record<string, unknown>;
+    const requiredLabels = Array.isArray(rule.requiredLabels)
+      ? rule.requiredLabels.filter(
+          (label): label is string => typeof label === "string",
+        )
+      : typeof rule.subject === "string"
+        ? [rule.subject]
+        : [];
+    const forbiddenLabels = Array.isArray(rule.forbiddenLabels)
+      ? rule.forbiddenLabels.filter(
+          (label): label is string => typeof label === "string",
+        )
+      : [];
+    const verification = await this.photoVerifier.verifyInline({
+      evidenceId: `assignment:${assignment.id}`,
+      taskTitle: assignment.task.title,
+      imageBase64: input.imageBase64,
+      contentType: input.contentType,
+      requiredLabels,
+      forbiddenLabels,
+      matchAnyRequired: rule.matchAnyRequired === true,
+    });
+
+    const result = await this.prisma.$transaction(async (transaction) => {
+      await transaction.$executeRaw`
+        SELECT pg_advisory_xact_lock(hashtext(${`photo:${assignment.id}:${idempotencyKey}`}))
+      `;
+      const existing = await transaction.photoVerificationAttempt.findUnique({
+        where: {
+          assignmentId_idempotencyKey: {
+            assignmentId: assignment.id,
+            idempotencyKey,
+          },
+        },
+        include: { assignment: { include: { task: true } } },
+      });
+      if (existing) {
+        return {
+          decision: existing.decision,
+          summary: toTaskSummary(existing.assignment),
+        };
+      }
+
+      const decision = verification.decision as PrismaVerificationDecision;
+      await transaction.photoVerificationAttempt.create({
+        data: {
+          assignmentId: assignment.id,
+          idempotencyKey,
+          decision,
+          labels: verification.labels,
+          matchedLabels: verification.labels.filter((label) =>
+            requiredLabels
+              .map((required) => required.toLowerCase())
+              .includes(label.toLowerCase()),
+          ),
+          confidence: verification.confidence,
+          reasonCodes: verification.reasonCodes,
+          model: verification.model,
+          ruleVersion: verification.ruleVersion,
+        },
+      });
+
+      if (decision !== PrismaVerificationDecision.PASS) {
+        const rejected = await transaction.taskAssignment.update({
+          where: { id: assignment.id },
+          data: { status: AssignmentStatus.REJECTED },
+          include: { task: true },
+        });
+        return { decision, summary: toTaskSummary(rejected) };
+      }
+
+      await this.awardTaskGrowth(
+        transaction,
+        assignment,
+        active.activeHouseholdId,
+      );
+      const completed = await transaction.taskAssignment.update({
+        where: { id: assignment.id },
+        data: {
+          status: AssignmentStatus.COMPLETED,
+          completedAt: assignment.completedAt ?? this.clock.now(),
+        },
+        include: { task: true },
+      });
+      await this.awardCompletedRouteBadge(
+        transaction,
+        active.id,
+        active.activeHouseholdId,
+        assignment.taskId,
+      );
+      return { decision, summary: toTaskSummary(completed) };
+    });
+
+    if (result.decision !== PrismaVerificationDecision.PASS) {
+      throw new BadRequestException("Photo verification did not pass");
+    }
+    return result.summary;
+  }
+
   async initializeEvidence(
     firebaseUid: string,
     assignmentId: string,
@@ -534,6 +714,7 @@ export class PersistentStoreService {
         imageUrl,
         requiredLabels,
         forbiddenLabels,
+        matchAnyRequired: rule.matchAnyRequired === true,
       });
     } catch (error) {
       await this.prisma.evidence.update({
@@ -2140,6 +2321,7 @@ export class PersistentStoreService {
     const existing = await this.prisma.user.findUnique({
       where: { firebaseUid },
       select: {
+        id: true,
         activeHouseholdId: true,
         householdLinks: { select: { householdId: true } },
       },
@@ -2151,6 +2333,18 @@ export class PersistentStoreService {
           membership.householdId === existing.activeHouseholdId,
       )
     ) {
+      await this.ensureTaskSeeds();
+      for (const membership of existing.householdLinks) {
+        await this.prisma.taskAssignment.createMany({
+          data: TASK_SEEDS.map((task) => ({
+            taskId: task.id,
+            userId: existing.id,
+            householdId: membership.householdId,
+            status: AssignmentStatus.AVAILABLE,
+          })),
+          skipDuplicates: true,
+        });
+      }
       return;
     }
     await this.ensureTaskSeeds();

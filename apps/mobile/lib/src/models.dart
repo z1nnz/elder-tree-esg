@@ -111,6 +111,8 @@ class AppContextModel {
     required this.households,
     this.photoEvidenceEnabled = false,
     this.photoEvidenceReason,
+    this.geminiPhotoVerificationEnabled = true,
+    this.geminiPhotoVerificationReason,
   });
 
   final String displayName;
@@ -118,6 +120,8 @@ class AppContextModel {
   final List<HouseholdSummaryModel> households;
   final bool photoEvidenceEnabled;
   final String? photoEvidenceReason;
+  final bool geminiPhotoVerificationEnabled;
+  final String? geminiPhotoVerificationReason;
 
   HouseholdSummaryModel get activeHousehold =>
       households.firstWhere((household) => household.id == activeHouseholdId);
@@ -137,6 +141,17 @@ class AppContextModel {
             false,
         photoEvidenceReason:
             ((json['capabilities'] as Map<String, dynamic>?)?['photoEvidence']
+                    as Map<String, dynamic>?)?['reason']
+                as String?,
+        geminiPhotoVerificationEnabled:
+            ((json['capabilities']
+                        as Map<String, dynamic>?)?['geminiPhotoVerification']
+                    as Map<String, dynamic>?)?['enabled']
+                as bool? ??
+            true,
+        geminiPhotoVerificationReason:
+            ((json['capabilities']
+                        as Map<String, dynamic>?)?['geminiPhotoVerification']
                     as Map<String, dynamic>?)?['reason']
                 as String?,
       );

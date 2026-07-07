@@ -1364,7 +1364,7 @@ class _TaskTile extends StatelessWidget {
                   ? OutlinedButton.icon(
                       onPressed: () => controller.photographTask(task),
                       icon: const Icon(Icons.lock_outline_rounded),
-                      label: const Text('照片驗證服務尚未開放'),
+                      label: const Text('Gemini 辨識暫時無法使用'),
                     )
                   : !supported
                   ? OutlinedButton.icon(

@@ -112,6 +112,20 @@ class ApiClient {
     return DailyTask.fromJson(data);
   }
 
+  Future<DailyTask> completeGeminiPhotoTask({
+    required String taskId,
+    required String imageBase64,
+    required String contentType,
+    required String idempotencyKey,
+  }) async {
+    final data = await _post('/tasks/$taskId/photo-verification', {
+      'imageBase64': imageBase64,
+      'contentType': contentType,
+      'idempotencyKey': idempotencyKey,
+    });
+    return DailyTask.fromJson(data);
+  }
+
   Future<DailyTask> startTask(String taskId) async {
     return DailyTask.fromJson(await _post('/tasks/$taskId/start', const {}));
   }

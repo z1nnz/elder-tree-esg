@@ -307,10 +307,29 @@ model TaskAssignment {
   user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   household   Household        @relation(fields: [householdId], references: [id], onDelete: Cascade)
   evidence    Evidence[]
+  photoVerificationAttempts PhotoVerificationAttempt[]
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
   @@unique([taskId, userId, householdId])
+}
+
+model PhotoVerificationAttempt {
+  id             String               @id @default(uuid())
+  assignmentId   String
+  idempotencyKey String
+  decision       VerificationDecision
+  labels         Json
+  matchedLabels  String[]             @default([])
+  confidence     Float
+  reasonCodes    String[]             @default([])
+  model          String
+  ruleVersion    String
+  assignment     TaskAssignment       @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  createdAt      DateTime             @default(now())
+
+  @@unique([assignmentId, idempotencyKey])
+  @@index([assignmentId, createdAt])
 }
 
 model HouseholdInvite {

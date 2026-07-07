@@ -10,6 +10,7 @@ import {
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import {
   CompleteEvidenceDto,
+  CompleteGeminiPhotoTaskDto,
   CompleteTaskDto,
   InitializeEvidenceDto,
 } from "../dto/api.dto";
@@ -59,6 +60,26 @@ export class TasksController {
         request.user!.uid,
         id,
         dto.idempotencyKey,
+      ),
+    };
+  }
+
+  @Post("tasks/:id/photo-verification")
+  async completeGeminiPhotoTask(
+    @Req() request: AuthenticatedRequest,
+    @Param("id") id: string,
+    @Body() dto: CompleteGeminiPhotoTaskDto,
+  ) {
+    if (process.env.DEMO_MODE !== "false") {
+      return {
+        data: this.demoStore.completeGeminiPhotoTask(id, dto.idempotencyKey),
+      };
+    }
+    return {
+      data: await this.persistentStore.completeGeminiPhotoTask(
+        request.user!.uid,
+        id,
+        dto,
       ),
     };
   }

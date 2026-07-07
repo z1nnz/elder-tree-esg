@@ -16,6 +16,7 @@ import {
   IsUUID,
   Length,
   Max,
+  MaxLength,
   Min,
 } from "class-validator";
 
@@ -72,6 +73,23 @@ export class CompleteEvidenceDto {
   @IsString()
   @Length(8, 128)
   sha256!: string;
+}
+
+export class CompleteGeminiPhotoTaskDto {
+  @ApiProperty({ example: "image/jpeg" })
+  @IsIn(["image/jpeg", "image/png", "image/webp", "image/heic"])
+  contentType!: string;
+
+  @ApiProperty({ description: "Base64-encoded sanitized image bytes" })
+  @IsString()
+  @MaxLength(14_000_000)
+  imageBase64!: string;
+
+  @ApiPropertyOptional({ description: "Prevents duplicate growth awards" })
+  @IsOptional()
+  @IsString()
+  @Length(8, 120)
+  idempotencyKey?: string;
 }
 
 export class ReviewDecisionDto {

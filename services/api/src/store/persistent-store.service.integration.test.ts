@@ -247,6 +247,100 @@ describeWithDatabase("PersistentStoreService", () => {
   );
 
   it(
+    "completes Gemini photo tasks without private storage and stays idempotent",
+    async () => {
+      delete process.env.PHOTO_EVIDENCE_ENABLED;
+      const verifier = {
+        verifyInline: vi.fn().mockResolvedValue({
+          decision: "PASS",
+          confidence: 0.92,
+          labels: ["plant", "flower"],
+          reasonCodes: ["RULES_SATISFIED"],
+          explanation: "A plant and flower are visible.",
+          model: "fake-gemini",
+          ruleVersion: "1.0.0",
+        }),
+      };
+      store = new PersistentStoreService(
+        prisma,
+        undefined,
+        undefined,
+        verifier as never,
+      );
+      const photoUid = `integration-gemini-photo-${randomUUID()}`;
+      createdFirebaseUids.add(photoUid);
+      const photoTask = (await store.listTasks(photoUid)).find(
+        (task) => task.verificationMode === "PHOTO_AI",
+      );
+      expect(photoTask).toBeDefined();
+
+      const before = await store.getTree(photoUid);
+      const first = await store.completeGeminiPhotoTask(
+        photoUid,
+        photoTask!.id,
+        {
+          imageBase64: "ZmFrZS1qcGVn",
+          contentType: "image/jpeg",
+          idempotencyKey: "gemini-plant-photo",
+        },
+      );
+      await store.completeGeminiPhotoTask(photoUid, photoTask.id, {
+        imageBase64: "ZmFrZS1qcGVn",
+        contentType: "image/jpeg",
+        idempotencyKey: "gemini-plant-photo",
+      });
+      const afterRetry = await store.getTree(photoUid);
+
+      expect(verifier.verifyInline).toHaveBeenCalledTimes(1);
+      expect(first.status).toBe("COMPLETED");
+      expect(afterRetry.growthPoints).toBe(
+        before.growthPoints + photoTask.growthPoints,
+      );
+    },
+    60_000,
+  );
+
+  it(
+    "rejects Gemini photo tasks when the verifier does not pass",
+    async () => {
+      const verifier = {
+        verifyInline: vi.fn().mockResolvedValue({
+          decision: "REVIEW",
+          confidence: 0.64,
+          labels: ["chair"],
+          reasonCodes: ["MISSING_REQUIRED_LABEL"],
+          explanation: "No plant is visible.",
+          model: "fake-gemini",
+          ruleVersion: "1.0.0",
+        }),
+      };
+      store = new PersistentStoreService(
+        prisma,
+        undefined,
+        undefined,
+        verifier as never,
+      );
+      const photoUid = `integration-gemini-photo-rejected-${randomUUID()}`;
+      createdFirebaseUids.add(photoUid);
+      const photoTask = (await store.listTasks(photoUid)).find(
+        (task) => task.verificationMode === "PHOTO_AI",
+      );
+      expect(photoTask).toBeDefined();
+
+      await expect(
+        store.completeGeminiPhotoTask(photoUid, photoTask!.id, {
+          imageBase64: "ZmFrZS1qcGVn",
+          contentType: "image/jpeg",
+          idempotencyKey: "gemini-chair-photo",
+        }),
+      ).rejects.toThrow("Photo verification did not pass");
+
+      expect((await store.getTree(photoUid)).growthPoints).toBe(0);
+    },
+    60_000,
+  );
+
+  it(
     "lets another household member review photo evidence exactly once",
     async () => {
       const previousPhotoEvidenceEnabled =
