@@ -5,6 +5,7 @@ import type {
   DashboardSnapshot,
   ExplorationRouteSummary,
   ImpactBatchSummary,
+  RadarMissionSummary,
   ReviewItem,
 } from "@elder-tree/contracts";
 import { gsap } from "gsap";
@@ -38,6 +39,7 @@ import {
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
+import { RadarMissionEditor } from "./radar-mission-editor";
 import { RouteEditor } from "./route-editor";
 
 if (typeof window !== "undefined") {
@@ -92,6 +94,7 @@ export function OperationsDashboard() {
   const [snapshot, setSnapshot] = useState(fallbackSnapshot);
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [routes, setRoutes] = useState<ExplorationRouteSummary[]>([]);
+  const [radarMissions, setRadarMissions] = useState<RadarMissionSummary[]>([]);
   const [batches, setBatches] = useState<ImpactBatchSummary[]>([]);
   const [devices, setDevices] = useState<DeviceView[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,17 +105,25 @@ export function OperationsDashboard() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [nextSnapshot, nextReviews, nextRoutes, nextBatches, nextDevices] =
-        await Promise.all([
+      const [
+        nextSnapshot,
+        nextReviews,
+        nextRoutes,
+        nextRadarMissions,
+        nextBatches,
+        nextDevices,
+      ] = await Promise.all([
           api.dashboard(),
           api.reviews(),
           api.explorationRoutes(),
+          api.radarMissions(),
           api.impactBatches(),
           api.devices(),
         ]);
       setSnapshot(nextSnapshot);
       setReviews(nextReviews);
       setRoutes(nextRoutes);
+      setRadarMissions(nextRadarMissions);
       setBatches(nextBatches);
       setDevices(nextDevices);
       setOfflineDemo(false);
@@ -304,7 +315,13 @@ export function OperationsDashboard() {
             <Reviews reviews={reviews} />
           ) : null}
           {view === "exploration" ? (
-            <RouteEditor routes={routes} onRoutesChange={setRoutes} />
+            <div className="exploration-stack">
+              <RouteEditor routes={routes} onRoutesChange={setRoutes} />
+              <RadarMissionEditor
+                missions={radarMissions}
+                onMissionsChange={setRadarMissions}
+              />
+            </div>
           ) : null}
           {view === "impact" ? (
             <Impact

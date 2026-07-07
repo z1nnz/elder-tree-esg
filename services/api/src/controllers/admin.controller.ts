@@ -13,7 +13,9 @@ import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import {
   CreateExplorationQuestDto,
   CreateExplorationRouteDto,
+  CreateRadarMissionDto,
   ReorderExplorationQuestsDto,
+  UpdateRadarMissionDto,
   UpdateExplorationQuestDto,
   UpdateExplorationRouteDto,
 } from "../dto/api.dto";
@@ -41,6 +43,34 @@ export class AdminController {
   @Get("exploration/routes")
   async routes() {
     return { data: await this.store.listAdminExplorationRoutes() };
+  }
+
+  @Get("exploration/radar-missions")
+  async radarMissions() {
+    return { data: await this.store.listAdminRadarMissions() };
+  }
+
+  @Post("exploration/radar-missions")
+  async createRadarMission(@Body() dto: CreateRadarMissionDto) {
+    return { data: await this.store.createAdminRadarMission(dto) };
+  }
+
+  @Patch("exploration/radar-missions/:id")
+  async updateRadarMission(
+    @Param("id") id: string,
+    @Body() dto: UpdateRadarMissionDto,
+  ) {
+    return { data: await this.store.updateAdminRadarMission(id, dto) };
+  }
+
+  @Post("exploration/radar-missions/:id/publish")
+  async publishRadarMission(@Param("id") id: string) {
+    return { data: await this.store.publishAdminRadarMission(id) };
+  }
+
+  @Post("exploration/radar-missions/:id/archive")
+  async archiveRadarMission(@Param("id") id: string) {
+    return { data: await this.store.archiveAdminRadarMission(id) };
   }
 
   @Post("exploration/routes")

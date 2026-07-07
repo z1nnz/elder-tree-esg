@@ -110,7 +110,8 @@ export DATABASE_URL="postgresql://..."
 npm run admin:grant -- FIREBASE_UID
 ```
 
-The city exploration seed contains the published `都市綠肺初探` route. Location
+The city exploration seed contains the published `都市綠肺初探` route plus
+Taipei city-center radar missions for the MVP mission radar. Location
 simulation is accepted only outside production when
 `LOCATION_SIMULATION_ENABLED=true`; production ignores demo-role headers and
 rejects simulation endpoints.

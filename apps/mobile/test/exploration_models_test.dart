@@ -62,15 +62,44 @@ void main() {
         'dueAt': null,
         'capability': {
           'enabled': false,
-          'reason': 'PHOTO_VERIFIER_UNAVAILABLE',
+          'reason': 'BLAZE_REQUIRED',
         },
+      });
+      final radar = RadarStateModel.fromJson({
+        'generatedAt': '2026-07-07T12:00:00.000Z',
+        'missions': [
+          {
+            'id': 'radar-1',
+            'title': '華山綠意觀察',
+            'description': '觀察一處城市綠意。',
+            'category': 'NATURE',
+            'tag': '觀察',
+            'latitude': 25.04411,
+            'longitude': 121.52944,
+            'radiusMeters': 90,
+            'startsAt': '2026-07-07T00:00:00.000Z',
+            'endsAt': '2026-07-07T13:00:00.000Z',
+            'remainingSeconds': 3600,
+            'verificationMode': 'SELF_CHECK',
+            'minimumSeconds': null,
+            'growthPoints': 8,
+            'badgeName': '城市觀察者',
+            'publicationStatus': 'PUBLISHED',
+            'status': 'UNLOCKED',
+            'unlockedAt': '2026-07-07T12:00:00.000Z',
+            'completedAt': null,
+          },
+        ],
       });
 
       expect(state.activeSession?.distanceMeters, 120);
       expect(state.routes.single.badgeAwarded, isTrue);
       expect(state.quests.single.completed, isTrue);
       expect(photo.capabilityEnabled, isFalse);
-      expect(photo.capabilityReason, 'PHOTO_VERIFIER_UNAVAILABLE');
+      expect(photo.capabilityReason, 'BLAZE_REQUIRED');
+      expect(radar.missions.single.isUnlocked, isTrue);
+      expect(radar.missions.single.publicationStatus, 'PUBLISHED');
+      expect(radar.missions.single.growthPoints, 8);
     },
   );
 }

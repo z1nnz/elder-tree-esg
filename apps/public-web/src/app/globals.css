@@ -371,8 +371,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .action-copy { max-width: 860px; }
 .action-copy h2 { margin: 0 0 45px; font-size: clamp(40px, 5.4vw, 72px); line-height: 1.05; letter-spacing: -.05em; }
-.action-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-.action-grid a { min-height: 205px; padding: 26px; display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto 1fr auto; gap: 8px; border: 1px solid var(--line); border-radius: 20px; background: white; transition: transform .25s ease, box-shadow .25s ease; }
+.action-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.action-grid a { min-height: 230px; padding: 30px; display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto 1fr auto; gap: 8px; border: 1px solid var(--line); border-radius: 20px; background: white; transition: transform .25s ease, box-shadow .25s ease; }
 .action-grid a:hover { transform: translateY(-5px); box-shadow: 0 20px 45px rgba(22,35,29,.1); }
 .action-grid a > svg:first-child { color: var(--forest); }
 .action-grid strong { grid-column: 1 / -1; align-self: end; font-size: 25px; }

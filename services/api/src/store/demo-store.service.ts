@@ -54,7 +54,7 @@ export class DemoStoreService {
       startedAt: null,
       minimumSeconds: null,
       dueAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
-      capability: { enabled: true, reason: null },
+      capability: { enabled: false, reason: "BLAZE_REQUIRED" },
     },
     {
       id: TASK_HYDRATION_PHOTO_ID,
@@ -66,7 +66,7 @@ export class DemoStoreService {
       startedAt: null,
       minimumSeconds: null,
       dueAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
-      capability: { enabled: true, reason: null },
+      capability: { enabled: false, reason: "BLAZE_REQUIRED" },
     },
     {
       id: TASK_WATER_ID,

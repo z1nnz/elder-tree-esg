@@ -15,6 +15,7 @@ describeWithDatabase("PersistentStoreService", () => {
   const createdFirebaseUids = new Set([firebaseUid]);
   const createdTaskIds = new Set<string>();
   const createdRouteIds = new Set<string>();
+  const createdRadarMissionIds = new Set<string>();
   const createdDeviceIds = new Set<string>();
   let prisma: PrismaService;
   let store: PersistentStoreService;
@@ -43,6 +44,9 @@ describeWithDatabase("PersistentStoreService", () => {
     }
     await prisma.explorationRoute.deleteMany({
       where: { id: { in: [...createdRouteIds] } },
+    });
+    await prisma.radarMission.deleteMany({
+      where: { id: { in: [...createdRadarMissionIds] } },
     });
     await prisma.task.deleteMany({ where: { id: { in: [...createdTaskIds] } } });
     await prisma.$disconnect();
@@ -216,9 +220,10 @@ describeWithDatabase("PersistentStoreService", () => {
   );
 
   it(
-    "keeps private photo evidence upload locked without storage while inline Gemini stays available",
+    "keeps photo AI locked until Blaze storage and verification are enabled",
     async () => {
       delete process.env.PHOTO_EVIDENCE_ENABLED;
+      delete process.env.PHOTO_VERIFICATION_ENABLED;
       const lockedUid = `integration-photo-locked-${randomUUID()}`;
       createdFirebaseUids.add(lockedUid);
       const context = await store.getContext(lockedUid);
@@ -228,15 +233,15 @@ describeWithDatabase("PersistentStoreService", () => {
 
       expect(context.capabilities.photoEvidence).toEqual({
         enabled: false,
-        reason: "STORAGE_NOT_CONFIGURED",
+        reason: "BLAZE_REQUIRED",
       });
       expect(context.capabilities.geminiPhotoVerification).toEqual({
-        enabled: true,
-        reason: null,
+        enabled: false,
+        reason: "BLAZE_REQUIRED",
       });
       expect(photoTask?.capability).toEqual({
-        enabled: true,
-        reason: null,
+        enabled: false,
+        reason: "BLAZE_REQUIRED",
       });
       await expect(
         store.initializeEvidence(
@@ -246,14 +251,25 @@ describeWithDatabase("PersistentStoreService", () => {
           "image/jpeg",
         ),
       ).rejects.toThrow("private storage is configured");
+      await expect(
+        store.completeGeminiPhotoTask(lockedUid, photoTask!.id, {
+          imageBase64: "ZmFrZS1qcGVn",
+          contentType: "image/jpeg",
+          idempotencyKey: "locked-gemini-photo",
+        }),
+      ).rejects.toThrow("requires Firebase Blaze");
     },
     60_000,
   );
 
   it(
-    "completes Gemini photo tasks without private storage and stays idempotent",
+    "completes Gemini photo tasks only when explicitly enabled and stays idempotent",
     async () => {
-      delete process.env.PHOTO_EVIDENCE_ENABLED;
+      const previousPhotoEvidenceEnabled = process.env.PHOTO_EVIDENCE_ENABLED;
+      const previousPhotoVerificationEnabled =
+        process.env.PHOTO_VERIFICATION_ENABLED;
+      process.env.PHOTO_EVIDENCE_ENABLED = "true";
+      process.env.PHOTO_VERIFICATION_ENABLED = "true";
       const verifier = {
         verifyInline: vi.fn().mockResolvedValue({
           decision: "PASS",
@@ -271,35 +287,49 @@ describeWithDatabase("PersistentStoreService", () => {
         undefined,
         verifier as never,
       );
-      const photoUid = `integration-gemini-photo-${randomUUID()}`;
-      createdFirebaseUids.add(photoUid);
-      const photoTask = (await store.listTasks(photoUid)).find(
-        (task) => task.verificationMode === "PHOTO_AI",
-      );
-      expect(photoTask).toBeDefined();
+      try {
+        const photoUid = `integration-gemini-photo-${randomUUID()}`;
+        createdFirebaseUids.add(photoUid);
+        const photoTask = (await store.listTasks(photoUid)).find(
+          (task) => task.verificationMode === "PHOTO_AI",
+        );
+        expect(photoTask).toBeDefined();
 
-      const before = await store.getTree(photoUid);
-      const first = await store.completeGeminiPhotoTask(
-        photoUid,
-        photoTask!.id,
-        {
+        const before = await store.getTree(photoUid);
+        const first = await store.completeGeminiPhotoTask(
+          photoUid,
+          photoTask!.id,
+          {
+            imageBase64: "ZmFrZS1qcGVn",
+            contentType: "image/jpeg",
+            idempotencyKey: "gemini-plant-photo",
+          },
+        );
+        await store.completeGeminiPhotoTask(photoUid, photoTask.id, {
           imageBase64: "ZmFrZS1qcGVn",
           contentType: "image/jpeg",
           idempotencyKey: "gemini-plant-photo",
-        },
-      );
-      await store.completeGeminiPhotoTask(photoUid, photoTask.id, {
-        imageBase64: "ZmFrZS1qcGVn",
-        contentType: "image/jpeg",
-        idempotencyKey: "gemini-plant-photo",
-      });
-      const afterRetry = await store.getTree(photoUid);
+        });
+        const afterRetry = await store.getTree(photoUid);
 
-      expect(verifier.verifyInline).toHaveBeenCalledTimes(1);
-      expect(first.status).toBe("COMPLETED");
-      expect(afterRetry.growthPoints).toBe(
-        before.growthPoints + photoTask.growthPoints,
-      );
+        expect(verifier.verifyInline).toHaveBeenCalledTimes(1);
+        expect(first.status).toBe("COMPLETED");
+        expect(afterRetry.growthPoints).toBe(
+          before.growthPoints + photoTask.growthPoints,
+        );
+      } finally {
+        if (previousPhotoEvidenceEnabled === undefined) {
+          delete process.env.PHOTO_EVIDENCE_ENABLED;
+        } else {
+          process.env.PHOTO_EVIDENCE_ENABLED = previousPhotoEvidenceEnabled;
+        }
+        if (previousPhotoVerificationEnabled === undefined) {
+          delete process.env.PHOTO_VERIFICATION_ENABLED;
+        } else {
+          process.env.PHOTO_VERIFICATION_ENABLED =
+            previousPhotoVerificationEnabled;
+        }
+      }
     },
     60_000,
   );
@@ -307,6 +337,11 @@ describeWithDatabase("PersistentStoreService", () => {
   it(
     "rejects Gemini photo tasks when the verifier does not pass",
     async () => {
+      const previousPhotoEvidenceEnabled = process.env.PHOTO_EVIDENCE_ENABLED;
+      const previousPhotoVerificationEnabled =
+        process.env.PHOTO_VERIFICATION_ENABLED;
+      process.env.PHOTO_EVIDENCE_ENABLED = "true";
+      process.env.PHOTO_VERIFICATION_ENABLED = "true";
       const verifier = {
         verifyInline: vi.fn().mockResolvedValue({
           decision: "REVIEW",
@@ -324,22 +359,36 @@ describeWithDatabase("PersistentStoreService", () => {
         undefined,
         verifier as never,
       );
-      const photoUid = `integration-gemini-photo-rejected-${randomUUID()}`;
-      createdFirebaseUids.add(photoUid);
-      const photoTask = (await store.listTasks(photoUid)).find(
-        (task) => task.verificationMode === "PHOTO_AI",
-      );
-      expect(photoTask).toBeDefined();
+      try {
+        const photoUid = `integration-gemini-photo-rejected-${randomUUID()}`;
+        createdFirebaseUids.add(photoUid);
+        const photoTask = (await store.listTasks(photoUid)).find(
+          (task) => task.verificationMode === "PHOTO_AI",
+        );
+        expect(photoTask).toBeDefined();
 
-      await expect(
-        store.completeGeminiPhotoTask(photoUid, photoTask!.id, {
-          imageBase64: "ZmFrZS1qcGVn",
-          contentType: "image/jpeg",
-          idempotencyKey: "gemini-chair-photo",
-        }),
-      ).rejects.toThrow("Photo verification did not pass");
+        await expect(
+          store.completeGeminiPhotoTask(photoUid, photoTask!.id, {
+            imageBase64: "ZmFrZS1qcGVn",
+            contentType: "image/jpeg",
+            idempotencyKey: "gemini-chair-photo",
+          }),
+        ).rejects.toThrow("Photo verification did not pass");
 
-      expect((await store.getTree(photoUid)).growthPoints).toBe(0);
+        expect((await store.getTree(photoUid)).growthPoints).toBe(0);
+      } finally {
+        if (previousPhotoEvidenceEnabled === undefined) {
+          delete process.env.PHOTO_EVIDENCE_ENABLED;
+        } else {
+          process.env.PHOTO_EVIDENCE_ENABLED = previousPhotoEvidenceEnabled;
+        }
+        if (previousPhotoVerificationEnabled === undefined) {
+          delete process.env.PHOTO_VERIFICATION_ENABLED;
+        } else {
+          process.env.PHOTO_VERIFICATION_ENABLED =
+            previousPhotoVerificationEnabled;
+        }
+      }
     },
     60_000,
   );
@@ -682,6 +731,147 @@ describeWithDatabase("PersistentStoreService", () => {
       expect(receipts.every((receipt) => receipt.coarseCell.length > 0)).toBe(
         true,
       );
+    },
+    60_000,
+  );
+
+  it(
+    "unlocks and completes radar missions idempotently per household",
+    async () => {
+      const radarUid = `integration-radar-${randomUUID()}`;
+      const otherUid = `integration-radar-other-${randomUUID()}`;
+      createdFirebaseUids.add(radarUid);
+      createdFirebaseUids.add(otherUid);
+      let now = new Date("2026-07-07T06:00:00.000Z");
+      const radarStore = new PersistentStoreService(prisma, {
+        now: () => now,
+      } as ClockService);
+
+      const draft = await radarStore.createAdminRadarMission({
+        title: "華山綠意觀察",
+        description: "觀察一處城市綠意，確認自己已停下來看見它。",
+        category: "NATURE",
+        tag: "觀察",
+        latitude: 25.04411,
+        longitude: 121.52944,
+        radiusMeters: 90,
+        startsAt: "2026-07-07T05:00:00.000Z",
+        endsAt: "2026-07-07T07:00:00.000Z",
+        verificationMode: "SELF_CHECK",
+        growthPoints: 8,
+        badgeName: "城市觀察者",
+      });
+      createdRadarMissionIds.add(draft.id);
+      const mission = await radarStore.publishAdminRadarMission(draft.id);
+      expect(mission.publicationStatus).toBe("PUBLISHED");
+
+      await expect(
+        radarStore.unlockRadarMission(radarUid, mission.id, {
+          eventKey: `radar-far-${randomUUID()}`,
+          latitude: 25.08,
+          longitude: 121.52944,
+          accuracyMeters: 10,
+          occurredAt: now.toISOString(),
+        }),
+      ).rejects.toThrow("inside the mission radius");
+
+      const unlocked = await radarStore.unlockRadarMission(radarUid, mission.id, {
+        eventKey: `radar-near-${randomUUID()}`,
+        latitude: 25.04411,
+        longitude: 121.52944,
+        accuracyMeters: 10,
+        occurredAt: now.toISOString(),
+      });
+      expect(unlocked.missions.find((item) => item.id === mission.id)?.status).toBe(
+        "UNLOCKED",
+      );
+
+      const before = await radarStore.getTree(radarUid);
+      await radarStore.completeRadarMission(radarUid, mission.id);
+      await radarStore.completeRadarMission(radarUid, mission.id);
+      const afterRetry = await radarStore.getTree(radarUid);
+      expect(afterRetry.growthPoints).toBe(before.growthPoints + 8);
+
+      await radarStore.unlockRadarMission(otherUid, mission.id, {
+        eventKey: `radar-other-${randomUUID()}`,
+        latitude: 25.04411,
+        longitude: 121.52944,
+        accuracyMeters: 10,
+        occurredAt: now.toISOString(),
+      });
+      expect((await radarStore.getTree(otherUid)).growthPoints).toBe(0);
+
+      now = new Date("2026-07-07T08:00:00.000Z");
+      const expiredDraft = await radarStore.createAdminRadarMission({
+        title: "過期雷達任務",
+        description: "用來驗證過期後不可新解鎖。",
+        category: "WELLNESS",
+        tag: "測試",
+        latitude: 25.04411,
+        longitude: 121.52944,
+        radiusMeters: 90,
+        startsAt: "2026-07-07T05:00:00.000Z",
+        endsAt: "2026-07-07T07:00:00.000Z",
+        verificationMode: "SELF_CHECK",
+        growthPoints: 5,
+      });
+      createdRadarMissionIds.add(expiredDraft.id);
+      const expired = await radarStore.publishAdminRadarMission(expiredDraft.id);
+      await expect(
+        radarStore.unlockRadarMission(radarUid, expired.id, {
+          eventKey: `radar-expired-${randomUUID()}`,
+          latitude: 25.04411,
+          longitude: 121.52944,
+          accuracyMeters: 10,
+          occurredAt: now.toISOString(),
+        }),
+      ).rejects.toThrow("not currently available");
+    },
+    60_000,
+  );
+
+  it(
+    "requires radar timer missions to elapse after unlock",
+    async () => {
+      const timerRadarUid = `integration-radar-timer-${randomUUID()}`;
+      createdFirebaseUids.add(timerRadarUid);
+      let now = new Date("2026-07-07T09:00:00.000Z");
+      const radarStore = new PersistentStoreService(prisma, {
+        now: () => now,
+      } as ClockService);
+      const draft = await radarStore.createAdminRadarMission({
+        title: "二二八公園三分鐘慢呼吸",
+        description: "找安全的位置，進行三分鐘慢呼吸。",
+        category: "WELLNESS",
+        tag: "慢呼吸",
+        latitude: 25.04236,
+        longitude: 121.51542,
+        radiusMeters: 90,
+        startsAt: "2026-07-07T08:00:00.000Z",
+        endsAt: "2026-07-07T10:00:00.000Z",
+        verificationMode: "TIMER",
+        minimumSeconds: 180,
+        growthPoints: 10,
+        badgeName: "慢呼吸同行者",
+      });
+      createdRadarMissionIds.add(draft.id);
+      const mission = await radarStore.publishAdminRadarMission(draft.id);
+      await radarStore.unlockRadarMission(timerRadarUid, mission.id, {
+        eventKey: `radar-timer-${randomUUID()}`,
+        latitude: 25.04236,
+        longitude: 121.51542,
+        accuracyMeters: 10,
+        occurredAt: now.toISOString(),
+      });
+
+      now = new Date("2026-07-07T09:02:59.000Z");
+      await expect(
+        radarStore.completeRadarMission(timerRadarUid, mission.id),
+      ).rejects.toThrow("1 more seconds");
+
+      now = new Date("2026-07-07T09:03:00.000Z");
+      await radarStore.completeRadarMission(timerRadarUid, mission.id);
+      expect((await radarStore.getTree(timerRadarUid)).growthPoints).toBe(10);
     },
     60_000,
   );

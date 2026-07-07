@@ -63,6 +63,12 @@ enum ExplorationSessionStatus {
   EXPIRED
 }
 
+enum RadarMissionPublicationStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
 enum TreeStage {
   SEED
   SPROUT
@@ -96,6 +102,7 @@ model User {
   explorationAwards   ExplorationRouteAward[]
   locationReceipts    LocationEventReceipt[]
   questUnlocks        QuestUnlock[]
+  radarMissionProgress RadarMissionProgress[]
   auditLogs         AuditLog[]        @relation("AuditActor")
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
@@ -116,6 +123,7 @@ model Household {
   explorationAwards ExplorationRouteAward[]
   locationReceipts LocationEventReceipt[]
   questUnlocks QuestUnlock[]
+  radarMissionProgress RadarMissionProgress[]
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 }
@@ -292,6 +300,50 @@ model QuestUnlock {
   unlockedAt  DateTime  @default(now())
 
   @@unique([questId, userId, householdId])
+}
+
+model RadarMission {
+  id               String                        @id @default(uuid())
+  title            String
+  description      String
+  category         String
+  tag              String
+  latitude         Float
+  longitude        Float
+  radiusMeters     Int
+  startsAt         DateTime
+  endsAt           DateTime
+  verificationMode VerificationMode
+  minimumSeconds   Int?
+  growthPoints     Int
+  badgeName        String?
+  status           RadarMissionPublicationStatus @default(DRAFT)
+  publishedAt      DateTime?
+  archivedAt       DateTime?
+  progress         RadarMissionProgress[]
+  createdAt        DateTime                      @default(now())
+  updatedAt        DateTime                      @updatedAt
+
+  @@index([status, startsAt, endsAt])
+  @@index([latitude, longitude])
+}
+
+model RadarMissionProgress {
+  id          String       @id @default(uuid())
+  missionId   String
+  userId      String
+  householdId String
+  unlockedAt  DateTime    @default(now())
+  completedAt DateTime?
+  lastEventKey String?
+  mission     RadarMission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  household   Household    @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([missionId, userId, householdId])
+  @@index([userId, householdId, completedAt])
 }
 
 model TaskAssignment {
