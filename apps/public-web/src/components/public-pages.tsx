@@ -53,6 +53,14 @@ const RadarMap3D = dynamic(
   },
 );
 
+const SkyWorldHero = dynamic(
+  () => import("./sky-world-hero").then((module) => module.SkyWorldHero),
+  {
+    ssr: false,
+    loading: () => <div className="tree-3d-fallback">天空島世界載入中…</div>,
+  },
+);
+
 function usePublicAnimations(dependencies: unknown[] = []) {
   const root = useRef<HTMLElement>(null);
 
@@ -227,40 +235,7 @@ function HeroVisual() {
 }
 
 function HomeHero() {
-  return (
-    <section className="hero" id="top">
-      <div className="hero-copy">
-        <p className="eyebrow">
-          <Sparkles size={16} /> 城市探索 × 高齡陪伴 × 永續共好
-        </p>
-        <h1>
-          一個人的一步，
-          <br />
-          長成城市森林。
-        </h1>
-        <p className="hero-lead">
-          追逐一個更願意生活的自己。滑過樹上的節點，看看城市探索、陪伴與生命樹怎麼一起發生。
-        </p>
-        <div className="hero-actions">
-          <Link className="button primary" href="/product">
-            開始使用 <ArrowRight size={17} />
-          </Link>
-          <a className="button ghost" href={contactHref("綠伴合作與陪伴計畫")}>
-            成為合作夥伴／陪伴者
-          </a>
-        </div>
-        <div className="trust-row">
-          <span>
-            <ShieldCheck size={17} /> 位置只保存必要事件
-          </span>
-          <span>
-            <HeartHandshake size={17} /> 陪伴可以選擇與撤回
-          </span>
-        </div>
-      </div>
-      <HeroVisual />
-    </section>
-  );
+  return <SkyWorldHero />;
 }
 
 function ProductCards() {
