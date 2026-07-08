@@ -48,12 +48,12 @@ const trunkSegments: BranchSpec[] = [
 ];
 
 const branchSegments: BranchSpec[] = [
-  { from: [0.02, 0.62, 0.02], to: [-0.55, 0.24, 0.14], radiusBottom: 0.11, radiusTop: 0.035 },
-  { from: [0.02, 0.62, 0.02], to: [0.56, 0.28, -0.12], radiusBottom: 0.1, radiusTop: 0.032 },
-  { from: [0.01, 1.18, 0], to: [-0.9, 1.7, 0.12], radiusBottom: 0.105, radiusTop: 0.04 },
+  { from: [0.02, 0.78, 0.02], to: [-0.52, 0.42, 0.14], radiusBottom: 0.08, radiusTop: 0.028 },
+  { from: [0.02, 0.78, 0.02], to: [0.54, 0.44, -0.12], radiusBottom: 0.075, radiusTop: 0.026 },
+  { from: [0.01, 1.18, 0], to: [-0.9, 1.74, 0.12], radiusBottom: 0.09, radiusTop: 0.034 },
   { from: [-0.45, 1.46, 0.08], to: [-1.24, 1.96, 0.18], radiusBottom: 0.052, radiusTop: 0.018 },
   { from: [-0.36, 1.38, 0.05], to: [-0.92, 2.25, -0.14], radiusBottom: 0.045, radiusTop: 0.016 },
-  { from: [0.02, 1.34, 0], to: [0.92, 1.82, -0.1], radiusBottom: 0.11, radiusTop: 0.04 },
+  { from: [0.02, 1.34, 0], to: [0.92, 1.86, -0.1], radiusBottom: 0.09, radiusTop: 0.034 },
   { from: [0.47, 1.6, -0.06], to: [1.26, 2.18, -0.16], radiusBottom: 0.052, radiusTop: 0.018 },
   { from: [0.38, 1.72, -0.04], to: [0.78, 2.48, 0.22], radiusBottom: 0.04, radiusTop: 0.014 },
   { from: [-0.02, 1.86, 0], to: [-0.48, 2.72, 0.24], radiusBottom: 0.066, radiusTop: 0.02 },
@@ -63,20 +63,24 @@ const branchSegments: BranchSpec[] = [
 ];
 
 const canopyClusters = [
-  { position: [-0.92, 2.12, 0.02] as Vec3Tuple, scale: [0.78, 0.5, 0.5] as Vec3Tuple, color: "#5ea85f" },
-  { position: [-0.52, 2.52, 0.18] as Vec3Tuple, scale: [0.82, 0.56, 0.5] as Vec3Tuple, color: "#76bd61" },
-  { position: [0.02, 2.68, 0.04] as Vec3Tuple, scale: [0.92, 0.64, 0.58] as Vec3Tuple, color: "#68b65b" },
-  { position: [0.6, 2.48, -0.1] as Vec3Tuple, scale: [0.82, 0.54, 0.48] as Vec3Tuple, color: "#79c866" },
-  { position: [0.92, 2.1, -0.08] as Vec3Tuple, scale: [0.72, 0.48, 0.43] as Vec3Tuple, color: "#5faa62" },
-  { position: [-0.1, 3.08, -0.02] as Vec3Tuple, scale: [0.72, 0.52, 0.46] as Vec3Tuple, color: "#8dd06b" },
-  { position: [-0.28, 2.18, 0.44] as Vec3Tuple, scale: [0.64, 0.42, 0.38] as Vec3Tuple, color: "#8ccf68" },
-  { position: [0.32, 2.18, -0.44] as Vec3Tuple, scale: [0.68, 0.44, 0.4] as Vec3Tuple, color: "#4f995a" },
+  { position: [-1.08, 2.12, 0.1] as Vec3Tuple, scale: [1.08, 0.64, 0.42] as Vec3Tuple, color: "#5ea85f" },
+  { position: [-0.58, 2.5, 0.22] as Vec3Tuple, scale: [1.04, 0.66, 0.46] as Vec3Tuple, color: "#76bd61" },
+  { position: [0.02, 2.68, 0.18] as Vec3Tuple, scale: [1.18, 0.78, 0.5] as Vec3Tuple, color: "#68b65b" },
+  { position: [0.6, 2.48, 0.12] as Vec3Tuple, scale: [1.04, 0.64, 0.44] as Vec3Tuple, color: "#79c866" },
+  { position: [1.08, 2.14, 0.04] as Vec3Tuple, scale: [1, 0.6, 0.42] as Vec3Tuple, color: "#5faa62" },
+  { position: [-0.08, 3.08, 0.12] as Vec3Tuple, scale: [0.96, 0.62, 0.42] as Vec3Tuple, color: "#8dd06b" },
+  { position: [-0.38, 2.18, 0.5] as Vec3Tuple, scale: [0.9, 0.54, 0.34] as Vec3Tuple, color: "#8ccf68" },
+  { position: [0.42, 2.15, 0.44] as Vec3Tuple, scale: [0.9, 0.54, 0.34] as Vec3Tuple, color: "#4f995a" },
+  { position: [-0.2, 1.9, 0.28] as Vec3Tuple, scale: [0.84, 0.46, 0.32] as Vec3Tuple, color: "#5ea85f" },
+  { position: [0.36, 1.92, 0.24] as Vec3Tuple, scale: [0.82, 0.46, 0.32] as Vec3Tuple, color: "#6db85c" },
+  { position: [-0.78, 2.72, 0.02] as Vec3Tuple, scale: [0.76, 0.46, 0.32] as Vec3Tuple, color: "#6dbf62" },
+  { position: [0.78, 2.7, 0.02] as Vec3Tuple, scale: [0.76, 0.46, 0.32] as Vec3Tuple, color: "#75c461" },
 ];
 
 const leafPalette = ["#4f995a", "#69b85e", "#7bc766", "#8fd66e", "#d6d66a"];
 
 const designedLeaves = canopyClusters.flatMap((cluster, clusterIndex) =>
-  Array.from({ length: clusterIndex === 2 ? 68 : 50 }, (_, leafIndex) => {
+  Array.from({ length: clusterIndex === 2 ? 110 : 78 }, (_, leafIndex) => {
     const seed = clusterIndex * 37 + leafIndex * 11;
     const theta = seed * 2.399963;
     const radius = 0.08 + ((seed * 17) % 100) / 100 * 0.94;
@@ -88,11 +92,11 @@ const designedLeaves = canopyClusters.flatMap((cluster, clusterIndex) =>
     return {
       position: [x, y, z] as Vec3Tuple,
       rotation: [
-        -0.35 + (((seed * 7) % 100) / 100) * 0.7,
-        theta,
-        -0.65 + (((seed * 13) % 100) / 100) * 1.3,
+        -0.18 + (((seed * 7) % 100) / 100) * 0.36,
+        -0.28 + (((seed * 23) % 100) / 100) * 0.56,
+        theta + (((seed * 13) % 100) / 100) * 0.42,
       ] as Vec3Tuple,
-      scale: 0.44 + (((seed * 19) % 100) / 100) * 0.46,
+      scale: 0.27 + (((seed * 19) % 100) / 100) * 0.27,
       color: leafPalette[(seed + clusterIndex) % leafPalette.length],
       delay: (seed % 17) * 0.09,
     };
@@ -217,7 +221,7 @@ function LeafCanopy({ reduced }: { reduced: boolean }) {
           <meshStandardMaterial
             color={cluster.color}
             transparent
-            opacity={0.34}
+            opacity={0.44}
             roughness={0.88}
           />
         </mesh>
@@ -285,7 +289,7 @@ function LifeTreeModel({ reduced }: { reduced: boolean }) {
   });
 
   return (
-    <group ref={tree} position={[0, -1.55, 0]} scale={1.08}>
+    <group ref={tree} position={[0, -1.48, 0]} scale={0.98}>
       {trunkSegments.map((segment, index) => (
         <OrganicBranch key={`trunk-${index}`} {...segment} />
       ))}
@@ -363,7 +367,7 @@ function TreeScene({ reduced }: { reduced: boolean }) {
       <ambientLight intensity={0.72} />
       <directionalLight castShadow position={[4, 6, 3]} intensity={1.65} />
       <pointLight position={[-2.6, 2.6, 2.8]} color="#fff1a6" intensity={3.8} />
-      <Float speed={reduced ? 0 : 1.2} rotationIntensity={0.08} floatIntensity={0.22}>
+      <Float speed={reduced ? 0 : 0.85} rotationIntensity={0} floatIntensity={0.12}>
         <LifeTreeModel reduced={reduced} />
       </Float>
       <GrowthTrail reduced={reduced} />
@@ -373,10 +377,9 @@ function TreeScene({ reduced }: { reduced: boolean }) {
       </mesh>
       <OrbitControls
         enablePan={false}
+        enableRotate={false}
         enableZoom={false}
         target={[0, 1.05, 0]}
-        autoRotate={!reduced}
-        autoRotateSpeed={0.45}
         maxPolarAngle={MathUtils.degToRad(77)}
         minPolarAngle={MathUtils.degToRad(48)}
       />
@@ -390,7 +393,7 @@ export function LifeTree3D() {
   return (
     <div className="tree-lab">
       <Canvas
-        camera={{ fov: 41, position: [0, 1.42, 6.35] }}
+        camera={{ fov: 43, position: [0, 1.48, 6.75] }}
         dpr={[1, 1.65]}
         gl={{ antialias: true, alpha: false }}
       >
@@ -404,39 +407,106 @@ export function LifeTree3D() {
   );
 }
 
-const radarPoints = [
-  { position: [-1.8, 0.12, 0.7] as const, color: "#c7eb63" },
-  { position: [1.45, 0.16, -0.45] as const, color: "#ffd45c" },
-  { position: [0.42, 0.14, 1.35] as const, color: "#9ee8f2" },
-  { position: [-0.38, 0.18, -1.45] as const, color: "#f5b56b" },
+const cityBlocks = [
+  { position: [-1.95, 0, -0.85] as Vec3Tuple, scale: [1.1, 0.16, 0.72] as Vec3Tuple, color: "#d6d5bc" },
+  { position: [-1.18, 0, 0.18] as Vec3Tuple, scale: [0.92, 0.2, 1.3] as Vec3Tuple, color: "#b5d39b" },
+  { position: [-0.12, 0, -0.62] as Vec3Tuple, scale: [1.18, 0.18, 0.82] as Vec3Tuple, color: "#a9c98e" },
+  { position: [0.64, 0, 0.42] as Vec3Tuple, scale: [1.34, 0.2, 1.05] as Vec3Tuple, color: "#9fc185" },
+  { position: [1.72, 0, -0.34] as Vec3Tuple, scale: [0.92, 0.17, 0.78] as Vec3Tuple, color: "#c6d6a2" },
+  { position: [1.82, 0, 0.82] as Vec3Tuple, scale: [0.72, 0.14, 0.54] as Vec3Tuple, color: "#a9c88a" },
 ];
 
-function RadarPulse({ reduced }: { reduced: boolean }) {
-  const group = useRef<Group>(null);
+const heatSpots = [
+  { position: [-1.72, 0.18, -0.82] as Vec3Tuple, scale: 1.04, label: "補水", color: "#f04438" },
+  { position: [-0.95, 0.24, 0.42] as Vec3Tuple, scale: 0.82, label: "花草", color: "#ffb020" },
+  { position: [-0.12, 0.22, -0.38] as Vec3Tuple, scale: 0.94, label: "步行", color: "#ff6b21" },
+  { position: [0.78, 0.26, 0.22] as Vec3Tuple, scale: 1.12, label: "伸展", color: "#ef233c" },
+  { position: [1.48, 0.22, -0.38] as Vec3Tuple, scale: 0.78, label: "聆聽", color: "#ffbe0b" },
+  { position: [1.72, 0.2, 0.84] as Vec3Tuple, scale: 0.64, label: "觀察", color: "#fb8500" },
+];
+
+function HeatBloom({
+  position,
+  scale,
+  color,
+  index,
+  reduced,
+}: {
+  position: Vec3Tuple;
+  scale: number;
+  color: string;
+  index: number;
+  reduced: boolean;
+}) {
+  const pulse = useRef<Group>(null);
+
   useFrame(({ clock }) => {
-    if (reduced || !group.current) return;
-    group.current.rotation.y = clock.elapsedTime * 0.14;
+    if (reduced || !pulse.current) return;
+    const wave = 1 + Math.sin(clock.elapsedTime * 1.6 + index) * 0.08;
+    pulse.current.scale.setScalar(wave);
   });
 
   return (
-    <group ref={group}>
-      {radarPoints.map((point, index) => (
-        <group key={index} position={point.position}>
-          <mesh>
-            <sphereGeometry args={[0.11, 18, 14]} />
-            <meshBasicMaterial color={point.color} />
+    <group ref={pulse} position={position}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.52 * scale, 64]} />
+        <meshBasicMaterial color="#15d5c8" transparent opacity={0.38} side={DoubleSide} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]}>
+        <circleGeometry args={[0.34 * scale, 64]} />
+        <meshBasicMaterial color="#ffe45e" transparent opacity={0.58} side={DoubleSide} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.024, 0]}>
+        <circleGeometry args={[0.18 * scale, 64]} />
+        <meshBasicMaterial color={color} transparent opacity={0.9} side={DoubleSide} />
+      </mesh>
+      <mesh position={[0, 0.42, 0]}>
+        <cylinderGeometry args={[0.018, 0.018, 0.72, 10]} />
+        <meshBasicMaterial color="#fff0a3" transparent opacity={0.74} blending={AdditiveBlending} />
+      </mesh>
+      <mesh position={[0, 0.82, 0]}>
+        <sphereGeometry args={[0.055, 14, 10]} />
+        <meshBasicMaterial color="#fff7ad" transparent opacity={0.95} blending={AdditiveBlending} />
+      </mesh>
+      <mesh position={[0, 0.98, 0]} rotation={[0, 0, -0.2]}>
+        <planeGeometry args={[0.34, 0.13]} />
+        <meshBasicMaterial color="#fffdf7" transparent opacity={0.72} />
+      </mesh>
+    </group>
+  );
+}
+
+function CityDataTerrain({ reduced }: { reduced: boolean }) {
+  const group = useRef<Group>(null);
+  useFrame(({ clock }) => {
+    if (reduced || !group.current) return;
+    group.current.position.y = Math.sin(clock.elapsedTime * 0.85) * 0.025;
+  });
+
+  return (
+    <group ref={group} rotation={[0, -0.18, 0]} position={[0, -0.28, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.08, 0]}>
+        <circleGeometry args={[3.25, 96]} />
+        <meshBasicMaterial color="#f5d99b" transparent opacity={0.22} />
+      </mesh>
+      {cityBlocks.map((block, index) => (
+        <group key={index} position={block.position}>
+          <mesh position={[0, -block.scale[1] * 0.5, 0]}>
+            <boxGeometry args={[block.scale[0], block.scale[1], block.scale[2]]} />
+            <meshStandardMaterial color="#f1ead8" roughness={0.86} />
           </mesh>
-          <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[0.24, 0.28, 40]} />
-            <meshBasicMaterial
-              color={point.color}
-              transparent
-              opacity={0.6}
-              blending={AdditiveBlending}
-              side={DoubleSide}
-            />
+          <mesh position={[0, block.scale[1] * 0.08, 0]}>
+            <boxGeometry args={[block.scale[0] * 0.96, 0.035, block.scale[2] * 0.96]} />
+            <meshStandardMaterial color={block.color} roughness={0.78} />
           </mesh>
         </group>
+      ))}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.035, 0]}>
+        <planeGeometry args={[4.8, 3.2, 18, 12]} />
+        <meshBasicMaterial color="#5bc6d7" wireframe transparent opacity={0.18} />
+      </mesh>
+      {heatSpots.map((spot, index) => (
+        <HeatBloom key={spot.label} {...spot} index={index} reduced={reduced} />
       ))}
     </group>
   );
@@ -447,36 +517,33 @@ export function RadarMap3D() {
 
   return (
     <div className="radar-3d-panel" aria-label="3D 台北任務雷達示意">
-      <Canvas camera={{ fov: 48, position: [0, 4.8, 5.8] }} dpr={[1, 1.5]}>
-        <color attach="background" args={["#0d3026"]} />
-        <fog attach="fog" args={["#0d3026", 6, 13]} />
-        <ambientLight intensity={0.5} />
-        <directionalLight position={[3, 5, 4]} intensity={1.5} />
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[5.2, 5.2, 18, 18]} />
-          <meshStandardMaterial color="#5ccf86" wireframe transparent opacity={0.52} />
-        </mesh>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.015, 0]}>
-          <ringGeometry args={[0.78, 0.8, 80]} />
-          <meshBasicMaterial color="#ffd45c" transparent opacity={0.75} />
-        </mesh>
-        <mesh position={[0, 0.18, 0]}>
-          <sphereGeometry args={[0.18, 24, 18]} />
-          <meshBasicMaterial color="#ffffff" />
-        </mesh>
-        <RadarPulse reduced={reduced} />
+      <div className="radar-3d-title">
+        <span>ELDER TREE CITY BRAIN</span>
+        <b>台北任務探索大屏</b>
+      </div>
+      <Canvas camera={{ fov: 42, position: [0, 4.05, 5.45] }} dpr={[1, 1.5]}>
+        <color attach="background" args={["#fff1dc"]} />
+        <fog attach="fog" args={["#fff1dc", 7, 13]} />
+        <ambientLight intensity={0.85} />
+        <directionalLight position={[3, 5, 4]} intensity={1.85} />
+        <pointLight position={[-2.4, 2.4, 2.8]} color="#ffe2a2" intensity={1.8} />
+        <CityDataTerrain reduced={reduced} />
         <OrbitControls
           enablePan={false}
+          enableRotate={false}
           enableZoom={false}
-          autoRotate={!reduced}
-          autoRotateSpeed={0.35}
           maxPolarAngle={MathUtils.degToRad(72)}
           minPolarAngle={MathUtils.degToRad(48)}
         />
       </Canvas>
+      <div className="radar-3d-side-panel">
+        <span>今日任務熱區</span>
+        <b>28</b>
+        <small>安全任務池 · 前景定位</small>
+      </div>
       <div className="radar-3d-caption">
-        <b>台北任務雷達</b>
-        <span>光點代表任務，圓環代表可接取範圍。</span>
+        <b>城市任務熱力圖</b>
+        <span>熱區代表任務密度，光柱代表可接取事件。</span>
       </div>
     </div>
   );
