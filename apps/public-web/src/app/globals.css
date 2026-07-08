@@ -978,21 +978,23 @@ button, a { -webkit-tap-highlight-color: transparent; }
   backdrop-filter: blur(18px);
 }
 .radar-panel-3d {
-  grid-template-columns: minmax(620px, 1fr) 260px;
+  grid-template-columns: minmax(760px, 1fr) 280px;
 }
 .radar-3d-panel {
   position: relative;
-  min-height: 560px;
+  min-height: 520px;
+  width: 100%;
   overflow: hidden;
   border: 1px solid rgba(255, 212, 92, .38);
   border-radius: 24px;
   background:
-    linear-gradient(90deg, rgba(255, 212, 92, .3), transparent 16%, transparent 84%, rgba(255, 212, 92, .24)),
-    repeating-linear-gradient(0deg, rgba(127, 91, 42, .08) 0 1px, transparent 1px 18px),
-    repeating-linear-gradient(90deg, rgba(127, 91, 42, .07) 0 1px, transparent 1px 22px),
-    radial-gradient(circle at 50% 38%, rgba(255,255,255,.95), transparent 32%),
-    linear-gradient(180deg, #fff6e7 0%, #f7dfb6 100%);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.72), 0 28px 70px rgba(0,0,0,.2);
+    radial-gradient(circle at 49% 34%, rgba(255,255,255,.96), transparent 28%),
+    radial-gradient(circle at 56% 58%, rgba(255, 216, 112, .34), transparent 46%),
+    linear-gradient(90deg, rgba(255, 212, 92, .24), transparent 16%, transparent 84%, rgba(255, 212, 92, .2)),
+    repeating-linear-gradient(0deg, rgba(127, 91, 42, .06) 0 1px, transparent 1px 24px),
+    repeating-linear-gradient(90deg, rgba(127, 91, 42, .055) 0 1px, transparent 1px 28px),
+    linear-gradient(180deg, #fff9ef 0%, #f5d9a9 100%);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.72), 0 32px 86px rgba(0,0,0,.24);
 }
 .radar-3d-panel::before,
 .radar-3d-panel::after {
@@ -1008,13 +1010,13 @@ button, a { -webkit-tap-highlight-color: transparent; }
   box-shadow: inset 0 0 36px rgba(255, 212, 92, .2);
 }
 .radar-3d-panel::after {
-  left: 0;
-  right: 0;
-  top: 38%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 238, 176, .86), transparent);
-  box-shadow: 0 0 18px rgba(255, 212, 92, .65);
-  animation: scanline 4.8s ease-in-out infinite;
+  left: 18%;
+  right: 18%;
+  bottom: 20px;
+  height: 90px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 50%, rgba(255, 220, 117, .24), transparent 68%);
+  filter: blur(8px);
 }
 .radar-3d-panel canvas {
   display: block;
@@ -1054,10 +1056,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .radar-3d-side-panel {
   position: absolute;
   z-index: 5;
-  right: 16px;
+  right: 12px;
   top: 92px;
-  width: 128px;
-  padding: 14px;
+  width: 142px;
+  padding: 12px;
   border: 1px solid rgba(221,151,37,.28);
   border-radius: 18px;
   background: rgba(255,255,255,.74);
@@ -1077,7 +1079,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .radar-3d-side-panel b {
   margin: 8px 0 4px;
   color: #e26d22;
-  font-size: 32px;
+  font-size: 28px;
   line-height: 1;
 }
 .radar-3d-side-panel small {
@@ -1148,9 +1150,39 @@ button, a { -webkit-tap-highlight-color: transparent; }
   color: #866b4b;
   font-size: 13px;
 }
-@keyframes scanline {
-  0%, 100% { transform: translateY(-118px); opacity: .2; }
-  50% { transform: translateY(118px); opacity: .75; }
+.district-hover-label {
+  min-width: 168px;
+  max-width: 210px;
+  padding: 9px 11px;
+  border: 1px solid rgba(255,255,255,.82);
+  border-radius: 16px;
+  color: #173b2f;
+  background: rgba(255,253,247,.9);
+  box-shadow: 0 18px 52px rgba(58, 39, 18, .24), 0 0 28px rgba(255, 211, 92, .28);
+  backdrop-filter: blur(12px);
+  transform: translateY(-8px);
+}
+.district-hover-label span,
+.district-hover-label strong,
+.district-hover-label small {
+  display: block;
+}
+.district-hover-label span {
+  color: #d2641d;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .14em;
+}
+.district-hover-label strong {
+  margin-top: 4px;
+  font-size: 13px;
+  letter-spacing: -.035em;
+}
+.district-hover-label small {
+  margin-top: 5px;
+  color: #677064;
+  font-size: 10px;
+  line-height: 1.45;
 }
 .radar-map {
   position: relative;
@@ -1688,6 +1720,13 @@ footer small { grid-column: 1 / -1; color: var(--muted); }
   0% { opacity: 0; transform: translate3d(0, -8px, 0) rotate(0deg); }
   20% { opacity: .65; }
   100% { opacity: 0; transform: translate3d(34px, 88px, 0) rotate(160deg); }
+}
+
+@media (max-width: 1180px) {
+  .radar-panel,
+  .radar-panel-3d {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 900px) {

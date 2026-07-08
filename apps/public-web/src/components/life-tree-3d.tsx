@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
 import {
   Float,
+  Html,
   OrbitControls,
   Trail,
 } from "@react-three/drei";
@@ -649,20 +650,47 @@ type HeatSpot = {
   value: number;
 };
 
+type DistrictMission = {
+  title: string;
+  mode: "SELF_CHECK" | "TIMER";
+  points: number;
+  status: string;
+  heat: string;
+};
+
 const districtVisuals = {
-  北投區: { height: 0.2, color: "#d6dfc2" },
-  士林區: { height: 0.26, color: "#c3d9ad" },
-  內湖區: { height: 0.22, color: "#a8c98d" },
-  中山區: { height: 0.3, color: "#93bc83" },
-  大同區: { height: 0.24, color: "#b7cc91" },
-  松山區: { height: 0.25, color: "#b2ce93" },
-  南港區: { height: 0.18, color: "#c8d6a0" },
-  中正區: { height: 0.28, color: "#9fc185" },
-  信義區: { height: 0.31, color: "#a0c385" },
-  萬華區: { height: 0.21, color: "#d2d4a6" },
-  大安區: { height: 0.33, color: "#8fba7e" },
-  文山區: { height: 0.2, color: "#d8d8a8" },
+  北投區: { height: 0.34, color: "#b9d59a" },
+  士林區: { height: 0.42, color: "#a5ca82" },
+  內湖區: { height: 0.32, color: "#9fca8b" },
+  中山區: { height: 0.28, color: "#87bd85" },
+  大同區: { height: 0.24, color: "#bdd39a" },
+  松山區: { height: 0.26, color: "#b3cf92" },
+  南港區: { height: 0.36, color: "#bdd18f" },
+  中正區: { height: 0.3, color: "#91bd80" },
+  信義區: { height: 0.34, color: "#9fc784" },
+  萬華區: { height: 0.23, color: "#d1d39e" },
+  大安區: { height: 0.38, color: "#83b978" },
+  文山區: { height: 0.46, color: "#c5d188" },
 } satisfies Record<string, { height: number; color: string }>;
+
+const districtMissions: Record<string, DistrictMission> = {
+  北投區: { title: "補水與坡道路線", mode: "SELF_CHECK", points: 8, status: "可發布", heat: "#ff3d2e" },
+  士林區: { title: "花草觀察任務", mode: "SELF_CHECK", points: 10, status: "熱區", heat: "#ffb020" },
+  內湖區: { title: "湖畔安靜聆聽", mode: "TIMER", points: 12, status: "計時", heat: "#fb8500" },
+  中山區: { title: "街區溫和步行", mode: "SELF_CHECK", points: 7, status: "可接取", heat: "#ff6b21" },
+  大同區: { title: "老街慢行觀察", mode: "SELF_CHECK", points: 6, status: "待上架", heat: "#ffd166" },
+  松山區: { title: "河濱伸展 3 分鐘", mode: "TIMER", points: 11, status: "計時", heat: "#ffbe0b" },
+  南港區: { title: "綠帶呼吸練習", mode: "TIMER", points: 12, status: "熱區", heat: "#ffb020" },
+  中正區: { title: "陪伴通話提醒", mode: "SELF_CHECK", points: 9, status: "可接取", heat: "#14b8a6" },
+  信義區: { title: "安全地標打卡", mode: "SELF_CHECK", points: 9, status: "可接取", heat: "#ffb020" },
+  萬華區: { title: "市場補水休息", mode: "SELF_CHECK", points: 7, status: "可發布", heat: "#ffd166" },
+  大安區: { title: "大安森林公園伸展", mode: "TIMER", points: 12, status: "首發", heat: "#ef233c" },
+  文山區: { title: "步道鳥類觀察", mode: "SELF_CHECK", points: 10, status: "熱區", heat: "#fb8500" },
+};
+
+function missionForDistrict(name: string): DistrictMission {
+  return districtMissions[name] ?? districtMissions["大安區"]!;
+}
 
 const taipeiDistricts: TaipeiDistrict[] = taipeiDistrictBoundaries.map((district) => ({
   ...district,
@@ -676,13 +704,11 @@ function districtCenter(name: TaipeiDistrictBoundary["name"], lift = 0.42): Vec3
 }
 
 const heatSpots: HeatSpot[] = [
-  { position: districtCenter("北投區", 0.38), scale: 1.12, label: "補水", color: "#ff3d2e", value: 96 },
-  { position: districtCenter("士林區", 0.42), scale: 0.86, label: "花草", color: "#ffb020", value: 72 },
-  { position: districtCenter("中山區", 0.46), scale: 0.92, label: "步行", color: "#ff6b21", value: 81 },
-  { position: districtCenter("大安區", 0.52), scale: 1.2, label: "伸展", color: "#ef233c", value: 104 },
-  { position: districtCenter("信義區", 0.44), scale: 0.78, label: "聆聽", color: "#ffbe0b", value: 64 },
-  { position: districtCenter("內湖區", 0.4), scale: 0.72, label: "觀察", color: "#fb8500", value: 58 },
-  { position: districtCenter("中正區", 0.5), scale: 1.02, label: "陪伴", color: "#14b8a6", value: 89 },
+  { position: districtCenter("北投區", 0.44), scale: 0.82, label: "補水", color: districtMissions.北投區.heat, value: 96 },
+  { position: districtCenter("內湖區", 0.48), scale: 0.68, label: "觀察", color: districtMissions.內湖區.heat, value: 58 },
+  { position: districtCenter("大安區", 0.58), scale: 0.92, label: "伸展", color: districtMissions.大安區.heat, value: 104 },
+  { position: districtCenter("南港區", 0.5), scale: 0.7, label: "呼吸", color: districtMissions.南港區.heat, value: 64 },
+  { position: districtCenter("文山區", 0.5), scale: 0.74, label: "觀鳥", color: districtMissions.文山區.heat, value: 72 },
 ];
 
 function terrainHeight(x: number, y: number) {
@@ -779,21 +805,32 @@ function TaipeiContourTerrain() {
 
   return (
     <group rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.105, 0]}>
+      {[0, 1, 2, 3].map((layer) => (
+        <mesh key={`terrain-layer-${layer}`} position={[0, 0, -0.11 - layer * 0.045]}>
+          <planeGeometry args={[5.9 + layer * 0.08, 4.5 + layer * 0.08, 1, 1]} />
+          <meshBasicMaterial
+            color={["#fff1d6", "#f5d39c", "#dba56e", "#a9774f"][layer]}
+            transparent
+            opacity={0.2 - layer * 0.025}
+            side={DoubleSide}
+          />
+        </mesh>
+      ))}
       <mesh geometry={geometry} receiveShadow>
         <meshStandardMaterial
-          color="#bdd49a"
+          color="#c7da9b"
           roughness={0.88}
           metalness={0.02}
           emissive="#274c32"
-          emissiveIntensity={0.035}
+          emissiveIntensity={0.052}
         />
       </mesh>
       <mesh geometry={geometry} position={[0, 0, 0.018]}>
-        <meshBasicMaterial map={contourTexture} transparent opacity={0.76} depthWrite={false} />
+        <meshBasicMaterial map={contourTexture} transparent opacity={0.92} depthWrite={false} />
       </mesh>
       <mesh position={[0, 0, -0.012]}>
         <planeGeometry args={[5.8, 4.4, 36, 28]} />
-        <meshBasicMaterial color="#fff6de" wireframe transparent opacity={0.14} />
+        <meshBasicMaterial color="#fff6de" wireframe transparent opacity={0.22} />
       </mesh>
     </group>
   );
@@ -828,15 +865,15 @@ function HeatBloom({
   return (
     <group ref={pulse} position={position}>
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.52 * scale, 64]} />
-        <meshBasicMaterial color="#15d5c8" transparent opacity={0.38} side={DoubleSide} />
+        <circleGeometry args={[0.42 * scale, 64]} />
+        <meshBasicMaterial color="#15d5c8" transparent opacity={0.32} side={DoubleSide} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]}>
-        <circleGeometry args={[0.34 * scale, 64]} />
-        <meshBasicMaterial color="#ffe45e" transparent opacity={0.58} side={DoubleSide} />
+        <circleGeometry args={[0.26 * scale, 64]} />
+        <meshBasicMaterial color="#ffe45e" transparent opacity={0.56} side={DoubleSide} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.024, 0]}>
-        <circleGeometry args={[0.18 * scale, 64]} />
+        <circleGeometry args={[0.13 * scale, 64]} />
         <meshBasicMaterial color={color} transparent opacity={0.9} side={DoubleSide} />
       </mesh>
       <mesh position={[0, 0.42, 0]}>
@@ -859,12 +896,99 @@ function HeatBloom({
   );
 }
 
-function TaipeiDistrictPlate({ district, index }: { district: TaipeiDistrict; index: number }) {
+function DistrictHoverLabel({
+  district,
+  mission,
+}: {
+  district: TaipeiDistrict;
+  mission: DistrictMission;
+}) {
+  return (
+    <Html
+      position={[district.center[0], 0.9, district.center[1]]}
+      center
+      distanceFactor={3.9}
+      style={{ pointerEvents: "none" }}
+    >
+      <div className="district-hover-label">
+        <span>{district.name}</span>
+        <strong>{mission.title}</strong>
+        <small>
+          {mission.mode} · +{mission.points} 成長值 · {mission.status}
+        </small>
+      </div>
+    </Html>
+  );
+}
+
+function TaipeiDistrictPlate({
+  district,
+  index,
+  activeDistrict,
+  setActiveDistrict,
+}: {
+  district: TaipeiDistrict;
+  index: number;
+  activeDistrict: string | null;
+  setActiveDistrict: (name: string | null) => void;
+}) {
   const shape = useMemo(() => shapeFromPoints(district.points), [district.points]);
   const topShape = useMemo(() => shapeFromPoints(district.points), [district.points]);
+  const group = useRef<Group>(null);
+  const mission = missionForDistrict(district.name);
+  const isActive = activeDistrict === district.name;
+
+  useFrame(() => {
+    if (!group.current) return;
+    group.current.position.y = MathUtils.lerp(group.current.position.y, isActive ? 0.18 : 0, 0.14);
+    group.current.scale.x = MathUtils.lerp(group.current.scale.x, isActive ? 1.026 : 1, 0.14);
+    group.current.scale.z = MathUtils.lerp(group.current.scale.z, isActive ? 1.026 : 1, 0.14);
+  });
+
+  const handlePointerOver = (event: ThreeEvent<PointerEvent>) => {
+    event.stopPropagation();
+    setActiveDistrict(district.name);
+  };
+
+  const handlePointerOut = (event: ThreeEvent<PointerEvent>) => {
+    event.stopPropagation();
+    setActiveDistrict(null);
+  };
 
   return (
-    <group>
+    <group
+      ref={group}
+      onPointerOver={handlePointerOver}
+      onPointerOut={handlePointerOut}
+      onClick={handlePointerOver}
+    >
+      {[0, 1, 2].map((layer) => (
+        <mesh
+          key={`${district.name}-strata-${layer}`}
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[0, -district.height - layer * 0.052, 0]}
+          scale={[1 + layer * 0.01, 1 + layer * 0.01, 1]}
+          castShadow
+          receiveShadow
+        >
+          <extrudeGeometry
+            args={[
+              shape,
+              {
+                depth: 0.05,
+                bevelEnabled: false,
+              },
+            ]}
+          />
+          <meshStandardMaterial
+            color={layer === 0 ? "#fff1dc" : layer === 1 ? "#e8c08c" : "#b6855c"}
+            roughness={0.9}
+            metalness={0.01}
+            transparent
+            opacity={0.78 - layer * 0.12}
+          />
+        </mesh>
+      ))}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -district.height, 0]} castShadow receiveShadow>
         <extrudeGeometry
           args={[
@@ -878,22 +1002,30 @@ function TaipeiDistrictPlate({ district, index }: { district: TaipeiDistrict; in
             },
           ]}
         />
-        <meshStandardMaterial color="#f3ead8" roughness={0.86} metalness={0.02} />
+        <meshStandardMaterial
+          color={isActive ? "#fff2c3" : "#f3ead8"}
+          roughness={0.82}
+          metalness={0.02}
+        />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02 + index * 0.002, 0]}>
         <shapeGeometry args={[topShape]} />
         <meshStandardMaterial
-          color={district.color}
+          color={isActive ? "#dffc78" : district.color}
           roughness={0.72}
           metalness={0.03}
-          emissive="#244d35"
-          emissiveIntensity={0.04}
+          emissive={isActive ? mission.heat : "#244d35"}
+          emissiveIntensity={isActive ? 0.18 : 0.045}
         />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.035 + index * 0.002, 0]}>
-        <shapeGeometry args={[topShape]} />
-        <meshBasicMaterial color="#fff8d5" transparent opacity={0.11} wireframe />
+      <mesh
+        position={[district.center[0], 0.08, district.center[1]]}
+        rotation={[-Math.PI / 2, 0, 0]}
+      >
+        <circleGeometry args={[isActive ? 0.32 : 0.22, 48]} />
+        <meshBasicMaterial color={mission.heat} transparent opacity={isActive ? 0.36 : 0.18} blending={AdditiveBlending} />
       </mesh>
+      {isActive ? <DistrictHoverLabel district={district} mission={mission} /> : null}
     </group>
   );
 }
@@ -946,32 +1078,21 @@ function FlightLine({
 
 function CityDataTerrain({ reduced }: { reduced: boolean }) {
   const group = useRef<Group>(null);
+  const [activeDistrict, setActiveDistrict] = useState<string | null>("大安區");
   useFrame(({ clock }) => {
     if (reduced || !group.current) return;
     group.current.position.y = Math.sin(clock.elapsedTime * 0.85) * 0.025;
   });
 
   return (
-    <group ref={group} rotation={[0, -0.18, 0]} position={[0.18, -0.28, 0.16]} scale={1.08}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.08, 0]}>
-        <circleGeometry args={[3.55, 128]} />
-        <meshBasicMaterial color="#f5d99b" transparent opacity={0.18} />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.055, 0]}>
-        <ringGeometry args={[2.72, 3.02, 96]} />
-        <meshBasicMaterial color="#f0b85d" transparent opacity={0.18} side={DoubleSide} />
-      </mesh>
-      <TaipeiContourTerrain />
+    <group ref={group} rotation={[0, Math.PI / 2 - 0.08, 0]} position={[0.02, -0.3, 0.04]} scale={[1.55, 1.06, 1.22]}>
       {taipeiDistricts.map((district, index) => (
-        <TaipeiDistrictPlate key={district.name} district={district} index={index} />
-      ))}
-      {heatSpots.slice(1).map((spot, index) => (
-        <FlightLine
-          key={`flight-${spot.label}`}
-          from={heatSpots[0]!.position}
-          to={spot.position}
+        <TaipeiDistrictPlate
+          key={district.name}
+          district={district}
           index={index}
-          reduced={reduced}
+          activeDistrict={activeDistrict}
+          setActiveDistrict={setActiveDistrict}
         />
       ))}
       {heatSpots.map((spot, index) => (
@@ -987,19 +1108,19 @@ export function RadarMap3D() {
   return (
     <div className="radar-3d-panel" aria-label="3D 台北任務雷達示意">
       <div className="radar-3d-title">
-        <span>TAIPEI CONTOUR QUEST BOARD</span>
-        <b>台北等高任務大屏</b>
+        <span>TAIPEI LAYERED QUEST MAP</span>
+        <b>台北 3D 分層任務大屏</b>
       </div>
-      <Canvas camera={{ fov: 40, position: [0, 4.35, 5.7] }} dpr={[1, 1.5]}>
+      <Canvas camera={{ fov: 36, position: [0, 5.55, 7.35] }} dpr={[1, 1.5]}>
         <color attach="background" args={["#fff1dc"]} />
         <fog attach="fog" args={["#fff1dc", 7, 13]} />
-        <ambientLight intensity={0.96} />
-        <directionalLight position={[3, 5, 4]} intensity={2.15} />
-        <pointLight position={[-2.4, 2.4, 2.8]} color="#ffe2a2" intensity={2.2} />
+        <ambientLight intensity={0.9} />
+        <directionalLight position={[3, 5, 4]} intensity={1.72} />
+        <pointLight position={[-2.4, 2.4, 2.8]} color="#ffe2a2" intensity={1.28} />
         <CityDataTerrain reduced={reduced} />
         {!reduced ? (
           <EffectComposer multisampling={2}>
-            <Bloom luminanceThreshold={0.3} luminanceSmoothing={0.74} intensity={0.38} />
+            <Bloom luminanceThreshold={0.36} luminanceSmoothing={0.78} intensity={0.22} />
           </EffectComposer>
         ) : null}
         <OrbitControls
@@ -1011,19 +1132,19 @@ export function RadarMap3D() {
         />
       </Canvas>
       <div className="radar-3d-side-panel">
-        <span>公開熱區</span>
-        <b>07</b>
-        <small>任務光柱 · 等高展示</small>
+        <span>台北任務區</span>
+        <b>12</b>
+        <small>滑鼠移到行政區，板塊會浮起並顯示任務</small>
         <i>不顯示私人定位</i>
       </div>
       <div className="radar-3d-stats">
-        <span>CONTOUR <b>DTM</b></span>
+        <span>TAIPEI <b>12 區</b></span>
         <span>SAFE RADIUS <b>150m</b></span>
         <span>OPEN QUESTS <b>07</b></span>
       </div>
       <div className="radar-3d-caption">
-        <b>台北等高任務熱力圖</b>
-        <span>官方區界輪廓結合展示級高度場、任務光柱與飛線；公開前台不呈現私人定位。</span>
+        <b>台北橫向 3D 分層任務圖</b>
+        <span>以台北行政區輪廓建立可互動板塊；借資料大屏語言呈現任務熱力、光柱與安全半徑。</span>
       </div>
     </div>
   );
