@@ -118,32 +118,32 @@ button, a { -webkit-tap-highlight-color: transparent; }
   color: white;
   isolation: isolate;
   background:
-    radial-gradient(circle at 50% 30%, rgba(255,255,255,.48), transparent 18%),
-    radial-gradient(circle at 50% 68%, rgba(117, 239, 255, .22), transparent 34%),
+    radial-gradient(circle at 50% 26%, rgba(255,255,255,.36), transparent 16%),
+    radial-gradient(circle at 50% 70%, rgba(117, 239, 255, .18), transparent 38%),
     linear-gradient(180deg, #67b8ff 0%, #bfeeff 38%, #eaf7fb 52%, #1784c6 100%);
 }
 .sky-world-hero::before,
 .sky-world-hero::after {
   content: "";
   position: absolute;
-  inset: auto -12% -14%;
+  inset: auto -10% -14%;
   z-index: 2;
-  height: 38%;
+  height: 30%;
   pointer-events: none;
   background:
     radial-gradient(ellipse at 12% 48%, rgba(255,255,255,.82), transparent 28%),
     radial-gradient(ellipse at 39% 44%, rgba(255,255,255,.7), transparent 30%),
     radial-gradient(ellipse at 74% 46%, rgba(255,255,255,.78), transparent 31%),
     linear-gradient(180deg, transparent, rgba(255,255,255,.42) 56%, rgba(255,255,255,.12));
-  filter: blur(12px);
+  filter: blur(7px);
 }
 .sky-world-hero::after {
   inset: 0;
   z-index: 1;
   height: auto;
   background:
-    radial-gradient(circle at 50% 48%, transparent 0 31%, rgba(8, 60, 88, .08) 58%, rgba(6, 28, 54, .22) 100%),
-    linear-gradient(180deg, rgba(4, 28, 62, .08), transparent 24%, rgba(2, 24, 44, .16) 100%);
+    radial-gradient(circle at 50% 50%, transparent 0 37%, rgba(8, 60, 88, .05) 62%, rgba(6, 28, 54, .14) 100%),
+    linear-gradient(180deg, rgba(4, 28, 62, .04), transparent 24%, rgba(2, 24, 44, .1) 100%);
   filter: none;
 }
 .sky-world-canvas {
@@ -159,7 +159,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .sky-world-hud {
   position: absolute;
   z-index: 7;
-  top: 104px;
+  top: 96px;
   left: 50%;
   width: min(480px, calc(100% - 40px));
   text-align: center;
@@ -176,7 +176,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   border: 1px solid rgba(255,255,255,.44);
   border-radius: 999px;
   color: rgba(255,255,255,.9);
-  background: rgba(8, 58, 72, .2);
+  background: rgba(8, 58, 72, .14);
   box-shadow: 0 12px 38px rgba(6,28,54,.12);
   backdrop-filter: blur(12px);
   font-size: 13px;
@@ -188,7 +188,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   padding: 8px 14px;
   border: 1px solid rgba(255,255,255,.28);
   border-radius: 999px;
-  background: rgba(8, 58, 72, .14);
+  background: rgba(8, 58, 72, .1);
   backdrop-filter: blur(10px);
   font-size: clamp(18px, 2vw, 28px);
   line-height: 1.1;
@@ -202,48 +202,34 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 .sky-island-link {
   position: absolute;
-  display: grid;
-  place-items: center;
-  width: 58px;
-  height: 58px;
+  display: block;
+  width: 190px;
+  height: 126px;
   pointer-events: auto;
   outline: none;
+  border-radius: 999px;
 }
-.sky-island-dot {
-  position: relative;
-  z-index: 2;
-  display: grid;
-  place-items: center;
-  width: 52px;
-  height: 52px;
-  border: 2px solid rgba(255,255,255,.82);
-  border-radius: 50%;
-  color: #0d4a3d;
-  background:
-    radial-gradient(circle at 38% 28%, rgba(255,255,255,.92), rgba(199,235,99,.92) 52%, rgba(101,183,115,.95) 100%);
-  box-shadow:
-    0 0 0 10px rgba(199,235,99,.16),
-    0 16px 42px rgba(3, 36, 48, .26);
-  transition: transform .25s ease, box-shadow .25s ease;
-}
-.sky-island-dot::after {
+.sky-island-link::before {
   content: "";
   position: absolute;
-  inset: -18px;
-  border: 1px solid rgba(255,255,255,.46);
-  border-radius: 50%;
-  opacity: .58;
+  inset: 16px 18px;
+  border-radius: 999px;
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(235, 255, 155, .28), rgba(255,255,255,.08) 38%, transparent 68%);
+  opacity: 0;
+  transform: scale(.72);
+  transition: opacity .22s ease, transform .22s ease;
 }
 .sky-island-card {
   position: absolute;
   left: 50%;
-  bottom: 66px;
+  bottom: calc(100% - 12px);
   width: min(280px, 74vw);
   padding: 15px 16px;
   border: 1px solid rgba(255,255,255,.7);
   border-radius: 20px;
   color: var(--forest-dark);
-  background: rgba(255,253,247,.88);
+  background: rgba(255,253,247,.9);
   box-shadow: 0 24px 70px rgba(3, 36, 48, .24);
   backdrop-filter: blur(16px);
   opacity: 0;
@@ -265,13 +251,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
   font-size: 13px;
   line-height: 1.62;
 }
-.sky-island-link:hover .sky-island-dot,
-.sky-island-link:focus-visible .sky-island-dot,
-.sky-island-link.is-active .sky-island-dot {
-  transform: translateY(-4px) scale(1.08);
-  box-shadow:
-    0 0 0 14px rgba(199,235,99,.2),
-    0 24px 60px rgba(3, 36, 48, .3);
+.sky-island-link:hover::before,
+.sky-island-link:focus-visible::before,
+.sky-island-link.is-active::before {
+  opacity: 1;
+  transform: scale(1);
 }
 .sky-island-link:hover .sky-island-card,
 .sky-island-link:focus-visible .sky-island-card,
@@ -280,11 +264,20 @@ button, a { -webkit-tap-highlight-color: transparent; }
   opacity: 1;
   transform: translate(-50%, 0) scale(1);
 }
-.island-explore { left: 18%; top: 54%; }
-.island-radar { right: 21%; top: 45%; }
-.island-tree { left: 50%; top: 34%; transform: translateX(-50%); }
-.island-care { left: 25%; top: 71%; }
-.island-impact { right: 24%; top: 70%; }
+.island-explore { left: 12%; top: 50%; }
+.island-radar { right: 13%; top: 43%; }
+.island-tree {
+  left: 50%;
+  top: 58%;
+  width: 270px;
+  height: 172px;
+  transform: translateX(-50%);
+}
+.island-care { left: 16%; top: 70%; }
+.island-impact { right: 17%; top: 70%; }
+.island-tree .sky-island-card {
+  bottom: calc(100% - 8px);
+}
 .sky-world-actions {
   position: absolute;
   z-index: 9;
@@ -1087,21 +1080,24 @@ footer small { grid-column: 1 / -1; color: var(--muted); }
   .site-header nav { display: none; }
   .sky-world-hero { min-height: 100svh; }
   .sky-world-hud {
-    top: 98px;
+    top: 92px;
     width: min(440px, calc(100% - 32px));
   }
   .sky-world-hud h1 { font-size: clamp(18px, 4vw, 26px); }
-  .sky-island-link { width: 50px; height: 50px; }
-  .sky-island-dot { width: 46px; height: 46px; }
+  .sky-island-link { width: 148px; height: 104px; }
   .sky-island-card {
     width: min(250px, 76vw);
     padding: 13px 14px;
   }
-  .island-explore { left: 10%; top: 54%; }
-  .island-radar { right: 11%; top: 48%; }
-  .island-tree { top: 39%; }
-  .island-care { left: 12%; top: 72%; }
-  .island-impact { right: 12%; top: 72%; }
+  .island-explore { left: 5%; top: 50%; }
+  .island-radar { right: 5%; top: 45%; }
+  .island-tree {
+    top: 59%;
+    width: 210px;
+    height: 140px;
+  }
+  .island-care { left: 7%; top: 70%; }
+  .island-impact { right: 7%; top: 70%; }
   .sky-world-trust {
     left: 16px;
     bottom: max(104px, calc(env(safe-area-inset-bottom) + 100px));
@@ -1149,7 +1145,7 @@ footer small { grid-column: 1 / -1; color: var(--muted); }
       linear-gradient(180deg, #76beff 0%, #cfedff 45%, #1184c3 100%);
   }
   .sky-world-hud {
-    top: 84px;
+    top: 82px;
     width: calc(100% - 24px);
   }
   .sky-world-hud p {
@@ -1160,22 +1156,28 @@ footer small { grid-column: 1 / -1; color: var(--muted); }
     font-size: 17px;
     letter-spacing: -.03em;
   }
-  .sky-island-dot {
-    width: 42px;
-    height: 42px;
+  .sky-island-link {
+    width: 112px;
+    height: 82px;
   }
-  .sky-island-dot::after { inset: -12px; }
+  .sky-island-link::before {
+    inset: 10px 12px;
+  }
   .sky-island-card {
-    bottom: 54px;
+    bottom: calc(100% - 6px);
     width: min(230px, 84vw);
   }
   .sky-island-card strong { font-size: 16px; }
   .sky-island-card small { font-size: 12px; }
-  .island-explore { left: 8%; top: 52%; }
-  .island-radar { right: 8%; top: 51%; }
-  .island-tree { top: 42%; }
-  .island-care { left: 8%; top: 69%; }
-  .island-impact { right: 8%; top: 69%; }
+  .island-explore { left: 2%; top: 49%; }
+  .island-radar { right: 2%; top: 48%; }
+  .island-tree {
+    top: 61%;
+    width: 154px;
+    height: 104px;
+  }
+  .island-care { left: 3%; top: 69%; }
+  .island-impact { right: 3%; top: 69%; }
   .sky-world-actions {
     bottom: max(18px, env(safe-area-inset-bottom));
     gap: 8px;

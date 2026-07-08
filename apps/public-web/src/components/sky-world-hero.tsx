@@ -16,17 +16,6 @@ import {
   type Group,
   type InstancedMesh,
 } from "three";
-import {
-  ArrowRight,
-  HeartHandshake,
-  Leaf,
-  MapPinned,
-  Radar,
-  ShieldCheck,
-  Sparkles,
-  Trees,
-} from "lucide-react";
-import { contactHref } from "./public-data";
 
 type Vec3Tuple = readonly [number, number, number];
 
@@ -34,7 +23,6 @@ const islandLinks = [
   {
     key: "explore",
     href: "/explore",
-    icon: MapPinned,
     title: "城市探索島",
     body: "讓城市像溫柔的冒險地圖，路線、地標與任務在安全範圍內被解鎖。",
     className: "island-explore",
@@ -42,7 +30,6 @@ const islandLinks = [
   {
     key: "radar",
     href: "/explore",
-    icon: Radar,
     title: "任務雷達島",
     body: "限時任務像光點一樣出現，靠近只解鎖，完成後才讓生命樹成長。",
     className: "island-radar",
@@ -50,7 +37,6 @@ const islandLinks = [
   {
     key: "tree",
     href: "/product",
-    icon: Trees,
     title: "生命樹主島",
     body: "任務不是冷冰冰的點數，而是長成一棵看得見、會呼吸的世界樹。",
     className: "island-tree",
@@ -58,7 +44,6 @@ const islandLinks = [
   {
     key: "care",
     href: "/partners",
-    icon: HeartHandshake,
     title: "陪伴網絡島",
     body: "一個人也能開始；需要時，再邀請家人、志工、社工或長照團體同行。",
     className: "island-care",
@@ -66,7 +51,6 @@ const islandLinks = [
   {
     key: "impact",
     href: "/impact",
-    icon: Leaf,
     title: "永續公益島",
     body: "每次自我照顧與城市行動，都可以累積成家庭樹、社區與永續成果。",
     className: "island-impact",
@@ -111,8 +95,8 @@ function useSkyQuality(reduced: boolean) {
       const desktop = width >= 1120;
       const tablet = width >= 760 && width < 1120;
       setQuality({
-        leafCount: reduced ? 420 : desktop ? 1450 : tablet ? 820 : 420,
-        particleCount: reduced ? 0 : desktop ? 110 : tablet ? 70 : 34,
+        leafCount: reduced ? 520 : desktop ? 2200 : tablet ? 1250 : 560,
+        particleCount: reduced ? 0 : desktop ? 82 : tablet ? 54 : 24,
         dpr: desktop ? [1, 1.7] : [1, 1.35],
         bloom: !reduced && width >= 760,
       });
@@ -223,7 +207,7 @@ function WorldTree({ leafCount, reduced }: { leafCount: number; reduced: boolean
   });
 
   return (
-    <group ref={tree} position={[0, -0.54, 0]} scale={1.18}>
+    <group ref={tree} position={[0, -0.68, 0]} scale={1.2}>
       <TubeBranch points={[[0, -1.06, 0], [0.08, -0.26, 0.02], [-0.05, 0.58, 0], [0.02, 1.42, 0.04]]} radius={0.24} />
       <TubeBranch points={[[0.02, 0.34, 0.02], [-0.82, 0.86, 0.12], [-1.45, 1.42, 0.02]]} radius={0.065} color="#5a351f" />
       <TubeBranch points={[[0.04, 0.46, 0.02], [0.86, 0.98, 0.08], [1.48, 1.44, 0.04]]} radius={0.065} color="#5a351f" />
@@ -281,10 +265,22 @@ export function FloatingIsland({
         <sphereGeometry args={[1, 16, 12]} />
         <meshBasicMaterial color="#78bf5e" transparent opacity={0.82} />
       </mesh>
+      <mesh position={[-0.38, 0.14, -0.12]} scale={[0.22, 0.09, 0.16]} rotation={[0.08, 0.4, -0.1]}>
+        <sphereGeometry args={[1, 14, 8]} />
+        <meshStandardMaterial color="#f2e1a1" roughness={0.72} />
+      </mesh>
+      <mesh position={[0.38, 0.16, -0.1]} scale={[0.18, 0.08, 0.12]} rotation={[0.02, -0.28, 0.08]}>
+        <sphereGeometry args={[1, 14, 8]} />
+        <meshStandardMaterial color="#f7e8b2" roughness={0.7} />
+      </mesh>
+      <mesh position={[-0.02, 0.24, -0.24]} scale={[0.2, 0.15, 0.14]}>
+        <sphereGeometry args={[1, 16, 10]} />
+        <meshBasicMaterial color="#3f8955" transparent opacity={0.82} />
+      </mesh>
       {waterfall ? (
         <mesh position={[0.46, -0.36, 0.18]} rotation={[0.2, 0, -0.06]}>
           <planeGeometry args={[0.12, 0.84]} />
-          <meshBasicMaterial color="#c7f9ff" transparent opacity={0.54} blending={AdditiveBlending} />
+          <meshBasicMaterial color="#c7f9ff" transparent opacity={0.62} blending={AdditiveBlending} />
         </mesh>
       ) : null}
     </group>
@@ -310,7 +306,7 @@ function CloudPuffs({ reduced }: { reduced: boolean }) {
       {clouds.map(([x, y, z, scale], index) => (
         <mesh key={index} position={[x, y, z]} scale={[scale * 1.3, scale * 0.24, scale * 0.42]}>
           <sphereGeometry args={[1, 24, 12]} />
-          <meshBasicMaterial color="#ffffff" transparent opacity={0.42} depthWrite={false} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.28} depthWrite={false} />
         </mesh>
       ))}
     </group>
@@ -385,11 +381,11 @@ export function WorldTreeIslandScene({
   return (
     <>
       <color attach="background" args={["#78c8ff"]} />
-      <fog attach="fog" args={["#c9f3ff", 4.5, 10.5]} />
+      <fog attach="fog" args={["#c9f3ff", 7.2, 15.5]} />
       <ambientLight intensity={1.05} />
       <directionalLight position={[3.8, 5.2, 3.2]} intensity={2.2} />
       <pointLight position={[0, 1.8, 1.8]} color="#c8f7ff" intensity={2.6} />
-      <group ref={scene} position={[0, -0.05, 0]}>
+      <group ref={scene} position={[0, -0.34, 0]}>
         <mesh position={[0, -1.16, 0]} scale={[1.55, 0.24, 1.05]} receiveShadow>
           <sphereGeometry args={[1, 42, 18]} />
           <meshStandardMaterial color="#82c86a" roughness={0.72} />
@@ -399,11 +395,11 @@ export function WorldTreeIslandScene({
           <meshStandardMaterial color="#84634a" roughness={0.9} />
         </mesh>
         <WorldTree leafCount={leafCount} reduced={reduced} />
-        <FloatingIsland position={[-2.36, -0.7, -0.7]} scale={0.64} accent="#8ad66d" waterfall />
-        <FloatingIsland position={[2.22, -0.54, -0.86]} scale={0.58} accent="#b8d96e" />
-        <FloatingIsland position={[-1.54, -0.34, 0.68]} scale={0.46} accent="#79c96a" />
-        <FloatingIsland position={[1.58, -0.2, 0.76]} scale={0.44} accent="#9ad36e" waterfall />
-        <FloatingIsland position={[0.1, -0.78, 1.08]} scale={0.5} accent="#d7d36c" />
+        <FloatingIsland position={[-2.55, -0.52, -0.76]} scale={0.64} accent="#8ad66d" waterfall />
+        <FloatingIsland position={[2.48, -0.48, -0.82]} scale={0.62} accent="#b8d96e" />
+        <FloatingIsland position={[-2.08, -1.04, 0.92]} scale={0.5} accent="#79c96a" />
+        <FloatingIsland position={[2.08, -1.0, 0.92]} scale={0.5} accent="#9ad36e" waterfall />
+        <FloatingIsland position={[0, -1.16, 1.16]} scale={0.38} accent="#d7d36c" />
         <mesh position={[0, -1.9, -0.2]} rotation={[-Math.PI / 2, 0, 0]}>
           <circleGeometry args={[4.4, 96]} />
           <meshBasicMaterial color="#0a77c2" transparent opacity={0.28} />
@@ -413,7 +409,7 @@ export function WorldTreeIslandScene({
       </group>
       {!reduced ? (
         <EffectComposer multisampling={2}>
-          <Bloom luminanceThreshold={0.46} luminanceSmoothing={0.74} intensity={0.28} />
+          <Bloom luminanceThreshold={0.5} luminanceSmoothing={0.78} intensity={0.18} />
         </EffectComposer>
       ) : null}
     </>
@@ -430,7 +426,7 @@ export function SkyWorldHero() {
     <section className="sky-world-hero" id="top" aria-label="3D 天空島世界樹首頁">
       <div className="sky-world-canvas" aria-hidden="true">
         <Canvas
-          camera={{ fov: 48, position: [0, 1.08, 7.8] }}
+          camera={{ fov: 48, position: [0, 0.92, 7.8] }}
           dpr={quality.dpr}
           gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }}
         >
@@ -441,14 +437,8 @@ export function SkyWorldHero() {
           />
         </Canvas>
       </div>
-      <div className="sky-world-hud">
-        <p>
-          <Sparkles size={15} /> 城市探索 × 高齡陪伴 × 永續共好
-        </p>
-        <h1>走進一棵會長大的世界樹。</h1>
-      </div>
       <nav className="sky-island-nav" aria-label="天空島功能導覽">
-        {islandLinks.map(({ icon: Icon, ...item }) => (
+        {islandLinks.map((item) => (
           <Link
             aria-label={`${item.title}：${item.body}`}
             className={`sky-island-link ${item.className}${
@@ -467,12 +457,11 @@ export function SkyWorldHero() {
               }
             }}
             onFocus={() => setActiveIsland(item.key)}
+            onMouseEnter={() => setActiveIsland(item.key)}
+            onMouseLeave={() => setActiveIsland((current) => (current === item.key ? null : current))}
             onPointerEnter={() => setActiveIsland(item.key)}
             onPointerLeave={() => setActiveIsland((current) => (current === item.key ? null : current))}
           >
-            <span className="sky-island-dot">
-              <Icon size={19} />
-            </span>
             <span className="sky-island-card">
               <strong>{item.title}</strong>
               <small>{item.body}</small>
@@ -480,22 +469,6 @@ export function SkyWorldHero() {
           </Link>
         ))}
       </nav>
-      <div className="sky-world-actions">
-        <Link className="button primary" href="/product">
-          開始使用 <ArrowRight size={17} />
-        </Link>
-        <a className="button ghost" href={contactHref("綠伴合作與陪伴計畫")}>
-          成為合作夥伴
-        </a>
-      </div>
-      <div className="sky-world-trust">
-        <span>
-          <ShieldCheck size={16} /> 位置只保存必要事件
-        </span>
-        <span>
-          <HeartHandshake size={16} /> 陪伴可以選擇與撤回
-        </span>
-      </div>
     </section>
   );
 }
