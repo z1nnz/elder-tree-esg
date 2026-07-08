@@ -28,6 +28,7 @@ import {
   type Group,
   type InstancedMesh,
 } from "three";
+import { taipeiDistrictBoundaries, type TaipeiDistrictBoundary } from "./taipei-district-boundaries";
 
 const leafShape = new Shape();
 leafShape.moveTo(0, 0.16);
@@ -631,6 +632,9 @@ type Vec2Tuple = readonly [number, number];
 
 type TaipeiDistrict = {
   name: string;
+  officialId: string;
+  areaSquareMeters: number;
+  center: readonly [number, number];
   points: readonly Vec2Tuple[];
   height: number;
   color: string;
@@ -644,89 +648,40 @@ type HeatSpot = {
   value: number;
 };
 
-const taipeiDistricts: TaipeiDistrict[] = [
-  {
-    name: "北投",
-    points: [[-2.75, 0.62], [-2.14, 1.38], [-1.24, 1.52], [-0.88, 0.92], [-1.18, 0.32], [-2.08, 0.18]],
-    height: 0.2,
-    color: "#d6dfc2",
-  },
-  {
-    name: "士林",
-    points: [[-1.18, 0.32], [-0.88, 0.92], [-0.24, 1.18], [0.2, 0.58], [-0.18, -0.04], [-0.98, -0.12]],
-    height: 0.26,
-    color: "#c3d9ad",
-  },
-  {
-    name: "內湖",
-    points: [[0.2, 0.58], [1.18, 0.94], [2.4, 0.62], [2.72, 0.08], [1.66, -0.18], [0.62, -0.06]],
-    height: 0.22,
-    color: "#a8c98d",
-  },
-  {
-    name: "南港",
-    points: [[1.66, -0.18], [2.72, 0.08], [2.52, -0.72], [1.82, -1.08], [1.2, -0.62]],
-    height: 0.18,
-    color: "#c8d6a0",
-  },
-  {
-    name: "松山",
-    points: [[0.62, -0.06], [1.66, -0.18], [1.2, -0.62], [0.46, -0.52], [0.24, -0.22]],
-    height: 0.25,
-    color: "#b2ce93",
-  },
-  {
-    name: "中山",
-    points: [[-0.18, -0.04], [0.62, -0.06], [0.24, -0.22], [0.08, -0.76], [-0.58, -0.62], [-0.98, -0.12]],
-    height: 0.3,
-    color: "#93bc83",
-  },
-  {
-    name: "大同",
-    points: [[-0.98, -0.12], [-0.58, -0.62], [-0.76, -1.02], [-1.28, -0.86], [-1.44, -0.36]],
-    height: 0.24,
-    color: "#b7cc91",
-  },
-  {
-    name: "萬華",
-    points: [[-1.28, -0.86], [-0.76, -1.02], [-0.92, -1.56], [-1.58, -1.34], [-1.82, -0.78]],
-    height: 0.21,
-    color: "#d2d4a6",
-  },
-  {
-    name: "中正",
-    points: [[-0.58, -0.62], [0.08, -0.76], [-0.04, -1.18], [-0.62, -1.28], [-0.76, -1.02]],
-    height: 0.28,
-    color: "#9fc185",
-  },
-  {
-    name: "大安",
-    points: [[0.08, -0.76], [0.78, -0.84], [0.62, -1.36], [-0.04, -1.18]],
-    height: 0.33,
-    color: "#8fba7e",
-  },
-  {
-    name: "信義",
-    points: [[0.46, -0.52], [1.2, -0.62], [1.08, -1.18], [0.62, -1.36], [0.78, -0.84]],
-    height: 0.31,
-    color: "#a0c385",
-  },
-  {
-    name: "文山",
-    points: [[-0.04, -1.18], [0.62, -1.36], [1.08, -1.18], [1.36, -1.9], [0.22, -2.2], [-0.82, -1.94], [-0.92, -1.56]],
-    height: 0.2,
-    color: "#d8d8a8",
-  },
-];
+const districtVisuals = {
+  北投區: { height: 0.2, color: "#d6dfc2" },
+  士林區: { height: 0.26, color: "#c3d9ad" },
+  內湖區: { height: 0.22, color: "#a8c98d" },
+  中山區: { height: 0.3, color: "#93bc83" },
+  大同區: { height: 0.24, color: "#b7cc91" },
+  松山區: { height: 0.25, color: "#b2ce93" },
+  南港區: { height: 0.18, color: "#c8d6a0" },
+  中正區: { height: 0.28, color: "#9fc185" },
+  信義區: { height: 0.31, color: "#a0c385" },
+  萬華區: { height: 0.21, color: "#d2d4a6" },
+  大安區: { height: 0.33, color: "#8fba7e" },
+  文山區: { height: 0.2, color: "#d8d8a8" },
+} satisfies Record<string, { height: number; color: string }>;
+
+const taipeiDistricts: TaipeiDistrict[] = taipeiDistrictBoundaries.map((district) => ({
+  ...district,
+  height: districtVisuals[district.name]?.height ?? 0.22,
+  color: districtVisuals[district.name]?.color ?? "#b8d29b",
+}));
+
+function districtCenter(name: TaipeiDistrictBoundary["name"], lift = 0.42): Vec3Tuple {
+  const district = taipeiDistrictBoundaries.find((item) => item.name === name);
+  return district ? [district.center[0], lift, district.center[1]] : [0, lift, 0];
+}
 
 const heatSpots: HeatSpot[] = [
-  { position: [-2.0, 0.34, 0.84] as Vec3Tuple, scale: 1.12, label: "補水", color: "#ff3d2e", value: 96 },
-  { position: [-0.76, 0.42, 0.34] as Vec3Tuple, scale: 0.86, label: "花草", color: "#ffb020", value: 72 },
-  { position: [-0.22, 0.46, -0.86] as Vec3Tuple, scale: 0.92, label: "步行", color: "#ff6b21", value: 81 },
-  { position: [0.62, 0.52, -1.0] as Vec3Tuple, scale: 1.2, label: "伸展", color: "#ef233c", value: 104 },
-  { position: [1.24, 0.42, -0.52] as Vec3Tuple, scale: 0.78, label: "聆聽", color: "#ffbe0b", value: 64 },
-  { position: [1.86, 0.38, 0.38] as Vec3Tuple, scale: 0.72, label: "觀察", color: "#fb8500", value: 58 },
-  { position: [0.22, 0.5, 0.36] as Vec3Tuple, scale: 1.02, label: "陪伴", color: "#14b8a6", value: 89 },
+  { position: districtCenter("北投區", 0.38), scale: 1.12, label: "補水", color: "#ff3d2e", value: 96 },
+  { position: districtCenter("士林區", 0.42), scale: 0.86, label: "花草", color: "#ffb020", value: 72 },
+  { position: districtCenter("中山區", 0.46), scale: 0.92, label: "步行", color: "#ff6b21", value: 81 },
+  { position: districtCenter("大安區", 0.52), scale: 1.2, label: "伸展", color: "#ef233c", value: 104 },
+  { position: districtCenter("信義區", 0.44), scale: 0.78, label: "聆聽", color: "#ffbe0b", value: 64 },
+  { position: districtCenter("內湖區", 0.4), scale: 0.72, label: "觀察", color: "#fb8500", value: 58 },
+  { position: districtCenter("中正區", 0.5), scale: 1.02, label: "陪伴", color: "#14b8a6", value: 89 },
 ];
 
 function shapeFromPoints(points: readonly Vec2Tuple[]) {
@@ -892,7 +847,7 @@ function CityDataTerrain({ reduced }: { reduced: boolean }) {
   });
 
   return (
-    <group ref={group} rotation={[0, -0.18, 0]} position={[0, -0.28, 0]} scale={0.95}>
+    <group ref={group} rotation={[0, -0.18, 0]} position={[0.18, -0.28, 0.16]} scale={1.08}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.08, 0]}>
         <circleGeometry args={[3.55, 128]} />
         <meshBasicMaterial color="#f5d99b" transparent opacity={0.18} />
