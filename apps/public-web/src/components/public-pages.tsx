@@ -70,7 +70,7 @@ function usePublicAnimations(dependencies: unknown[] = []) {
             desktop: boolean;
           };
           if (!motion) {
-            gsap.set("[data-reveal], .hero-copy > *, .hero-visual", {
+            gsap.set("[data-reveal], .hero-copy > *, .hero-visual, .world-tree-node", {
               autoAlpha: 1,
               clearProps: "transform",
             });
@@ -87,11 +87,11 @@ function usePublicAnimations(dependencies: unknown[] = []) {
             )
             .from(
               ".hero-visual",
-              { scale: 0.9, rotation: -2, autoAlpha: 0 },
+              { scale: 0.94, autoAlpha: 0 },
               "<0.2",
             )
             .from(
-              ".orbit-card, .feature-pill",
+              ".world-tree-node, .feature-pill",
               { scale: 0.72, autoAlpha: 0, stagger: 0.08 },
               "<0.2",
             );
@@ -201,19 +201,27 @@ function missionShowcase(publicRadar: RadarState | null) {
 function HeroVisual() {
   return (
     <div className="hero-visual hero-visual-3d" aria-label="3D 生命樹主視覺">
-      <LifeTree3D />
-      <div className="orbit-card card-map">
-        <MapPinned size={19} />
-        <span>任務雷達亮起</span>
-      </div>
-      <div className="orbit-card card-tree">
-        <Trees size={19} />
-        <span>生命樹長出新葉 +40</span>
-      </div>
-      <div className="orbit-card card-care">
-        <HeartHandshake size={19} />
-        <span>陪伴由你選擇</span>
-      </div>
+      <LifeTree3D variant="world" />
+      <Link className="world-tree-node node-radar" href="/explore">
+        <MapPinned size={22} />
+        <span>任務雷達</span>
+        <strong>讓城市像溫柔的冒險地圖。</strong>
+      </Link>
+      <Link className="world-tree-node node-tree" href="/product">
+        <Trees size={22} />
+        <span>生命樹成長</span>
+        <strong>每一次任務，都長成看得見的新葉。</strong>
+      </Link>
+      <Link className="world-tree-node node-care" href="/partners">
+        <HeartHandshake size={22} />
+        <span>陪伴網絡</span>
+        <strong>一個人也能開始，需要時再邀請家人、志工或機構。</strong>
+      </Link>
+      <Link className="world-tree-node node-safety" href="/impact">
+        <ShieldCheck size={22} />
+        <span>安全底線</span>
+        <strong>位置與任務資料只保留必要事件，不把焦慮當誘因。</strong>
+      </Link>
     </div>
   );
 }
@@ -228,11 +236,10 @@ function HomeHero() {
         <h1>
           一個人的一步，
           <br />
-          長成一座城市的森林。
+          長成城市森林。
         </h1>
         <p className="hero-lead">
-          綠伴把城市探索、任務雷達與生命樹放在一起；不要求你先有家人，
-          也不拿連續簽到懲罰生活。想自己走可以，想有人同行也可以。
+          追逐一個更願意生活的自己。滑過樹上的節點，看看城市探索、陪伴與生命樹怎麼一起發生。
         </p>
         <div className="hero-actions">
           <Link className="button primary" href="/product">

@@ -8,14 +8,25 @@ import {
   Trail,
 } from "@react-three/drei";
 import {
+  Bloom,
+  EffectComposer,
+} from "@react-three/postprocessing";
+import {
   AdditiveBlending,
   CatmullRomCurve3,
+  CanvasTexture,
   Color,
   DoubleSide,
+  DynamicDrawUsage,
   MathUtils,
+  Object3D,
+  RepeatWrapping,
+  SRGBColorSpace,
   Shape,
+  Texture,
   Vector3,
   type Group,
+  type InstancedMesh,
 } from "three";
 
 const leafShape = new Shape();
@@ -41,67 +52,102 @@ type BranchSpec = {
 };
 
 const trunkSegments: BranchSpec[] = [
-  { from: [0, 0, 0], to: [0.04, 0.82, 0.02], radiusBottom: 0.28, radiusTop: 0.22 },
-  { from: [0.04, 0.82, 0.02], to: [-0.03, 1.58, -0.02], radiusBottom: 0.22, radiusTop: 0.16 },
-  { from: [-0.03, 1.58, -0.02], to: [0.04, 2.24, 0.02], radiusBottom: 0.16, radiusTop: 0.095 },
-  { from: [0.04, 2.24, 0.02], to: [0.02, 2.86, -0.04], radiusBottom: 0.095, radiusTop: 0.045 },
+  { from: [0, -0.06, 0], to: [0.02, 0.72, 0.02], radiusBottom: 0.38, radiusTop: 0.28 },
+  { from: [0.02, 0.72, 0.02], to: [-0.04, 1.42, 0.01], radiusBottom: 0.29, radiusTop: 0.21 },
+  { from: [-0.04, 1.42, 0.01], to: [0.05, 2.05, -0.01], radiusBottom: 0.22, radiusTop: 0.14 },
+  { from: [0.05, 2.05, -0.01], to: [0.01, 2.78, 0], radiusBottom: 0.14, radiusTop: 0.064 },
 ];
 
 const branchSegments: BranchSpec[] = [
-  { from: [0.02, 0.78, 0.02], to: [-0.52, 0.42, 0.14], radiusBottom: 0.08, radiusTop: 0.028 },
-  { from: [0.02, 0.78, 0.02], to: [0.54, 0.44, -0.12], radiusBottom: 0.075, radiusTop: 0.026 },
-  { from: [0.01, 1.18, 0], to: [-0.9, 1.74, 0.12], radiusBottom: 0.09, radiusTop: 0.034 },
-  { from: [-0.45, 1.46, 0.08], to: [-1.24, 1.96, 0.18], radiusBottom: 0.052, radiusTop: 0.018 },
-  { from: [-0.36, 1.38, 0.05], to: [-0.92, 2.25, -0.14], radiusBottom: 0.045, radiusTop: 0.016 },
-  { from: [0.02, 1.34, 0], to: [0.92, 1.86, -0.1], radiusBottom: 0.09, radiusTop: 0.034 },
-  { from: [0.47, 1.6, -0.06], to: [1.26, 2.18, -0.16], radiusBottom: 0.052, radiusTop: 0.018 },
-  { from: [0.38, 1.72, -0.04], to: [0.78, 2.48, 0.22], radiusBottom: 0.04, radiusTop: 0.014 },
-  { from: [-0.02, 1.86, 0], to: [-0.48, 2.72, 0.24], radiusBottom: 0.066, radiusTop: 0.02 },
-  { from: [0.04, 1.94, -0.02], to: [0.54, 2.82, -0.12], radiusBottom: 0.066, radiusTop: 0.02 },
-  { from: [0.02, 2.28, -0.02], to: [-0.18, 3.18, 0.06], radiusBottom: 0.052, radiusTop: 0.014 },
-  { from: [0.03, 2.28, -0.02], to: [0.24, 3.1, -0.08], radiusBottom: 0.05, radiusTop: 0.014 },
+  { from: [-0.03, 0.22, 0.02], to: [-0.84, -0.02, 0.18], radiusBottom: 0.14, radiusTop: 0.038 },
+  { from: [0.03, 0.2, 0.02], to: [0.82, -0.03, 0.18], radiusBottom: 0.14, radiusTop: 0.038 },
+  { from: [-0.02, 0.52, 0], to: [-0.62, 0.34, 0.26], radiusBottom: 0.1, radiusTop: 0.026 },
+  { from: [0.02, 0.52, 0], to: [0.62, 0.34, 0.26], radiusBottom: 0.1, radiusTop: 0.026 },
+  { from: [-0.01, 1.18, 0], to: [-1.16, 1.74, 0.1], radiusBottom: 0.11, radiusTop: 0.034 },
+  { from: [-0.54, 1.48, 0.05], to: [-1.55, 2.06, 0.14], radiusBottom: 0.06, radiusTop: 0.018 },
+  { from: [-0.42, 1.5, 0.03], to: [-0.82, 2.36, -0.06], radiusBottom: 0.05, radiusTop: 0.016 },
+  { from: [0.02, 1.26, 0], to: [1.18, 1.86, 0.08], radiusBottom: 0.11, radiusTop: 0.034 },
+  { from: [0.58, 1.58, 0.04], to: [1.56, 2.18, 0.12], radiusBottom: 0.06, radiusTop: 0.018 },
+  { from: [0.44, 1.62, 0.02], to: [0.86, 2.48, -0.08], radiusBottom: 0.05, radiusTop: 0.016 },
+  { from: [-0.04, 1.82, 0], to: [-0.56, 2.76, 0.12], radiusBottom: 0.076, radiusTop: 0.02 },
+  { from: [0.04, 1.88, 0], to: [0.6, 2.78, 0.1], radiusBottom: 0.076, radiusTop: 0.02 },
+  { from: [0.01, 2.18, 0], to: [-0.24, 3.16, 0.08], radiusBottom: 0.056, radiusTop: 0.014 },
+  { from: [0.02, 2.2, 0], to: [0.28, 3.12, 0.08], radiusBottom: 0.056, radiusTop: 0.014 },
 ];
 
 const canopyClusters = [
-  { position: [-1.08, 2.12, 0.1] as Vec3Tuple, scale: [1.08, 0.64, 0.42] as Vec3Tuple, color: "#5ea85f" },
-  { position: [-0.58, 2.5, 0.22] as Vec3Tuple, scale: [1.04, 0.66, 0.46] as Vec3Tuple, color: "#76bd61" },
-  { position: [0.02, 2.68, 0.18] as Vec3Tuple, scale: [1.18, 0.78, 0.5] as Vec3Tuple, color: "#68b65b" },
-  { position: [0.6, 2.48, 0.12] as Vec3Tuple, scale: [1.04, 0.64, 0.44] as Vec3Tuple, color: "#79c866" },
-  { position: [1.08, 2.14, 0.04] as Vec3Tuple, scale: [1, 0.6, 0.42] as Vec3Tuple, color: "#5faa62" },
-  { position: [-0.08, 3.08, 0.12] as Vec3Tuple, scale: [0.96, 0.62, 0.42] as Vec3Tuple, color: "#8dd06b" },
-  { position: [-0.38, 2.18, 0.5] as Vec3Tuple, scale: [0.9, 0.54, 0.34] as Vec3Tuple, color: "#8ccf68" },
-  { position: [0.42, 2.15, 0.44] as Vec3Tuple, scale: [0.9, 0.54, 0.34] as Vec3Tuple, color: "#4f995a" },
-  { position: [-0.2, 1.9, 0.28] as Vec3Tuple, scale: [0.84, 0.46, 0.32] as Vec3Tuple, color: "#5ea85f" },
-  { position: [0.36, 1.92, 0.24] as Vec3Tuple, scale: [0.82, 0.46, 0.32] as Vec3Tuple, color: "#6db85c" },
-  { position: [-0.78, 2.72, 0.02] as Vec3Tuple, scale: [0.76, 0.46, 0.32] as Vec3Tuple, color: "#6dbf62" },
-  { position: [0.78, 2.7, 0.02] as Vec3Tuple, scale: [0.76, 0.46, 0.32] as Vec3Tuple, color: "#75c461" },
+  { position: [-1.18, 2.1, 0.1] as Vec3Tuple, scale: [1.14, 0.7, 0.45] as Vec3Tuple, color: "#5ea85f" },
+  { position: [-0.62, 2.5, 0.18] as Vec3Tuple, scale: [1.18, 0.75, 0.48] as Vec3Tuple, color: "#76bd61" },
+  { position: [0, 2.7, 0.16] as Vec3Tuple, scale: [1.34, 0.86, 0.54] as Vec3Tuple, color: "#68b65b" },
+  { position: [0.66, 2.5, 0.16] as Vec3Tuple, scale: [1.18, 0.74, 0.48] as Vec3Tuple, color: "#79c866" },
+  { position: [1.18, 2.12, 0.08] as Vec3Tuple, scale: [1.12, 0.68, 0.44] as Vec3Tuple, color: "#5faa62" },
+  { position: [-0.04, 3.08, 0.12] as Vec3Tuple, scale: [1.08, 0.72, 0.44] as Vec3Tuple, color: "#8dd06b" },
+  { position: [-0.54, 2.12, 0.5] as Vec3Tuple, scale: [1.02, 0.58, 0.34] as Vec3Tuple, color: "#8ccf68" },
+  { position: [0.56, 2.12, 0.5] as Vec3Tuple, scale: [1.02, 0.58, 0.34] as Vec3Tuple, color: "#4f995a" },
+  { position: [-0.24, 1.88, 0.36] as Vec3Tuple, scale: [0.9, 0.5, 0.34] as Vec3Tuple, color: "#5ea85f" },
+  { position: [0.34, 1.9, 0.34] as Vec3Tuple, scale: [0.9, 0.5, 0.34] as Vec3Tuple, color: "#6db85c" },
+  { position: [-0.9, 2.76, 0.02] as Vec3Tuple, scale: [0.82, 0.5, 0.32] as Vec3Tuple, color: "#6dbf62" },
+  { position: [0.9, 2.76, 0.02] as Vec3Tuple, scale: [0.82, 0.5, 0.32] as Vec3Tuple, color: "#75c461" },
 ];
 
-const leafPalette = ["#4f995a", "#69b85e", "#7bc766", "#8fd66e", "#d6d66a"];
+type TreeVariant = "card" | "world";
 
-const designedLeaves = canopyClusters.flatMap((cluster, clusterIndex) =>
-  Array.from({ length: clusterIndex === 2 ? 110 : 78 }, (_, leafIndex) => {
-    const seed = clusterIndex * 37 + leafIndex * 11;
+type QualityProfile = {
+  leafCount: number;
+  postprocessing: boolean;
+  dpr: [number, number];
+};
+
+type LeafInstance = {
+  position: Vec3Tuple;
+  rotation: Vec3Tuple;
+  scale: Vec3Tuple;
+  phase: number;
+  wind: number;
+};
+
+function seededUnit(seed: number) {
+  const value = Math.sin(seed * 12.9898) * 43758.5453;
+  return value - Math.floor(value);
+}
+
+function createLeafInstances(count: number, variant: TreeVariant): LeafInstance[] {
+  const worldScale = variant === "world" ? 1.14 : 0.98;
+  return Array.from({ length: count }, (_, index) => {
+    const clusterIndex = index % canopyClusters.length;
+    const cluster = canopyClusters[clusterIndex]!;
+    const seed = index * 19 + clusterIndex * 73;
     const theta = seed * 2.399963;
-    const radius = 0.08 + ((seed * 17) % 100) / 100 * 0.94;
-    const vertical = (((seed * 29) % 100) / 100 - 0.5) * 0.9;
-    const x = cluster.position[0] + Math.cos(theta) * radius * cluster.scale[0];
+    const shell = Math.sqrt(seededUnit(seed + 1));
+    const vertical = (seededUnit(seed + 2) - 0.5) * 1.08;
+    const frontBias = seededUnit(seed + 3) > 0.72 ? 0.42 : 0;
+    const x = (cluster.position[0] + Math.cos(theta) * shell * cluster.scale[0]) * worldScale;
     const y = cluster.position[1] + vertical * cluster.scale[1];
-    const z = cluster.position[2] + Math.sin(theta) * radius * cluster.scale[2];
+    const z =
+      cluster.position[2] +
+      Math.sin(theta) * shell * cluster.scale[2] * 0.68 +
+      frontBias;
+    const size = 0.28 + seededUnit(seed + 4) * 0.28;
+    const tilt = -0.28 + seededUnit(seed + 5) * 0.56;
+    const turnToCamera = MathUtils.lerp(-0.32, 0.32, seededUnit(seed + 6));
 
     return {
       position: [x, y, z] as Vec3Tuple,
       rotation: [
-        -0.18 + (((seed * 7) % 100) / 100) * 0.36,
-        -0.28 + (((seed * 23) % 100) / 100) * 0.56,
-        theta + (((seed * 13) % 100) / 100) * 0.42,
+        tilt,
+        turnToCamera,
+        theta + seededUnit(seed + 7) * 0.8,
       ] as Vec3Tuple,
-      scale: 0.27 + (((seed * 19) % 100) / 100) * 0.27,
-      color: leafPalette[(seed + clusterIndex) % leafPalette.length],
-      delay: (seed % 17) * 0.09,
+      scale: [
+        size * (0.72 + seededUnit(seed + 8) * 0.34),
+        size * (1.02 + seededUnit(seed + 9) * 0.38),
+        size,
+      ] as Vec3Tuple,
+      phase: seededUnit(seed + 10) * Math.PI * 2,
+      wind: 0.35 + seededUnit(seed + 11) * 0.75,
     };
-  }),
-);
+  });
+}
 
 function useReducedMotion() {
   const [reduced, setReduced] = useState(false);
@@ -117,7 +163,100 @@ function useReducedMotion() {
   return reduced;
 }
 
-function OrganicBranch({ from, to, radiusBottom, radiusTop, color = "#7b5538" }: BranchSpec) {
+function useVisualQuality(reduced: boolean, variant: TreeVariant): QualityProfile {
+  const [profile, setProfile] = useState<QualityProfile>({
+    leafCount: variant === "world" ? 1200 : 620,
+    postprocessing: false,
+    dpr: [1, 1.35],
+  });
+
+  useEffect(() => {
+    const update = () => {
+      const width = window.innerWidth;
+      const isDesktop = width >= 1120;
+      const isTablet = width >= 760 && width < 1120;
+      const isWorld = variant === "world";
+      setProfile({
+        leafCount: reduced
+          ? isWorld
+            ? 520
+            : 320
+          : isDesktop
+            ? isWorld
+              ? 1550
+              : 840
+            : isTablet
+              ? isWorld
+                ? 880
+                : 560
+              : isWorld
+                ? 440
+                : 320,
+        postprocessing: !reduced && width >= 760,
+        dpr: isDesktop ? [1, 1.75] : [1, 1.35],
+      });
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, [reduced, variant]);
+
+  return profile;
+}
+
+function useCanvasTexture(draw: (context: CanvasRenderingContext2D, size: number) => void) {
+  return useMemo(() => {
+    const size = 256;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const context = canvas.getContext("2d");
+    if (!context) return null;
+    draw(context, size);
+    const texture = new CanvasTexture(canvas);
+    texture.colorSpace = SRGBColorSpace;
+    texture.wrapS = RepeatWrapping;
+    texture.wrapT = RepeatWrapping;
+    texture.repeat.set(1.8, 2.8);
+    return texture;
+  }, [draw]);
+}
+
+function useBarkTexture() {
+  return useCanvasTexture((context, size) => {
+    const gradient = context.createLinearGradient(0, 0, size, size);
+    gradient.addColorStop(0, "#3b2014");
+    gradient.addColorStop(0.32, "#805236");
+    gradient.addColorStop(0.68, "#4a2918");
+    gradient.addColorStop(1, "#9b6a45");
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, size, size);
+    for (let x = 0; x < size; x += 9) {
+      context.beginPath();
+      context.strokeStyle = x % 27 === 0 ? "rgba(255, 214, 147, .28)" : "rgba(29, 15, 9, .34)";
+      context.lineWidth = 2 + seededUnit(x) * 3;
+      context.moveTo(x + Math.sin(x) * 4, 0);
+      for (let y = 0; y <= size; y += 18) {
+        context.lineTo(x + Math.sin(y * 0.08 + x) * 9, y);
+      }
+      context.stroke();
+    }
+    for (let i = 0; i < 360; i += 1) {
+      const alpha = seededUnit(i + 20) * 0.18;
+      context.fillStyle = `rgba(20, 9, 4, ${alpha})`;
+      context.fillRect(seededUnit(i) * size, seededUnit(i + 3) * size, 1.4, 1.4);
+    }
+  });
+}
+
+function OrganicBranch({
+  from,
+  to,
+  radiusBottom,
+  radiusTop,
+  color = "#7b5538",
+  barkTexture,
+}: BranchSpec & { barkTexture: Texture | null }) {
   const { curve, barkLines } = useMemo(() => {
     const start = new Vector3(...from);
     const end = new Vector3(...to);
@@ -148,7 +287,14 @@ function OrganicBranch({ from, to, radiusBottom, radiusTop, color = "#7b5538" }:
     <group>
       <mesh castShadow receiveShadow>
         <tubeGeometry args={[curve, 18, (radiusBottom + radiusTop) / 2, 14, false]} />
-        <meshStandardMaterial color={color} roughness={0.92} metalness={0.02} />
+        <meshStandardMaterial
+          color={color}
+          map={barkTexture ?? undefined}
+          roughness={0.96}
+          metalness={0.01}
+          bumpMap={barkTexture ?? undefined}
+          bumpScale={0.045}
+        />
       </mesh>
       {barkLines.map((line, index) => (
         <mesh key={index}>
@@ -160,51 +306,93 @@ function OrganicBranch({ from, to, radiusBottom, radiusTop, color = "#7b5538" }:
   );
 }
 
-function IndividualLeaf({
-  position,
-  rotation,
-  scale,
-  color,
+function InstancedLeaves({
+  leaves,
+  reduced,
 }: {
-  position: Vec3Tuple;
-  rotation: Vec3Tuple;
-  scale: number;
-  color: string;
+  leaves: LeafInstance[];
+  reduced: boolean;
 }) {
+  const mesh = useRef<InstancedMesh>(null);
+  const veinMesh = useRef<InstancedMesh>(null);
+  const dummy = useMemo(() => new Object3D(), []);
+
+  const applyMatrices = (time = 0) => {
+    leaves.forEach((leaf, index) => {
+      const flutter = reduced ? 0 : Math.sin(time * 1.25 * leaf.wind + leaf.phase) * 0.07;
+      dummy.position.set(leaf.position[0], leaf.position[1] + flutter * 0.08, leaf.position[2]);
+      dummy.rotation.set(
+        leaf.rotation[0] + flutter * 0.45,
+        leaf.rotation[1] + flutter * 0.3,
+        leaf.rotation[2] + flutter,
+      );
+      dummy.scale.set(leaf.scale[0], leaf.scale[1], leaf.scale[2]);
+      dummy.updateMatrix();
+      mesh.current?.setMatrixAt(index, dummy.matrix);
+
+      dummy.position.set(leaf.position[0], leaf.position[1] + flutter * 0.08 - 0.018, leaf.position[2] + 0.006);
+      dummy.scale.set(leaf.scale[0] * 0.08, leaf.scale[1] * 0.82, leaf.scale[2] * 0.08);
+      dummy.updateMatrix();
+      veinMesh.current?.setMatrixAt(index, dummy.matrix);
+    });
+    if (mesh.current) mesh.current.instanceMatrix.needsUpdate = true;
+    if (veinMesh.current) veinMesh.current.instanceMatrix.needsUpdate = true;
+  };
+
+  useEffect(() => {
+    if (!mesh.current || !veinMesh.current) return;
+    mesh.current.instanceMatrix.setUsage(DynamicDrawUsage);
+    veinMesh.current.instanceMatrix.setUsage(DynamicDrawUsage);
+    applyMatrices();
+  }, [leaves]);
+
+  useFrame(({ clock }) => {
+    if (reduced) return;
+    applyMatrices(clock.elapsedTime);
+  });
+
   return (
-    <group position={position} rotation={rotation} scale={scale}>
-      <mesh castShadow receiveShadow>
-        <shapeGeometry args={[leafShape, 12]} />
-        <meshStandardMaterial color={color} roughness={0.72} side={DoubleSide} />
-      </mesh>
-      <mesh position={[0, -0.02, 0.012]}>
-        <boxGeometry args={[0.012, 0.24, 0.008]} />
-        <meshStandardMaterial color="#eef7a4" roughness={0.64} />
-      </mesh>
-      <mesh position={[0, -0.18, 0.004]} rotation={[0, 0, 0.28]}>
-        <boxGeometry args={[0.008, 0.08, 0.006]} />
-        <meshStandardMaterial color="#67883e" roughness={0.75} />
-      </mesh>
-    </group>
+    <>
+      <instancedMesh ref={mesh} args={[undefined, undefined, leaves.length]}>
+        <shapeGeometry args={[leafShape, 10]} />
+        <meshBasicMaterial
+          color="#8fd66e"
+          transparent
+          opacity={0.9}
+          alphaTest={0.14}
+          side={DoubleSide}
+        />
+      </instancedMesh>
+      <instancedMesh ref={veinMesh} args={[undefined, undefined, leaves.length]}>
+        <boxGeometry args={[0.012, 0.25, 0.008]} />
+        <meshBasicMaterial color="#eef7a4" />
+      </instancedMesh>
+    </>
   );
 }
 
-function LeafCanopy({ reduced }: { reduced: boolean }) {
+function LeafCanopy({
+  reduced,
+  variant,
+  quality,
+}: {
+  reduced: boolean;
+  variant: TreeVariant;
+  quality: QualityProfile;
+}) {
   const canopy = useRef<Group>(null);
-  const leaves = useRef<Group[]>([]);
+  const leaves = useMemo(
+    () => createLeafInstances(quality.leafCount, variant),
+    [quality.leafCount, variant],
+  );
 
   useFrame(({ clock }) => {
     if (reduced) return;
     const t = clock.elapsedTime;
     if (canopy.current) {
-      canopy.current.rotation.z = Math.sin(t * 0.72) * 0.024;
-      canopy.current.rotation.y = Math.sin(t * 0.42) * 0.034;
+      canopy.current.rotation.z = Math.sin(t * 0.72) * 0.016;
+      canopy.current.rotation.y = Math.sin(t * 0.42) * 0.016;
     }
-    leaves.current.forEach((leaf, index) => {
-      const motion = Math.sin(t * 1.18 + designedLeaves[index].delay);
-      leaf.rotation.z += motion * 0.0012;
-      leaf.position.y += motion * 0.0008;
-    });
   });
 
   return (
@@ -221,21 +409,13 @@ function LeafCanopy({ reduced }: { reduced: boolean }) {
           <meshStandardMaterial
             color={cluster.color}
             transparent
-            opacity={0.44}
-            roughness={0.88}
+            opacity={variant === "world" ? 0.52 : 0.44}
+            roughness={0.9}
+            depthWrite={false}
           />
         </mesh>
       ))}
-      {designedLeaves.map((leaf, index) => (
-        <group
-          key={`${leaf.position.join("-")}-${index}`}
-          ref={(node) => {
-            if (node) leaves.current[index] = node;
-          }}
-        >
-          <IndividualLeaf {...leaf} />
-        </group>
-      ))}
+      <InstancedLeaves leaves={leaves} reduced={reduced} />
     </group>
   );
 }
@@ -279,8 +459,17 @@ function FloatingLeaves({ reduced }: { reduced: boolean }) {
   );
 }
 
-function LifeTreeModel({ reduced }: { reduced: boolean }) {
+function LifeTreeModel({
+  reduced,
+  variant = "card",
+  quality,
+}: {
+  reduced: boolean;
+  variant?: TreeVariant;
+  quality: QualityProfile;
+}) {
   const tree = useRef<Group>(null);
+  const barkTexture = useBarkTexture();
 
   useFrame(({ clock }) => {
     if (reduced) return;
@@ -288,13 +477,20 @@ function LifeTreeModel({ reduced }: { reduced: boolean }) {
     if (tree.current) tree.current.rotation.z = sway;
   });
 
+  const isWorld = variant === "world";
+
   return (
-    <group ref={tree} position={[0, -1.48, 0]} scale={0.98}>
+    <group
+      ref={tree}
+      position={isWorld ? [0.36, -1.34, 0] : [0, -1.48, 0]}
+      scale={isWorld ? 1.08 : 0.98}
+      rotation={[0, isWorld ? -0.03 : 0, 0]}
+    >
       {trunkSegments.map((segment, index) => (
-        <OrganicBranch key={`trunk-${index}`} {...segment} />
+        <OrganicBranch key={`trunk-${index}`} barkTexture={barkTexture} {...segment} />
       ))}
       {branchSegments.map((segment, index) => (
-        <OrganicBranch key={`branch-${index}`} color="#6b472f" {...segment} />
+        <OrganicBranch key={`branch-${index}`} barkTexture={barkTexture} color="#6b472f" {...segment} />
       ))}
       {[
         [0.02, 1.18, 0.01, 0.18],
@@ -303,10 +499,16 @@ function LifeTreeModel({ reduced }: { reduced: boolean }) {
       ].map(([x, y, z, radius], index) => (
         <mesh key={`tree-knot-${index}`} position={[x, y, z]} castShadow receiveShadow>
           <sphereGeometry args={[radius, 18, 12]} />
-          <meshStandardMaterial color={index === 0 ? "#6f472f" : "#775037"} roughness={0.92} />
+          <meshStandardMaterial
+            color={index === 0 ? "#6f472f" : "#775037"}
+            map={barkTexture ?? undefined}
+            roughness={0.96}
+            bumpMap={barkTexture ?? undefined}
+            bumpScale={0.035}
+          />
         </mesh>
       ))}
-      <LeafCanopy reduced={reduced} />
+      <LeafCanopy reduced={reduced} variant={variant} quality={quality} />
       <mesh position={[0, -0.02, 0]} receiveShadow>
         <cylinderGeometry args={[1.75, 1.32, 0.16, 64]} />
         <meshStandardMaterial color="#b8d88b" roughness={0.92} />
@@ -359,16 +561,24 @@ function GrowthTrail({ reduced }: { reduced: boolean }) {
   );
 }
 
-function TreeScene({ reduced }: { reduced: boolean }) {
+function TreeScene({
+  reduced,
+  variant = "card",
+  quality,
+}: {
+  reduced: boolean;
+  variant?: TreeVariant;
+  quality: QualityProfile;
+}) {
   return (
     <>
       <color attach="background" args={["#dff8e8"]} />
       <fog attach="fog" args={["#dff8e8", 7, 13]} />
-      <ambientLight intensity={0.72} />
-      <directionalLight castShadow position={[4, 6, 3]} intensity={1.65} />
-      <pointLight position={[-2.6, 2.6, 2.8]} color="#fff1a6" intensity={3.8} />
+      <ambientLight intensity={1.02} />
+      <directionalLight castShadow position={[4, 6, 3]} intensity={1.85} />
+      <pointLight position={[-2.6, 2.6, 2.8]} color="#fff1a6" intensity={4.2} />
       <Float speed={reduced ? 0 : 0.85} rotationIntensity={0} floatIntensity={0.12}>
-        <LifeTreeModel reduced={reduced} />
+        <LifeTreeModel reduced={reduced} variant={variant} quality={quality} />
       </Float>
       <GrowthTrail reduced={reduced} />
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.44, 0]} receiveShadow>
@@ -383,21 +593,31 @@ function TreeScene({ reduced }: { reduced: boolean }) {
         maxPolarAngle={MathUtils.degToRad(77)}
         minPolarAngle={MathUtils.degToRad(48)}
       />
+      {quality.postprocessing ? (
+        <EffectComposer multisampling={2}>
+          <Bloom luminanceThreshold={0.62} luminanceSmoothing={0.78} intensity={0.18} />
+        </EffectComposer>
+      ) : null}
     </>
   );
 }
 
-export function LifeTree3D() {
+export function LifeTree3D({ variant = "card" }: { variant?: TreeVariant }) {
   const reduced = useReducedMotion();
+  const isWorld = variant === "world";
+  const quality = useVisualQuality(reduced, variant);
 
   return (
-    <div className="tree-lab">
+    <div className={`tree-lab tree-lab-${variant}`}>
       <Canvas
-        camera={{ fov: 43, position: [0, 1.48, 6.75] }}
-        dpr={[1, 1.65]}
-        gl={{ antialias: true, alpha: false }}
+        camera={{
+          fov: isWorld ? 40 : 43,
+          position: isWorld ? [0, 1.48, 6.25] : [0, 1.48, 6.75],
+        }}
+        dpr={quality.dpr}
+        gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }}
       >
-        <TreeScene reduced={reduced} />
+        <TreeScene reduced={reduced} variant={variant} quality={quality} />
       </Canvas>
       <div className="tree-lab-card">
         <b>自己建模的生命樹</b>
