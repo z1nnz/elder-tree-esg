@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState, type CSSProperties } from "react";
 
 const posterImage = "/images/sky-world-tree-hero.png";
+const motionVideo = "/videos/sky-world-tree-loop.mp4";
 
 const artIslands = [
   {
@@ -83,22 +84,23 @@ export function SkyWorldArtHero() {
 
   return (
     <section className="sky-video-hero" id="top" aria-label="天空島世界樹首頁互動場景">
+      <video
+        aria-hidden="true"
+        autoPlay
+        className="sky-video-media sky-video-motion"
+        loop
+        muted
+        playsInline
+        poster={posterImage}
+        preload="metadata"
+      >
+        <source src={motionVideo} type="video/mp4" />
+      </video>
       <img
-        className="sky-video-media"
+        className="sky-video-media sky-video-poster"
         src={posterImage}
         alt="天空島中央有巨大世界樹，周圍漂浮著島嶼、雲海、瀑布與海洋。"
       />
-      <div className="sky-video-clouds sky-video-clouds-a" aria-hidden="true" />
-      <div className="sky-video-clouds sky-video-clouds-b" aria-hidden="true" />
-      <div className="sky-video-water" aria-hidden="true" />
-      <div className="sky-video-water sky-video-water-b" aria-hidden="true" />
-      <div className="sky-video-waterfalls" aria-hidden="true" />
-      <div className="sky-video-rays" aria-hidden="true" />
-      <div className="sky-video-leaves" aria-hidden="true">
-        {Array.from({ length: 18 }, (_, index) => (
-          <i key={index} />
-        ))}
-      </div>
       <div className="sky-video-vignette" aria-hidden="true" />
 
       <nav className="sky-video-hotspots" aria-label="天空島功能導覽">
