@@ -52,6 +52,45 @@ export const techFlow = [
   { icon: Building2, label: "營運平台", detail: "安全、稽核與機構協作" },
 ];
 
+export const productFlow = [
+  {
+    icon: Smartphone,
+    step: "01",
+    title: "登入",
+    body: "保留個人與家庭狀態，重啟後也能回到同一棵樹。",
+  },
+  {
+    icon: MapPinned,
+    step: "02",
+    title: "開始探索",
+    body: "只在探索頁前景定位，城市路線與任務雷達分開呈現。",
+  },
+  {
+    icon: Radar,
+    step: "03",
+    title: "接任務",
+    body: "靠近只解鎖任務，完成確認後才會累積成長。",
+  },
+  {
+    icon: Footprints,
+    step: "04",
+    title: "完成任務",
+    body: "SELF_CHECK 與 TIMER 先落地，照片 AI 會等 Blaze/Storage 開放。",
+  },
+  {
+    icon: Trees,
+    step: "05",
+    title: "生命樹成長",
+    body: "成長值用冪等帳本保存，同一任務重送也不重複加分。",
+  },
+  {
+    icon: Users,
+    step: "06",
+    title: "被看見",
+    body: "家人、陪伴者或合作單位只看必要摘要，不看私人定位。",
+  },
+];
+
 export const productHighlights = [
   {
     icon: Radar,
@@ -109,6 +148,102 @@ export const impactPrinciples = [
   {
     title: "不把永續當口號",
     body: "模擬與真實成果分開標示，每筆成長都有可追溯來源。",
+  },
+];
+
+export const impactJourney = [
+  {
+    icon: Sprout,
+    title: "個人照顧",
+    body: "先從補水、觀察花草、溫和步行這種低壓任務開始。",
+  },
+  {
+    icon: HeartHandshake,
+    title: "陪伴互動",
+    body: "需要時再邀請家人、志工或社福單位，不把家庭關係當門票。",
+  },
+  {
+    icon: Building2,
+    title: "社區行動",
+    body: "合作單位可發布安全任務池，讓城市活動有可追溯紀錄。",
+  },
+  {
+    icon: Leaf,
+    title: "永續批次",
+    body: "真實公益成果與模擬展示分開，避免把永續做成空泛口號。",
+  },
+];
+
+export const partnerRoles = [
+  {
+    icon: Building2,
+    eyebrow: "社福／長照",
+    title: "把關需要陪伴的人",
+    body: "由可信任單位建立安全陪伴關係，避免陌生人直接接觸敏感資料。",
+  },
+  {
+    icon: Users,
+    eyebrow: "志工團體",
+    title: "把關懷變成可持續班表",
+    body: "志工可參與陪伴與活動，但權限最小化、關係可撤回。",
+  },
+  {
+    icon: HeartHandshake,
+    eyebrow: "社區組織",
+    title: "把地方活動變成任務",
+    body: "社區散步、植物觀察、補水休息都能成為低風險任務。",
+  },
+  {
+    icon: Leaf,
+    eyebrow: "企業 ESG",
+    title: "把公益從數字接回人",
+    body: "企業支持可對應公益批次，但前台會清楚標示真實與模擬。",
+  },
+];
+
+export const partnerProcess = [
+  "合作洽詢",
+  "安全審核",
+  "建立任務",
+  "陪伴／覆核",
+  "成果摘要",
+];
+
+export const routeFallbackQuests = [
+  {
+    locationName: "捷運 5 號出口",
+    title: "選擇今日舒適步調",
+    verificationMode: "SELF_CHECK",
+    growthPoints: 5,
+    safetyNote: "先確認身體狀態，不用追求速度。",
+  },
+  {
+    locationName: "百花園／噴水池",
+    title: "觀察今日最喜歡的顏色",
+    verificationMode: "SELF_CHECK",
+    growthPoints: 8,
+    safetyNote: "停留在步道邊，不靠近危險水域。",
+  },
+  {
+    locationName: "大生態池",
+    title: "安靜聆聽自然 3 分鐘",
+    verificationMode: "TIMER",
+    growthPoints: 10,
+    safetyNote: "保持距離、不餵食、不打擾動物。",
+  },
+  {
+    locationName: "落羽松觀景平台",
+    title: "觀察鳥類但不餵食",
+    verificationMode: "SELF_CHECK",
+    growthPoints: 10,
+    safetyNote: "以觀察取代接觸，保留安全距離。",
+  },
+  {
+    locationName: "露天音樂臺",
+    title: "進行 5 分鐘溫和伸展",
+    verificationMode: "TIMER",
+    growthPoints: 12,
+    safetyNote: "只做舒服幅度，感到不適就停止。",
   },
 ];
 

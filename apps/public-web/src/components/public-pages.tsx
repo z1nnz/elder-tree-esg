@@ -24,11 +24,16 @@ import {
   contactHref,
   formatRemaining,
   futureFeatures,
+  impactJourney,
   impactPrinciples,
+  partnerProcess,
+  partnerRoles,
   participationPaths,
+  productFlow,
   productHighlights,
   proofItems,
   radarMissions,
+  routeFallbackQuests,
   techFlow,
 } from "./public-data";
 import { PublicShell } from "./public-shell";
@@ -234,6 +239,25 @@ function HeroVisual() {
   );
 }
 
+function SubHeroPanel() {
+  return (
+    <div className="sub-hero-panel" aria-label="公開前台功能摘要">
+      {[
+        ["任務雷達", "限時城市任務"],
+        ["固定路線", "完整旅程體驗"],
+        ["生命樹", "任務完成成長"],
+        ["陪伴網絡", "家人／志工／機構"],
+      ].map(([title, body], index) => (
+        <div className="sub-hero-tile" key={title} data-reveal>
+          <span>{String(index + 1).padStart(2, "0")}</span>
+          <strong>{title}</strong>
+          <small>{body}</small>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function HomeHero() {
   return <SkyWorldArtHero />;
 }
@@ -252,6 +276,27 @@ function ProductCards() {
   );
 }
 
+function ProductFlow() {
+  return (
+    <section className="flow-section section-shell">
+      <div className="section-heading" data-reveal>
+        <p className="eyebrow">產品流程</p>
+        <h2>不是把人推進排行榜，而是把一次次日常照顧接成生命樹。</h2>
+      </div>
+      <div className="product-flow">
+        {productFlow.map(({ icon: Icon, step, title, body }) => (
+          <article className="flow-card" data-reveal key={title}>
+            <span>{step}</span>
+            <Icon size={24} />
+            <h3>{title}</h3>
+            <p>{body}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function ParticipationCards() {
   return (
     <div className="path-grid">
@@ -266,6 +311,56 @@ function ParticipationCards() {
         </article>
       ))}
     </div>
+  );
+}
+
+function PartnerRoleGrid() {
+  return (
+    <section className="partners-board section-shell">
+      <div className="section-heading" data-reveal>
+        <p className="eyebrow">合作角色</p>
+        <h2>不是找更多帳號，而是建立一張安全、可撤回的陪伴網。</h2>
+      </div>
+      <div className="partner-grid">
+        {partnerRoles.map(({ icon: Icon, eyebrow, title, body }) => (
+          <article className="partner-card" data-reveal key={title}>
+            <span>{eyebrow}</span>
+            <Icon size={26} />
+            <h3>{title}</h3>
+            <p>{body}</p>
+          </article>
+        ))}
+      </div>
+      <div className="partner-process" data-reveal>
+        {partnerProcess.map((item, index) => (
+          <div key={item}>
+            <b>{index + 1}</b>
+            <span>{item}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ImpactJourney() {
+  return (
+    <section className="impact-journey section-shell">
+      <div className="section-heading" data-reveal>
+        <p className="eyebrow">影響力路徑</p>
+        <h2>從一個人的日常開始，慢慢長成社區可以看見的成果。</h2>
+      </div>
+      <div className="impact-chain">
+        {impactJourney.map(({ icon: Icon, title, body }, index) => (
+          <article data-reveal key={title}>
+            <span>{String(index + 1).padStart(2, "0")}</span>
+            <Icon size={24} />
+            <h3>{title}</h3>
+            <p>{body}</p>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -331,58 +426,54 @@ function ImpactStatement() {
   );
 }
 
-function RouteMap({ routeData }: { routeData: ExplorationRouteSummary | null }) {
-  const nodes = routeData?.quests.slice(0, 5) ?? [];
+function RouteJourneyShowcase({ routeData }: { routeData: ExplorationRouteSummary | null }) {
+  const quests =
+    routeData?.quests.length
+      ? routeData.quests.slice(0, 5).map((quest) => ({
+          locationName: quest.locationName,
+          title: quest.title,
+          verificationMode: quest.verificationMode,
+          growthPoints: quest.growthPoints,
+          safetyNote: quest.safetyNote ?? "安全資訊待確認。",
+        }))
+      : routeFallbackQuests;
+
   return (
     <section className="journey section-shell">
       <div className="section-heading" data-reveal>
         <p className="eyebrow">首發路線：都市綠肺初探</p>
-        <h2>固定路線適合完整旅程，任務雷達適合城市裡的限時事件。</h2>
+        <h2>固定路線是完整旅程；任務雷達是城市裡短時間出現的小事件。</h2>
+        <p>
+          這裡不再放空白流程圖，而是直接呈現每個地標、任務、成長值與安全提醒。
+        </p>
       </div>
-      <div className="journey-map" data-reveal>
-        <svg viewBox="0 0 1000 430" aria-label="大安森林公園路線示意">
-          <rect className="city-block" x="30" y="45" width="210" height="120" rx="24" />
-          <rect className="city-block" x="280" y="30" width="180" height="150" rx="24" />
-          <rect className="city-block" x="500" y="58" width="190" height="132" rx="24" />
-          <rect className="city-block" x="735" y="40" width="210" height="142" rx="24" />
-          <rect className="city-block" x="90" y="240" width="230" height="126" rx="24" />
-          <rect className="city-block" x="390" y="245" width="230" height="112" rx="24" />
-          <rect className="city-block" x="705" y="235" width="210" height="128" rx="24" />
-          <path
-            className="route-path"
-            d="M110 320 C170 230 230 210 320 242 S470 310 520 220 S640 110 740 160 S850 245 890 120"
-          />
-          {(nodes.length ? nodes : Array.from({ length: 5 })).map((_, index) => {
-            const points = [
-              [110, 320],
-              [320, 242],
-              [520, 220],
-              [740, 160],
-              [890, 120],
-            ];
-            const [x, y] = points[index]!;
-            return (
-              <g className="map-node" key={index} transform={`translate(${x} ${y})`}>
-                <circle r="28" />
-                <text y="7" textAnchor="middle">
-                  {index + 1}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-        <div className="map-legend">
-          <span>
-            <i /> 地標任務
-          </span>
-          <span>
-            <i className="yellow" /> 完成後生命樹成長
-          </span>
-          {routeData ? (
-            <span className="route-badge">{routeData.name} 已讀取公開路線 API</span>
-          ) : (
-            <span className="route-badge">API 不可用時顯示安全靜態路線示意</span>
-          )}
+      <div className="route-journey-board" data-reveal>
+        <div className="route-summary-card">
+          <span>DAAN FOREST PARK</span>
+          <h3>{routeData?.name ?? "都市綠肺初探"}</h3>
+          <p>
+            {routeData?.description ??
+              "以大安森林公園作為第一條城市探索路線，任務以觀察、補水、聆聽與溫和伸展為主。"}
+          </p>
+          <b>
+            {routeData
+              ? `${routeData.completedQuestCount}/${routeData.totalQuestCount} 已完成`
+              : "5 個地標任務 · 2 個距離任務"}
+          </b>
+        </div>
+        <div className="route-quest-grid">
+          {quests.map((quest, index) => (
+            <article className="route-quest-card" data-reveal key={`${quest.locationName}-${quest.title}`}>
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <small>{quest.locationName}</small>
+              <h3>{quest.title}</h3>
+              <p>{quest.safetyNote}</p>
+              <div>
+                <b>{quest.verificationMode}</b>
+                <strong>+{quest.growthPoints}</strong>
+              </div>
+            </article>
+          ))}
         </div>
       </div>
     </section>
@@ -475,7 +566,7 @@ function PageHero({
             </a>
           </div>
         </div>
-        <HeroVisual />
+        <SubHeroPanel />
       </div>
     </section>
   );
@@ -489,24 +580,10 @@ export function HomePage() {
     <PublicShell>
       <main ref={root}>
         <HomeHero />
-        <ImpactStatement />
-        <section className="paths section-shell">
-          <div className="section-heading" data-reveal>
-            <p className="eyebrow">三條路，都是真正的參與</p>
-            <h2>今天想自己走，或想有人同行，都可以。</h2>
-          </div>
-          <ParticipationCards />
-        </section>
-        <section className="product section-shell">
-          <div className="section-heading" data-reveal>
-            <p className="eyebrow">科技產品型：不是普通長照 App</p>
-            <h2>地圖、任務與樹，讓照顧變成城市裡可被看見的行動。</h2>
-          </div>
-          <ProductCards />
-        </section>
         <RadarShowcase publicRadar={publicRadar} />
-        <RouteMap routeData={routeData} />
-        <TechSection />
+        <ProductFlow />
+        <RouteJourneyShowcase routeData={routeData} />
+        <ImpactStatement />
         <ActionSection />
       </main>
     </PublicShell>
@@ -524,6 +601,7 @@ export function ProductPage() {
           body="產品不是單純記錄步數，而是把低風險任務、城市探索、家庭樹與未來實體樹整理成可持續的日常體驗。"
           icon={Trees}
         />
+        <ProductFlow />
         <section className="product section-shell">
           <ProductCards />
         </section>
@@ -550,12 +628,12 @@ export function ExplorePage() {
       <main ref={root}>
         <PageHero
           eyebrow="城市探索"
-          title="讓城市像溫柔的冒險地圖。"
+          title="台北地形、任務熱區與固定路線，會在同一張大屏裡被看見。"
           body="路線適合一段完整旅程；雷達適合城市裡短時間出現的小任務。所有任務都先解鎖、再完成，不用危險競速。"
           icon={Radar}
         />
         <RadarShowcase publicRadar={publicRadar} />
-        <RouteMap routeData={routeData} />
+        <RouteJourneyShowcase routeData={routeData} />
       </main>
     </PublicShell>
   );
@@ -572,6 +650,7 @@ export function PartnersPage() {
           body="這個入口給社福、長照、志工、社區組織與願意陪伴的人。未來會以審核、權限最小化與可撤回關係作為安全底線。"
           icon={HeartHandshake}
         />
+        <PartnerRoleGrid />
         <section className="paths section-shell">
           <ParticipationCards />
         </section>
@@ -593,6 +672,7 @@ export function ImpactPage() {
           icon={Bot}
         />
         <ImpactStatement />
+        <ImpactJourney />
         <section className="impact-roadmap section-shell">
           <div className="section-heading" data-reveal>
             <p className="eyebrow">下一步功能想像</p>

@@ -20,6 +20,7 @@ import {
   DynamicDrawUsage,
   MathUtils,
   Object3D,
+  PlaneGeometry,
   RepeatWrapping,
   SRGBColorSpace,
   Shape,
@@ -684,6 +685,73 @@ const heatSpots: HeatSpot[] = [
   { position: districtCenter("中正區", 0.5), scale: 1.02, label: "陪伴", color: "#14b8a6", value: 89 },
 ];
 
+function terrainHeight(x: number, y: number) {
+  const northWestHills = Math.exp(-((x + 1.55) ** 2 / 0.82 + (y + 1.38) ** 2 / 0.72)) * 0.72;
+  const southEastHills = Math.exp(-((x - 1.18) ** 2 / 0.9 + (y - 1.15) ** 2 / 0.64)) * 0.58;
+  const southRidge = Math.exp(-((x - 0.12) ** 2 / 2.2 + (y - 1.62) ** 2 / 0.34)) * 0.42;
+  const basin = Math.exp(-(x ** 2 / 2.8 + y ** 2 / 1.8)) * 0.22;
+  const ripple = (Math.sin(x * 4.4 + y * 1.7) + Math.cos(y * 5.1 - x * 1.2)) * 0.025;
+  return Math.max(0.02, northWestHills + southEastHills + southRidge - basin + ripple + 0.08);
+}
+
+function createContourTexture() {
+  const size = 512;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext("2d")!;
+  context.clearRect(0, 0, size, size);
+  context.fillStyle = "rgba(255, 246, 218, 0.06)";
+  context.fillRect(0, 0, size, size);
+
+  for (let level = 0.12; level <= 0.72; level += 0.085) {
+    context.beginPath();
+    let started = false;
+    for (let px = 0; px <= size; px += 5) {
+      const x = (px / size - 0.5) * 5.8;
+      let bestY = 0;
+      let bestDistance = Number.POSITIVE_INFINITY;
+      for (let py = 0; py <= size; py += 5) {
+        const y = (py / size - 0.5) * 4.4;
+        const distance = Math.abs(terrainHeight(x, y) - level);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestY = py;
+        }
+      }
+      if (bestDistance < 0.035) {
+        if (!started) {
+          context.moveTo(px, bestY);
+          started = true;
+        } else {
+          context.lineTo(px, bestY);
+        }
+      } else {
+        started = false;
+      }
+    }
+    context.strokeStyle = level > 0.48 ? "rgba(142, 102, 31, .38)" : "rgba(87, 126, 82, .32)";
+    context.lineWidth = level > 0.48 ? 2.2 : 1.4;
+    context.stroke();
+  }
+
+  context.strokeStyle = "rgba(255, 255, 255, .18)";
+  context.lineWidth = 1;
+  for (let i = 0; i < 9; i += 1) {
+    const y = (i / 8) * size;
+    context.beginPath();
+    context.moveTo(0, y);
+    context.lineTo(size, y + Math.sin(i) * 18);
+    context.stroke();
+  }
+
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  texture.wrapS = RepeatWrapping;
+  texture.wrapT = RepeatWrapping;
+  return texture;
+}
+
 function shapeFromPoints(points: readonly Vec2Tuple[]) {
   const shape = new Shape();
   points.forEach(([x, y], index) => {
@@ -692,6 +760,43 @@ function shapeFromPoints(points: readonly Vec2Tuple[]) {
   });
   shape.closePath();
   return shape;
+}
+
+function TaipeiContourTerrain() {
+  const geometry = useMemo(() => {
+    const plane = new PlaneGeometry(5.8, 4.4, 72, 54);
+    const position = plane.attributes.position;
+    for (let index = 0; index < position.count; index += 1) {
+      const x = position.getX(index);
+      const y = position.getY(index);
+      position.setZ(index, terrainHeight(x, y) * 0.42);
+    }
+    position.needsUpdate = true;
+    plane.computeVertexNormals();
+    return plane;
+  }, []);
+  const contourTexture = useMemo(() => createContourTexture(), []);
+
+  return (
+    <group rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.105, 0]}>
+      <mesh geometry={geometry} receiveShadow>
+        <meshStandardMaterial
+          color="#bdd49a"
+          roughness={0.88}
+          metalness={0.02}
+          emissive="#274c32"
+          emissiveIntensity={0.035}
+        />
+      </mesh>
+      <mesh geometry={geometry} position={[0, 0, 0.018]}>
+        <meshBasicMaterial map={contourTexture} transparent opacity={0.76} depthWrite={false} />
+      </mesh>
+      <mesh position={[0, 0, -0.012]}>
+        <planeGeometry args={[5.8, 4.4, 36, 28]} />
+        <meshBasicMaterial color="#fff6de" wireframe transparent opacity={0.14} />
+      </mesh>
+    </group>
+  );
 }
 
 function HeatBloom({
@@ -856,13 +961,10 @@ function CityDataTerrain({ reduced }: { reduced: boolean }) {
         <ringGeometry args={[2.72, 3.02, 96]} />
         <meshBasicMaterial color="#f0b85d" transparent opacity={0.18} side={DoubleSide} />
       </mesh>
+      <TaipeiContourTerrain />
       {taipeiDistricts.map((district, index) => (
         <TaipeiDistrictPlate key={district.name} district={district} index={index} />
       ))}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.035, 0]}>
-        <planeGeometry args={[5.6, 4.4, 22, 16]} />
-        <meshBasicMaterial color="#5bc6d7" wireframe transparent opacity={0.12} />
-      </mesh>
       {heatSpots.slice(1).map((spot, index) => (
         <FlightLine
           key={`flight-${spot.label}`}
@@ -885,8 +987,8 @@ export function RadarMap3D() {
   return (
     <div className="radar-3d-panel" aria-label="3D 台北任務雷達示意">
       <div className="radar-3d-title">
-        <span>ELDER TREE CITY BRAIN</span>
-        <b>台北任務探索大屏</b>
+        <span>TAIPEI CONTOUR QUEST BOARD</span>
+        <b>台北等高任務大屏</b>
       </div>
       <Canvas camera={{ fov: 40, position: [0, 4.35, 5.7] }} dpr={[1, 1.5]}>
         <color attach="background" args={["#fff1dc"]} />
@@ -909,19 +1011,19 @@ export function RadarMap3D() {
         />
       </Canvas>
       <div className="radar-3d-side-panel">
-        <span>今日任務熱區</span>
-        <b>28</b>
-        <small>安全任務池 · 前景定位</small>
-        <i>+42% 城市探索活躍</i>
+        <span>公開熱區</span>
+        <b>07</b>
+        <small>任務光柱 · 等高展示</small>
+        <i>不顯示私人定位</i>
       </div>
       <div className="radar-3d-stats">
-        <span>OPEN QUESTS <b>07</b></span>
+        <span>CONTOUR <b>DTM</b></span>
         <span>SAFE RADIUS <b>150m</b></span>
-        <span>TREE ENERGY <b>1.8k</b></span>
+        <span>OPEN QUESTS <b>07</b></span>
       </div>
       <div className="radar-3d-caption">
-        <b>城市任務熱力圖</b>
-        <span>台北輪廓板塊、任務光柱與飛線，示意城市任務正在流向生命樹。</span>
+        <b>台北等高任務熱力圖</b>
+        <span>官方區界輪廓結合展示級高度場、任務光柱與飛線；公開前台不呈現私人定位。</span>
       </div>
     </div>
   );

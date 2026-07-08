@@ -35,7 +35,8 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
         <small>
           Three.js visual direction inspired by the Apache-2.0 licensed
           knight-L/sc-datav project; implementation is rewritten for this
-          Next.js public web experience.
+          Next.js public web experience. Interaction patterns are inspired by
+          React Bits and rewritten in-project.
         </small>
       </footer>
     </>

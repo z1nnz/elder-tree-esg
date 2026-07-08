@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState, type CSSProperties } from "react";
 
 const posterImage = "/images/sky-world-tree-hero.png";
-const motionVideo = "/videos/sky-world-tree-loop.mp4";
+const motionVideo = "/videos/sky-world-tree-loop-seamless.mp4";
 
 const artIslands = [
   {
@@ -102,6 +102,11 @@ export function SkyWorldArtHero() {
         alt="天空島中央有巨大世界樹，周圍漂浮著島嶼、雲海、瀑布與海洋。"
       />
       <div className="sky-video-vignette" aria-hidden="true" />
+      <div className="sky-video-particles" aria-hidden="true">
+        {Array.from({ length: 18 }, (_, index) => (
+          <i key={index} />
+        ))}
+      </div>
 
       <nav className="sky-video-hotspots" aria-label="天空島功能導覽">
         {artIslands.map((island) => {
@@ -150,6 +155,15 @@ export function SkyWorldArtHero() {
           <span>{activeData.body}</span>
         </div>
       ) : null}
+
+      <div className="sky-video-intro" aria-label="綠伴公開前台入口">
+        <span>城市探索 × 陪伴網絡 × 永續生命樹</span>
+        <strong>把照顧自己，變成一場會長出風景的冒險。</strong>
+        <div>
+          <Link href="/product">開始了解產品</Link>
+          <Link href="/partners">成為陪伴者</Link>
+        </div>
+      </div>
     </section>
   );
 }
