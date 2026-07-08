@@ -692,6 +692,10 @@ function missionForDistrict(name: string): DistrictMission {
   return districtMissions[name] ?? districtMissions["大安區"]!;
 }
 
+function districtModeLabel(mode: DistrictMission["mode"]) {
+  return mode === "TIMER" ? "計時任務" : "自我確認";
+}
+
 const taipeiDistricts: TaipeiDistrict[] = taipeiDistrictBoundaries.map((district) => ({
   ...district,
   height: districtVisuals[district.name]?.height ?? 0.22,
@@ -914,7 +918,7 @@ function DistrictHoverLabel({
         <span>{district.name}</span>
         <strong>{mission.title}</strong>
         <small>
-          {mission.mode} · +{mission.points} 成長值 · {mission.status}
+          {districtModeLabel(mission.mode)} · +{mission.points} 成長值 · {mission.status}
         </small>
       </div>
     </Html>

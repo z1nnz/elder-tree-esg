@@ -10,8 +10,8 @@ const artIslands = [
   {
     key: "explore",
     href: "/explore",
-    title: "城市探索島",
-    body: "讓城市像溫柔的冒險地圖，路線、地標與任務在安全範圍內被解鎖。",
+    title: "城市探索",
+    body: "讓城市像溫柔的冒險地圖。走近一點，任務才會亮起來。",
     x: 5,
     y: 60,
     width: 25,
@@ -21,8 +21,8 @@ const artIslands = [
   {
     key: "radar",
     href: "/explore",
-    title: "任務雷達島",
-    body: "限時任務像光點一樣出現，靠近只解鎖，完成後才讓生命樹成長。",
+    title: "任務雷達",
+    body: "光點提醒你停一下。今天也許只要喝水、看一片葉子，就很好。",
     x: 72,
     y: 42,
     width: 22,
@@ -32,8 +32,8 @@ const artIslands = [
   {
     key: "tree",
     href: "/product",
-    title: "生命樹主島",
-    body: "任務不是冷冰冰的點數，而是長成一棵看得見、會呼吸的世界樹。",
+    title: "生命樹",
+    body: "一棵樹長得慢，但它會記得每一次被照顧。",
     x: 31,
     y: 13,
     width: 39,
@@ -43,8 +43,8 @@ const artIslands = [
   {
     key: "care",
     href: "/partners",
-    title: "陪伴網絡島",
-    body: "一個人也能開始；需要時，再邀請家人、志工、社工或長照團體同行。",
+    title: "陪伴網絡",
+    body: "一個人也能開始。需要時，再讓可信任的人靠近。",
     x: 10,
     y: 26,
     width: 25,
@@ -54,8 +54,8 @@ const artIslands = [
   {
     key: "impact",
     href: "/impact",
-    title: "永續公益島",
-    body: "每次自我照顧與城市行動，都可以累積成家庭樹、社區與永續成果。",
+    title: "永續公益",
+    body: "照顧自己，也可以成為對世界溫柔的一部分。",
     x: 43,
     y: 66,
     width: 28,
@@ -157,10 +157,10 @@ export function SkyWorldArtHero() {
       ) : null}
 
       <div className="sky-video-intro" aria-label="綠伴公開前台入口">
-        <span>城市探索 × 陪伴網絡 × 永續生命樹</span>
-        <strong>把照顧自己，變成一場會長出風景的冒險。</strong>
+        <span>城市探索 × 陪伴網絡 × 生命樹</span>
+        <strong>追逐一個更願意生活的自己。</strong>
         <div>
-          <Link href="/product">開始了解產品</Link>
+          <Link href="/product">開始了解</Link>
           <Link href="/partners">成為陪伴者</Link>
         </div>
       </div>

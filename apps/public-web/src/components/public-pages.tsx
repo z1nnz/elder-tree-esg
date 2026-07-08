@@ -9,7 +9,6 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import {
   ArrowRight,
-  Bot,
   Camera,
   Footprints,
   HeartHandshake,
@@ -21,11 +20,13 @@ import {
   Trees,
 } from "lucide-react";
 import {
+  brandLines,
   contactHref,
   formatRemaining,
   futureFeatures,
   impactJourney,
   impactPrinciples,
+  pageHeroTiles,
   partnerProcess,
   partnerRoles,
   participationPaths,
@@ -211,6 +212,10 @@ function missionShowcase(publicRadar: RadarState | null) {
   );
 }
 
+function verificationLabel(mode: string) {
+  return mode === "TIMER" ? "計時任務" : "自我確認";
+}
+
 function HeroVisual() {
   return (
     <div className="hero-visual hero-visual-3d" aria-label="3D 生命樹主視覺">
@@ -242,12 +247,7 @@ function HeroVisual() {
 function SubHeroPanel() {
   return (
     <div className="sub-hero-panel" aria-label="公開前台功能摘要">
-      {[
-        ["任務雷達", "限時城市任務"],
-        ["固定路線", "完整旅程體驗"],
-        ["生命樹", "任務完成成長"],
-        ["陪伴網絡", "家人／志工／機構"],
-      ].map(([title, body], index) => (
+      {pageHeroTiles.map(([title, body], index) => (
         <div className="sub-hero-tile" key={title} data-reveal>
           <span>{String(index + 1).padStart(2, "0")}</span>
           <strong>{title}</strong>
@@ -260,6 +260,18 @@ function SubHeroPanel() {
 
 function HomeHero() {
   return <SkyWorldArtHero />;
+}
+
+function BrandLineStrip({ variant = "light" }: { variant?: "light" | "dark" }) {
+  return (
+    <section className={`brand-lines brand-lines-${variant}`} aria-label="綠伴品牌短句">
+      <div className="brand-lines-track">
+        {[...brandLines, ...brandLines].map((line, index) => (
+          <span key={`${line}-${index}`}>{line}</span>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function ProductCards() {
@@ -280,8 +292,8 @@ function ProductFlow() {
   return (
     <section className="flow-section section-shell">
       <div className="section-heading" data-reveal>
-        <p className="eyebrow">產品流程</p>
-        <h2>不是把人推進排行榜，而是把一次次日常照顧接成生命樹。</h2>
+        <p className="eyebrow">一個人如何開始</p>
+        <h2>任務陪你慢慢回到生活。</h2>
       </div>
       <div className="product-flow">
         {productFlow.map(({ icon: Icon, step, title, body }) => (
@@ -318,8 +330,8 @@ function PartnerRoleGrid() {
   return (
     <section className="partners-board section-shell">
       <div className="section-heading" data-reveal>
-        <p className="eyebrow">合作角色</p>
-        <h2>不是找更多帳號，而是建立一張安全、可撤回的陪伴網。</h2>
+        <p className="eyebrow">誰能成為陪伴網絡</p>
+        <h2>需要時，有人能安全地靠近。</h2>
       </div>
       <div className="partner-grid">
         {partnerRoles.map(({ icon: Icon, eyebrow, title, body }) => (
@@ -348,7 +360,7 @@ function ImpactJourney() {
     <section className="impact-journey section-shell">
       <div className="section-heading" data-reveal>
         <p className="eyebrow">影響力路徑</p>
-        <h2>從一個人的日常開始，慢慢長成社區可以看見的成果。</h2>
+        <h2>一個人的日常，可以慢慢長成社區看得見的成果。</h2>
       </div>
       <div className="impact-chain">
         {impactJourney.map(({ icon: Icon, title, body }, index) => (
@@ -382,7 +394,7 @@ function MissionList({ publicRadar }: { publicRadar: RadarState | null }) {
         </article>
       ))}
       <p>
-        <ShieldCheck size={15} /> 靠近只解鎖任務；完成 SELF_CHECK/TIMER 才讓生命樹成長。
+        <ShieldCheck size={15} /> 靠近只代表可以接取；完成後，生命樹才會長出新葉。
       </p>
     </div>
   );
@@ -393,11 +405,10 @@ function RadarShowcase({ publicRadar }: { publicRadar: RadarState | null }) {
     <section className="radar-showcase">
       <div className="section-shell radar-layout">
         <div className="section-heading light" data-reveal>
-          <p className="eyebrow">城市探索：任務像光點一樣長出來</p>
-          <h2>追逐一個更願意生活的自己。</h2>
+          <p className="eyebrow">城市探索</p>
+          <h2>讓城市像溫柔的冒險地圖。</h2>
           <p>
-            這版用 sc-datav 的 3D 大屏思路改寫成台北任務雷達：光點、半徑、脈衝與成長回流，
-            但任務仍由後台發布，不會把人導向危險地點。
+            任務會在台北的安全區域亮起。你走近，它才出現；你完成，它才讓生命樹長出新葉。
           </p>
         </div>
         <div className="radar-panel radar-panel-3d">
@@ -412,8 +423,8 @@ function RadarShowcase({ publicRadar }: { publicRadar: RadarState | null }) {
 function ImpactStatement() {
   return (
     <section className="statement" id="why">
-      <p data-reveal>我們不是要修理一個人。</p>
-      <h2 data-reveal>我們想讓「自主」與「有人可以找」同時存在。</h2>
+      <p data-reveal>一棵樹長得慢。</p>
+      <h2 data-reveal>但它會記得每一次被照顧。</h2>
       <div className="statement-grid">
         {impactPrinciples.map((item) => (
           <article data-reveal key={item.title}>
@@ -442,9 +453,9 @@ function RouteJourneyShowcase({ routeData }: { routeData: ExplorationRouteSummar
     <section className="journey section-shell">
       <div className="section-heading" data-reveal>
         <p className="eyebrow">首發路線：都市綠肺初探</p>
-        <h2>固定路線是完整旅程；任務雷達是城市裡短時間出現的小事件。</h2>
+        <h2>固定路線是一段旅程；任務雷達是路上忽然亮起的小事件。</h2>
         <p>
-          這裡不再放空白流程圖，而是直接呈現每個地標、任務、成長值與安全提醒。
+          先從大安森林公園開始。慢慢走、停下來看、聽一會兒自然，完成後讓樹長一點。
         </p>
       </div>
       <div className="route-journey-board" data-reveal>
@@ -469,7 +480,7 @@ function RouteJourneyShowcase({ routeData }: { routeData: ExplorationRouteSummar
               <h3>{quest.title}</h3>
               <p>{quest.safetyNote}</p>
               <div>
-                <b>{quest.verificationMode}</b>
+                <b>{verificationLabel(quest.verificationMode)}</b>
                 <strong>+{quest.growthPoints}</strong>
               </div>
             </article>
@@ -485,8 +496,8 @@ function TechSection() {
     <section className="technology">
       <div className="section-shell">
         <div className="section-heading light" data-reveal>
-          <p className="eyebrow">技術不是炫技，是把陪伴做得可靠</p>
-          <h2>手機、地圖、實體樹與營運後台，最後都要服務人的尊嚴。</h2>
+          <p className="eyebrow">技術放在後面</p>
+          <h2>我們用手機、地圖與實體樹，守住一件簡單的事：讓人被溫柔地看見。</h2>
         </div>
         <div className="tech-flow">
           {techFlow.map(({ icon: Icon, label, detail }, index) => (
@@ -517,19 +528,19 @@ function ActionSection() {
     <section className="action section-shell">
       <div className="action-copy" data-reveal>
         <p className="eyebrow">兩個入口，同一棵樹</p>
-        <h2>想先自己開始，或想一起把城市接住，都可以。</h2>
+        <h2>想先自己開始，或想一起接住城市，都可以。</h2>
       </div>
       <div className="action-grid">
         <Link href="/product">
           <Trees size={26} />
           <strong>開始使用</strong>
-          <span>給一般使用者：城市探索、任務雷達、家庭樹與生命樹。</span>
+          <span>給一般使用者：走進城市，讓今天長出一片新葉。</span>
           <ArrowRight size={22} />
         </Link>
         <a href={contactHref("綠伴合作與陪伴計畫")}>
           <HeartHandshake size={26} />
           <strong>成為合作夥伴／陪伴者</strong>
-          <span>給社福、長照、志工與社區組織：一起建立安全陪伴網。</span>
+          <span>給社福、長照、志工與社區組織：一起讓需要的人有人能靠近。</span>
           <ArrowRight size={22} />
         </a>
       </div>
@@ -559,7 +570,7 @@ function PageHero({
           <p className="hero-lead">{body}</p>
           <div className="hero-actions">
             <Link className="button primary" href="/">
-              回首頁看 3D 生命樹 <ArrowRight size={17} />
+              回首頁看世界樹 <ArrowRight size={17} />
             </Link>
             <a className="button ghost" href={contactHref("綠伴合作與陪伴計畫")}>
               聯絡合作
@@ -580,6 +591,7 @@ export function HomePage() {
     <PublicShell>
       <main ref={root}>
         <HomeHero />
+        <BrandLineStrip variant="dark" />
         <RadarShowcase publicRadar={publicRadar} />
         <ProductFlow />
         <RouteJourneyShowcase routeData={routeData} />
@@ -597,10 +609,11 @@ export function ProductPage() {
       <main ref={root}>
         <PageHero
           eyebrow="產品功能"
-          title="把任務、地圖、生命樹與陪伴做成一個循環。"
-          body="產品不是單純記錄步數，而是把低風險任務、城市探索、家庭樹與未來實體樹整理成可持續的日常體驗。"
+          title="任務陪你慢慢回到生活。"
+          body="從一杯水、一段路、一片葉子開始。綠伴把城市探索、生命樹與陪伴網絡接在一起，讓完成感留得下來。"
           icon={Trees}
         />
+        <BrandLineStrip />
         <ProductFlow />
         <section className="product section-shell">
           <ProductCards />
@@ -628,10 +641,11 @@ export function ExplorePage() {
       <main ref={root}>
         <PageHero
           eyebrow="城市探索"
-          title="台北地形、任務熱區與固定路線，會在同一張大屏裡被看見。"
-          body="路線適合一段完整旅程；雷達適合城市裡短時間出現的小任務。所有任務都先解鎖、再完成，不用危險競速。"
+          title="讓城市像溫柔的冒險地圖。"
+          body="固定路線陪你完成一段旅程；任務雷達讓城市裡的小事忽然亮起。走近，接取，完成，讓生命樹長出新葉。"
           icon={Radar}
         />
+        <BrandLineStrip />
         <RadarShowcase publicRadar={publicRadar} />
         <RouteJourneyShowcase routeData={routeData} />
       </main>
@@ -646,10 +660,11 @@ export function PartnersPage() {
       <main ref={root}>
         <PageHero
           eyebrow="合作夥伴與陪伴者"
-          title="讓沒有家人可綁定的人，也能被城市接住。"
-          body="這個入口給社福、長照、志工、社區組織與願意陪伴的人。未來會以審核、權限最小化與可撤回關係作為安全底線。"
+          title="一個人也能開始，需要時再讓陪伴靠近。"
+          body="這個入口給社福、長照、志工、社區組織與願意陪伴的人。陪伴要安全、清楚、可撤回，才不會變成新的壓力。"
           icon={HeartHandshake}
         />
+        <BrandLineStrip />
         <PartnerRoleGrid />
         <section className="paths section-shell">
           <ParticipationCards />
@@ -667,16 +682,17 @@ export function ImpactPage() {
       <main ref={root}>
         <PageHero
           eyebrow="理念與影響力"
-          title="高齡孤獨、尊嚴與永續，不該被拆成三個問題。"
-          body="綠伴想做的是一個城市共好平台：讓人願意出門、願意照顧自己、願意被陪伴，也讓每個行動可以回到一棵看得見的樹。"
-          icon={Bot}
+          title="照顧自己，也可以成為對世界溫柔的一部分。"
+          body="我們把孤獨、尊嚴、城市與永續放在同一棵樹下。每一次願意生活的瞬間，都值得被留下。"
+          icon={Leaf}
         />
+        <BrandLineStrip />
         <ImpactStatement />
         <ImpactJourney />
         <section className="impact-roadmap section-shell">
           <div className="section-heading" data-reveal>
             <p className="eyebrow">下一步功能想像</p>
-            <h2>先把產品核心做穩，再把社福媒合與實體樹接上。</h2>
+            <h2>先把日常做穩，再把陪伴、機構與實體樹慢慢接上。</h2>
           </div>
           <div className="product-grid">
             {futureFeatures.map((item) => (
