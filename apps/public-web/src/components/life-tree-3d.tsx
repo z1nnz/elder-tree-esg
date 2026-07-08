@@ -627,38 +627,137 @@ export function LifeTree3D({ variant = "card" }: { variant?: TreeVariant }) {
   );
 }
 
-const cityBlocks = [
-  { position: [-1.95, 0, -0.85] as Vec3Tuple, scale: [1.1, 0.16, 0.72] as Vec3Tuple, color: "#d6d5bc" },
-  { position: [-1.18, 0, 0.18] as Vec3Tuple, scale: [0.92, 0.2, 1.3] as Vec3Tuple, color: "#b5d39b" },
-  { position: [-0.12, 0, -0.62] as Vec3Tuple, scale: [1.18, 0.18, 0.82] as Vec3Tuple, color: "#a9c98e" },
-  { position: [0.64, 0, 0.42] as Vec3Tuple, scale: [1.34, 0.2, 1.05] as Vec3Tuple, color: "#9fc185" },
-  { position: [1.72, 0, -0.34] as Vec3Tuple, scale: [0.92, 0.17, 0.78] as Vec3Tuple, color: "#c6d6a2" },
-  { position: [1.82, 0, 0.82] as Vec3Tuple, scale: [0.72, 0.14, 0.54] as Vec3Tuple, color: "#a9c88a" },
+type Vec2Tuple = readonly [number, number];
+
+type TaipeiDistrict = {
+  name: string;
+  points: readonly Vec2Tuple[];
+  height: number;
+  color: string;
+};
+
+type HeatSpot = {
+  position: Vec3Tuple;
+  scale: number;
+  label: string;
+  color: string;
+  value: number;
+};
+
+const taipeiDistricts: TaipeiDistrict[] = [
+  {
+    name: "北投",
+    points: [[-2.75, 0.62], [-2.14, 1.38], [-1.24, 1.52], [-0.88, 0.92], [-1.18, 0.32], [-2.08, 0.18]],
+    height: 0.2,
+    color: "#d6dfc2",
+  },
+  {
+    name: "士林",
+    points: [[-1.18, 0.32], [-0.88, 0.92], [-0.24, 1.18], [0.2, 0.58], [-0.18, -0.04], [-0.98, -0.12]],
+    height: 0.26,
+    color: "#c3d9ad",
+  },
+  {
+    name: "內湖",
+    points: [[0.2, 0.58], [1.18, 0.94], [2.4, 0.62], [2.72, 0.08], [1.66, -0.18], [0.62, -0.06]],
+    height: 0.22,
+    color: "#a8c98d",
+  },
+  {
+    name: "南港",
+    points: [[1.66, -0.18], [2.72, 0.08], [2.52, -0.72], [1.82, -1.08], [1.2, -0.62]],
+    height: 0.18,
+    color: "#c8d6a0",
+  },
+  {
+    name: "松山",
+    points: [[0.62, -0.06], [1.66, -0.18], [1.2, -0.62], [0.46, -0.52], [0.24, -0.22]],
+    height: 0.25,
+    color: "#b2ce93",
+  },
+  {
+    name: "中山",
+    points: [[-0.18, -0.04], [0.62, -0.06], [0.24, -0.22], [0.08, -0.76], [-0.58, -0.62], [-0.98, -0.12]],
+    height: 0.3,
+    color: "#93bc83",
+  },
+  {
+    name: "大同",
+    points: [[-0.98, -0.12], [-0.58, -0.62], [-0.76, -1.02], [-1.28, -0.86], [-1.44, -0.36]],
+    height: 0.24,
+    color: "#b7cc91",
+  },
+  {
+    name: "萬華",
+    points: [[-1.28, -0.86], [-0.76, -1.02], [-0.92, -1.56], [-1.58, -1.34], [-1.82, -0.78]],
+    height: 0.21,
+    color: "#d2d4a6",
+  },
+  {
+    name: "中正",
+    points: [[-0.58, -0.62], [0.08, -0.76], [-0.04, -1.18], [-0.62, -1.28], [-0.76, -1.02]],
+    height: 0.28,
+    color: "#9fc185",
+  },
+  {
+    name: "大安",
+    points: [[0.08, -0.76], [0.78, -0.84], [0.62, -1.36], [-0.04, -1.18]],
+    height: 0.33,
+    color: "#8fba7e",
+  },
+  {
+    name: "信義",
+    points: [[0.46, -0.52], [1.2, -0.62], [1.08, -1.18], [0.62, -1.36], [0.78, -0.84]],
+    height: 0.31,
+    color: "#a0c385",
+  },
+  {
+    name: "文山",
+    points: [[-0.04, -1.18], [0.62, -1.36], [1.08, -1.18], [1.36, -1.9], [0.22, -2.2], [-0.82, -1.94], [-0.92, -1.56]],
+    height: 0.2,
+    color: "#d8d8a8",
+  },
 ];
 
-const heatSpots = [
-  { position: [-1.72, 0.18, -0.82] as Vec3Tuple, scale: 1.04, label: "補水", color: "#f04438" },
-  { position: [-0.95, 0.24, 0.42] as Vec3Tuple, scale: 0.82, label: "花草", color: "#ffb020" },
-  { position: [-0.12, 0.22, -0.38] as Vec3Tuple, scale: 0.94, label: "步行", color: "#ff6b21" },
-  { position: [0.78, 0.26, 0.22] as Vec3Tuple, scale: 1.12, label: "伸展", color: "#ef233c" },
-  { position: [1.48, 0.22, -0.38] as Vec3Tuple, scale: 0.78, label: "聆聽", color: "#ffbe0b" },
-  { position: [1.72, 0.2, 0.84] as Vec3Tuple, scale: 0.64, label: "觀察", color: "#fb8500" },
+const heatSpots: HeatSpot[] = [
+  { position: [-2.0, 0.34, 0.84] as Vec3Tuple, scale: 1.12, label: "補水", color: "#ff3d2e", value: 96 },
+  { position: [-0.76, 0.42, 0.34] as Vec3Tuple, scale: 0.86, label: "花草", color: "#ffb020", value: 72 },
+  { position: [-0.22, 0.46, -0.86] as Vec3Tuple, scale: 0.92, label: "步行", color: "#ff6b21", value: 81 },
+  { position: [0.62, 0.52, -1.0] as Vec3Tuple, scale: 1.2, label: "伸展", color: "#ef233c", value: 104 },
+  { position: [1.24, 0.42, -0.52] as Vec3Tuple, scale: 0.78, label: "聆聽", color: "#ffbe0b", value: 64 },
+  { position: [1.86, 0.38, 0.38] as Vec3Tuple, scale: 0.72, label: "觀察", color: "#fb8500", value: 58 },
+  { position: [0.22, 0.5, 0.36] as Vec3Tuple, scale: 1.02, label: "陪伴", color: "#14b8a6", value: 89 },
 ];
+
+function shapeFromPoints(points: readonly Vec2Tuple[]) {
+  const shape = new Shape();
+  points.forEach(([x, y], index) => {
+    if (index === 0) shape.moveTo(x, y);
+    else shape.lineTo(x, y);
+  });
+  shape.closePath();
+  return shape;
+}
 
 function HeatBloom({
   position,
   scale,
   color,
+  label,
+  value,
   index,
   reduced,
 }: {
   position: Vec3Tuple;
   scale: number;
   color: string;
+  label: string;
+  value: number;
   index: number;
   reduced: boolean;
 }) {
   const pulse = useRef<Group>(null);
+  const labelWidth = 0.28 + label.length * 0.065;
 
   useFrame(({ clock }) => {
     if (reduced || !pulse.current) return;
@@ -689,10 +788,99 @@ function HeatBloom({
         <meshBasicMaterial color="#fff7ad" transparent opacity={0.95} blending={AdditiveBlending} />
       </mesh>
       <mesh position={[0, 0.98, 0]} rotation={[0, 0, -0.2]}>
-        <planeGeometry args={[0.34, 0.13]} />
-        <meshBasicMaterial color="#fffdf7" transparent opacity={0.72} />
+        <planeGeometry args={[labelWidth, 0.16]} />
+        <meshBasicMaterial color="#fffdf7" transparent opacity={0.84} />
+      </mesh>
+      <mesh position={[0, 1.11, 0]} rotation={[0, 0, -0.2]}>
+        <planeGeometry args={[0.2 + value / 420, 0.024]} />
+        <meshBasicMaterial color={color} transparent opacity={0.92} blending={AdditiveBlending} />
       </mesh>
     </group>
+  );
+}
+
+function TaipeiDistrictPlate({ district, index }: { district: TaipeiDistrict; index: number }) {
+  const shape = useMemo(() => shapeFromPoints(district.points), [district.points]);
+  const topShape = useMemo(() => shapeFromPoints(district.points), [district.points]);
+
+  return (
+    <group>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -district.height, 0]} castShadow receiveShadow>
+        <extrudeGeometry
+          args={[
+            shape,
+            {
+              depth: district.height,
+              bevelEnabled: true,
+              bevelSize: 0.026,
+              bevelThickness: 0.018,
+              bevelSegments: 2,
+            },
+          ]}
+        />
+        <meshStandardMaterial color="#f3ead8" roughness={0.86} metalness={0.02} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02 + index * 0.002, 0]}>
+        <shapeGeometry args={[topShape]} />
+        <meshStandardMaterial
+          color={district.color}
+          roughness={0.72}
+          metalness={0.03}
+          emissive="#244d35"
+          emissiveIntensity={0.04}
+        />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.035 + index * 0.002, 0]}>
+        <shapeGeometry args={[topShape]} />
+        <meshBasicMaterial color="#fff8d5" transparent opacity={0.11} wireframe />
+      </mesh>
+    </group>
+  );
+}
+
+function FlightLine({
+  from,
+  to,
+  index,
+  reduced,
+}: {
+  from: Vec3Tuple;
+  to: Vec3Tuple;
+  index: number;
+  reduced: boolean;
+}) {
+  const follower = useRef<Group>(null);
+  const curve = useMemo(
+    () =>
+      new CatmullRomCurve3([
+        new Vector3(from[0], from[1] + 0.28, from[2]),
+        new Vector3((from[0] + to[0]) / 2, 1.08 + index * 0.035, (from[2] + to[2]) / 2),
+        new Vector3(to[0], to[1] + 0.28, to[2]),
+      ]),
+    [from, to, index],
+  );
+
+  useFrame(({ clock }) => {
+    if (reduced || !follower.current) return;
+    const progress = (clock.elapsedTime * 0.16 + index * 0.13) % 1;
+    follower.current.position.copy(curve.getPoint(progress));
+  });
+
+  return (
+    <>
+      <mesh>
+        <tubeGeometry args={[curve, 40, 0.008, 5, false]} />
+        <meshBasicMaterial color="#fff2a6" transparent opacity={0.28} blending={AdditiveBlending} />
+      </mesh>
+      <Trail width={0.08} length={5} color={new Color("#fff0a3")} attenuation={(t) => t * t}>
+        <group ref={follower} position={curve.getPoint(0)}>
+          <mesh>
+            <sphereGeometry args={[0.035, 12, 8]} />
+            <meshBasicMaterial color="#fff8b8" transparent opacity={0.86} blending={AdditiveBlending} />
+          </mesh>
+        </group>
+      </Trail>
+    </>
   );
 }
 
@@ -704,27 +892,31 @@ function CityDataTerrain({ reduced }: { reduced: boolean }) {
   });
 
   return (
-    <group ref={group} rotation={[0, -0.18, 0]} position={[0, -0.28, 0]}>
+    <group ref={group} rotation={[0, -0.18, 0]} position={[0, -0.28, 0]} scale={0.95}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.08, 0]}>
-        <circleGeometry args={[3.25, 96]} />
-        <meshBasicMaterial color="#f5d99b" transparent opacity={0.22} />
+        <circleGeometry args={[3.55, 128]} />
+        <meshBasicMaterial color="#f5d99b" transparent opacity={0.18} />
       </mesh>
-      {cityBlocks.map((block, index) => (
-        <group key={index} position={block.position}>
-          <mesh position={[0, -block.scale[1] * 0.5, 0]}>
-            <boxGeometry args={[block.scale[0], block.scale[1], block.scale[2]]} />
-            <meshStandardMaterial color="#f1ead8" roughness={0.86} />
-          </mesh>
-          <mesh position={[0, block.scale[1] * 0.08, 0]}>
-            <boxGeometry args={[block.scale[0] * 0.96, 0.035, block.scale[2] * 0.96]} />
-            <meshStandardMaterial color={block.color} roughness={0.78} />
-          </mesh>
-        </group>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.055, 0]}>
+        <ringGeometry args={[2.72, 3.02, 96]} />
+        <meshBasicMaterial color="#f0b85d" transparent opacity={0.18} side={DoubleSide} />
+      </mesh>
+      {taipeiDistricts.map((district, index) => (
+        <TaipeiDistrictPlate key={district.name} district={district} index={index} />
       ))}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.035, 0]}>
-        <planeGeometry args={[4.8, 3.2, 18, 12]} />
-        <meshBasicMaterial color="#5bc6d7" wireframe transparent opacity={0.18} />
+        <planeGeometry args={[5.6, 4.4, 22, 16]} />
+        <meshBasicMaterial color="#5bc6d7" wireframe transparent opacity={0.12} />
       </mesh>
+      {heatSpots.slice(1).map((spot, index) => (
+        <FlightLine
+          key={`flight-${spot.label}`}
+          from={heatSpots[0]!.position}
+          to={spot.position}
+          index={index}
+          reduced={reduced}
+        />
+      ))}
       {heatSpots.map((spot, index) => (
         <HeatBloom key={spot.label} {...spot} index={index} reduced={reduced} />
       ))}
@@ -741,13 +933,18 @@ export function RadarMap3D() {
         <span>ELDER TREE CITY BRAIN</span>
         <b>台北任務探索大屏</b>
       </div>
-      <Canvas camera={{ fov: 42, position: [0, 4.05, 5.45] }} dpr={[1, 1.5]}>
+      <Canvas camera={{ fov: 40, position: [0, 4.35, 5.7] }} dpr={[1, 1.5]}>
         <color attach="background" args={["#fff1dc"]} />
         <fog attach="fog" args={["#fff1dc", 7, 13]} />
-        <ambientLight intensity={0.85} />
-        <directionalLight position={[3, 5, 4]} intensity={1.85} />
-        <pointLight position={[-2.4, 2.4, 2.8]} color="#ffe2a2" intensity={1.8} />
+        <ambientLight intensity={0.96} />
+        <directionalLight position={[3, 5, 4]} intensity={2.15} />
+        <pointLight position={[-2.4, 2.4, 2.8]} color="#ffe2a2" intensity={2.2} />
         <CityDataTerrain reduced={reduced} />
+        {!reduced ? (
+          <EffectComposer multisampling={2}>
+            <Bloom luminanceThreshold={0.3} luminanceSmoothing={0.74} intensity={0.38} />
+          </EffectComposer>
+        ) : null}
         <OrbitControls
           enablePan={false}
           enableRotate={false}
@@ -760,10 +957,16 @@ export function RadarMap3D() {
         <span>今日任務熱區</span>
         <b>28</b>
         <small>安全任務池 · 前景定位</small>
+        <i>+42% 城市探索活躍</i>
+      </div>
+      <div className="radar-3d-stats">
+        <span>OPEN QUESTS <b>07</b></span>
+        <span>SAFE RADIUS <b>150m</b></span>
+        <span>TREE ENERGY <b>1.8k</b></span>
       </div>
       <div className="radar-3d-caption">
         <b>城市任務熱力圖</b>
-        <span>熱區代表任務密度，光柱代表可接取事件。</span>
+        <span>台北輪廓板塊、任務光柱與飛線，示意城市任務正在流向生命樹。</span>
       </div>
     </div>
   );
