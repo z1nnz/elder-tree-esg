@@ -53,8 +53,8 @@ const RadarMap3D = dynamic(
   },
 );
 
-const SkyWorldHero = dynamic(
-  () => import("./sky-world-hero").then((module) => module.SkyWorldHero),
+const SkyWorldArtHero = dynamic(
+  () => import("./sky-world-art-hero").then((module) => module.SkyWorldArtHero),
   {
     ssr: false,
     loading: () => <div className="tree-3d-fallback">天空島世界載入中…</div>,
@@ -235,7 +235,7 @@ function HeroVisual() {
 }
 
 function HomeHero() {
-  return <SkyWorldHero />;
+  return <SkyWorldArtHero />;
 }
 
 function ProductCards() {

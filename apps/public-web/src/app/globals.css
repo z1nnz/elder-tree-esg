@@ -111,6 +111,279 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .trust-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 14px; color: var(--muted); font-size: 11px; font-weight: 700; }
 .trust-row span { display: flex; align-items: center; gap: 7px; }
 
+.sky-video-hero {
+  position: relative;
+  min-height: 100svh;
+  overflow: hidden;
+  background: #78c8f7;
+  isolation: isolate;
+}
+.sky-video-media {
+  position: absolute;
+  inset: -2.5%;
+  width: 105%;
+  height: 105%;
+  object-fit: cover;
+  object-position: center center;
+  filter: saturate(1.04) contrast(1.02);
+}
+.sky-video-clouds,
+.sky-video-water,
+.sky-video-waterfalls,
+.sky-video-rays,
+.sky-video-leaves {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.sky-video-clouds {
+  opacity: .5;
+  filter: blur(9px);
+  mix-blend-mode: screen;
+}
+.sky-video-clouds::before,
+.sky-video-clouds::after {
+  content: "";
+  position: absolute;
+  border-radius: 999px;
+  background:
+    radial-gradient(ellipse at 15% 50%, rgba(255,255,255,.7), transparent 30%),
+    radial-gradient(ellipse at 43% 48%, rgba(255,255,255,.56), transparent 35%),
+    radial-gradient(ellipse at 72% 55%, rgba(255,255,255,.68), transparent 31%);
+}
+.sky-video-clouds-a::before {
+  left: -9%;
+  right: -8%;
+  top: 20%;
+  height: 13%;
+  opacity: .42;
+  animation: skyVideoCloudLeft 24s ease-in-out infinite alternate;
+}
+.sky-video-clouds-a::after {
+  left: -12%;
+  right: -10%;
+  bottom: 30%;
+  height: 15%;
+  animation: skyVideoCloudRight 18s ease-in-out infinite alternate;
+}
+.sky-video-clouds-b::before {
+  left: -9%;
+  right: -8%;
+  bottom: 11%;
+  height: 17%;
+  opacity: .58;
+  animation: skyVideoCloudLeft 22s ease-in-out infinite alternate-reverse;
+}
+.sky-video-clouds-b::after {
+  left: 20%;
+  right: -5%;
+  bottom: 0;
+  height: 18%;
+  opacity: .44;
+  animation: skyVideoCloudRight 26s ease-in-out infinite alternate-reverse;
+}
+.sky-video-water {
+  opacity: .25;
+  mix-blend-mode: screen;
+  clip-path: polygon(0 54%, 100% 45%, 100% 100%, 0 100%);
+  background:
+    repeating-linear-gradient(116deg, transparent 0 34px, rgba(255,255,255,.22) 36px 38px, transparent 40px 78px),
+    radial-gradient(ellipse at 14% 82%, rgba(120,240,255,.32), transparent 20%),
+    radial-gradient(ellipse at 86% 76%, rgba(120,240,255,.24), transparent 24%);
+  animation: skyVideoWater 11s linear infinite;
+}
+.sky-video-water-b {
+  opacity: .16;
+  background:
+    repeating-linear-gradient(74deg, transparent 0 46px, rgba(255,255,255,.24) 47px 49px, transparent 50px 92px),
+    radial-gradient(ellipse at 72% 87%, rgba(255,255,255,.22), transparent 17%);
+  animation-duration: 17s;
+  animation-direction: reverse;
+}
+.sky-video-waterfalls {
+  opacity: .34;
+  mix-blend-mode: screen;
+  background:
+    repeating-linear-gradient(180deg, transparent 0 18px, rgba(225,255,255,.28) 19px 23px, transparent 24px 44px),
+    linear-gradient(180deg, transparent 0 32%, rgba(255,255,255,.28) 38%, transparent 50%),
+    linear-gradient(180deg, transparent 0 43%, rgba(190,250,255,.34) 47%, transparent 58%);
+  clip-path: polygon(0 25%, 100% 18%, 100% 78%, 0 84%);
+  animation: skyVideoWaterfalls 4.8s linear infinite;
+}
+.sky-video-rays {
+  opacity: .34;
+  mix-blend-mode: screen;
+  background:
+    linear-gradient(108deg, transparent 0 39%, rgba(255,255,255,.2) 40%, transparent 49%),
+    linear-gradient(122deg, transparent 0 50%, rgba(255,255,255,.16) 51%, transparent 60%),
+    radial-gradient(circle at 51% 44%, rgba(180,244,255,.32), transparent 17%);
+  animation: skyVideoRays 7s ease-in-out infinite alternate;
+}
+.sky-video-leaves i {
+  position: absolute;
+  display: block;
+  width: 14px;
+  height: 8px;
+  border-radius: 70% 12% 70% 12%;
+  background: rgba(198, 225, 100, .52);
+  box-shadow: 0 0 10px rgba(246, 238, 126, .18);
+  animation: skyVideoLeafFloat 9s ease-in-out infinite;
+}
+.sky-video-leaves i:nth-child(1) { left: 42%; top: 17%; animation-delay: -.4s; }
+.sky-video-leaves i:nth-child(2) { left: 49%; top: 20%; animation-delay: -1.2s; }
+.sky-video-leaves i:nth-child(3) { left: 58%; top: 23%; animation-delay: -2.8s; }
+.sky-video-leaves i:nth-child(4) { left: 36%; top: 27%; animation-delay: -4.1s; }
+.sky-video-leaves i:nth-child(5) { left: 63%; top: 31%; animation-delay: -2.1s; }
+.sky-video-leaves i:nth-child(6) { left: 45%; top: 33%; animation-delay: -5.1s; }
+.sky-video-leaves i:nth-child(7) { left: 52%; top: 15%; animation-delay: -6.1s; }
+.sky-video-leaves i:nth-child(8) { left: 68%; top: 22%; animation-delay: -1.7s; }
+.sky-video-leaves i:nth-child(9) { left: 39%; top: 22%; animation-delay: -3.7s; }
+.sky-video-leaves i:nth-child(10) { left: 57%; top: 18%; animation-delay: -7.1s; }
+.sky-video-leaves i:nth-child(n+11) { display: none; }
+.sky-video-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 38%, transparent 0 42%, rgba(5, 27, 64, .08) 72%, rgba(0, 15, 45, .24) 100%),
+    linear-gradient(180deg, rgba(11, 42, 96, .08), transparent 18%, rgba(0, 38, 76, .14) 100%);
+}
+.sky-video-hotspots {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+}
+.sky-video-hotspot {
+  position: absolute;
+  left: var(--island-x);
+  top: var(--island-y);
+  width: var(--island-w);
+  height: var(--island-h);
+  border-radius: 42%;
+  outline: none;
+}
+.sky-video-hotspot.is-active,
+.sky-video-hotspot:hover,
+.sky-video-hotspot:focus-visible {
+  z-index: 8;
+}
+.sky-video-hotspot-glow {
+  position: absolute;
+  inset: 8%;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 50% 58%, rgba(235, 255, 170, .32), rgba(255,255,255,.14) 34%, transparent 68%);
+  box-shadow: 0 0 34px rgba(230, 255, 178, .22);
+  opacity: 0;
+  transform: translateY(10px) scale(.88);
+  transition: opacity .22s ease, transform .22s ease;
+}
+.sky-video-hotspot:hover .sky-video-hotspot-glow,
+.sky-video-hotspot:focus-visible .sky-video-hotspot-glow,
+.sky-video-hotspot.is-active .sky-video-hotspot-glow {
+  opacity: 1;
+  transform: translateY(-14px) scale(1.03);
+}
+.sky-video-card {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  top: 50%;
+  width: min(300px, 72vw);
+  padding: 16px 18px;
+  border: 1px solid rgba(255,255,255,.78);
+  border-radius: 22px;
+  color: var(--forest-dark);
+  background: rgba(255,253,247,.9);
+  box-shadow: 0 26px 80px rgba(8, 35, 49, .24);
+  backdrop-filter: blur(16px);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%) translateY(18px) scale(.96);
+  transition: opacity .22s ease, transform .22s ease;
+}
+.sky-video-card strong,
+.sky-video-card small {
+  display: block;
+}
+.sky-video-card strong {
+  color: var(--forest);
+  font-size: 19px;
+  letter-spacing: -.035em;
+}
+.sky-video-card small {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+.sky-video-hotspot[data-card="right"] .sky-video-card {
+  left: 96%;
+  transform: translate(0, -50%) translateY(18px) scale(.96);
+}
+.sky-video-hotspot[data-card="left"] .sky-video-card {
+  left: auto;
+  right: 96%;
+  transform: translate(0, -50%) translateY(18px) scale(.96);
+}
+.sky-video-hotspot[data-card="top"] .sky-video-card {
+  top: auto;
+  bottom: 96%;
+}
+.sky-video-hotspot[data-card="bottom"] .sky-video-card {
+  top: 96%;
+}
+.sky-video-hotspot:hover .sky-video-card,
+.sky-video-hotspot:focus-visible .sky-video-card,
+.sky-video-hotspot.is-active .sky-video-card {
+  opacity: 1;
+}
+.sky-video-hotspot:hover .sky-video-card,
+.sky-video-hotspot:focus-visible .sky-video-card,
+.sky-video-hotspot.is-active .sky-video-card,
+.sky-video-hotspot[data-card="right"]:hover .sky-video-card,
+.sky-video-hotspot[data-card="right"]:focus-visible .sky-video-card,
+.sky-video-hotspot[data-card="right"].is-active .sky-video-card,
+.sky-video-hotspot[data-card="left"]:hover .sky-video-card,
+.sky-video-hotspot[data-card="left"]:focus-visible .sky-video-card,
+.sky-video-hotspot[data-card="left"].is-active .sky-video-card {
+  transform: translate(0, -50%) translateY(0) scale(1);
+}
+.sky-video-hotspot[data-card="top"]:hover .sky-video-card,
+.sky-video-hotspot[data-card="top"]:focus-visible .sky-video-card,
+.sky-video-hotspot[data-card="top"].is-active .sky-video-card,
+.sky-video-hotspot[data-card="bottom"]:hover .sky-video-card,
+.sky-video-hotspot[data-card="bottom"]:focus-visible .sky-video-card,
+.sky-video-hotspot[data-card="bottom"].is-active .sky-video-card {
+  transform: translate(-50%, -50%) translateY(0) scale(1);
+}
+.sky-video-live-caption {
+  position: absolute;
+  z-index: 6;
+  left: 50%;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  display: none;
+  width: min(480px, calc(100% - 32px));
+  padding: 14px 16px;
+  border: 1px solid rgba(255,255,255,.62);
+  border-radius: 20px;
+  color: white;
+  background: rgba(11, 50, 72, .42);
+  box-shadow: 0 20px 70px rgba(4, 29, 50, .24);
+  backdrop-filter: blur(14px);
+  transform: translateX(-50%);
+}
+.sky-video-live-caption strong,
+.sky-video-live-caption span {
+  display: block;
+}
+.sky-video-live-caption span {
+  margin-top: 4px;
+  color: rgba(255,255,255,.82);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .sky-world-hero {
   position: relative;
   min-height: 100svh;
@@ -1076,8 +1349,84 @@ footer { padding: 46px max(24px, calc((100vw - 1180px) / 2)); display: grid; gri
 footer p { margin: 0; text-align: right; font-weight: 800; }
 footer small { grid-column: 1 / -1; color: var(--muted); }
 
+@keyframes skyCloudDrift {
+  from { transform: translate3d(-18px, 0, 0) scale(1); }
+  to { transform: translate3d(22px, -7px, 0) scale(1.03); }
+}
+
+@keyframes skyVideoCloudLeft {
+  from { transform: translate3d(-22px, 0, 0) scale(1); }
+  to { transform: translate3d(28px, -5px, 0) scale(1.03); }
+}
+
+@keyframes skyVideoCloudRight {
+  from { transform: translate3d(24px, 0, 0) scale(1.02); }
+  to { transform: translate3d(-26px, 6px, 0) scale(1); }
+}
+
+@keyframes skyVideoWater {
+  from { background-position: 0 0, 0 0, 0 0; }
+  to { background-position: 180px 0, 18px 0, -24px 0; }
+}
+
+@keyframes skyVideoWaterfalls {
+  from { background-position: 0 -90px, 0 -60px, 0 -80px; }
+  to { background-position: 0 90px, 0 80px, 0 110px; }
+}
+
+@keyframes skyVideoRays {
+  from { opacity: .22; transform: translate3d(-6px, 0, 0); }
+  to { opacity: .42; transform: translate3d(8px, -5px, 0); }
+}
+
+@keyframes skyVideoLeafFloat {
+  0% { opacity: 0; transform: translate3d(0, -8px, 0) rotate(0deg); }
+  20% { opacity: .62; }
+  100% { opacity: 0; transform: translate3d(34px, 88px, 0) rotate(160deg); }
+}
+
+@keyframes skyRayPulse {
+  from { opacity: .22; transform: translate3d(-6px, 0, 0); }
+  to { opacity: .48; transform: translate3d(8px, -5px, 0); }
+}
+
+@keyframes skyWaterFlow {
+  from { background-position: 0 0, 0 0, 0 0; transform: translate3d(-18px, 0, 0); }
+  to { background-position: 180px 0, 18px 0, -24px 0; transform: translate3d(22px, 0, 0); }
+}
+
+@keyframes skyWaterfallFlow {
+  from { background-position: 0 -90px, 0 -60px, 0 -80px; }
+  to { background-position: 0 90px, 0 80px, 0 110px; }
+}
+
+@keyframes skyCanopyBreathe {
+  from { opacity: .11; transform: translate3d(-14px, -4px, 0) scale(.98); }
+  to { opacity: .28; transform: translate3d(16px, 4px, 0) scale(1.04); }
+}
+
+@keyframes skySparkle {
+  0%, 100% { opacity: .2; transform: translateY(0) scale(.75); }
+  45% { opacity: .95; transform: translateY(-9px) scale(1.25); }
+}
+
+@keyframes skyLeafFloat {
+  0% { opacity: 0; transform: translate3d(0, -8px, 0) rotate(0deg); }
+  20% { opacity: .65; }
+  100% { opacity: 0; transform: translate3d(34px, 88px, 0) rotate(160deg); }
+}
+
 @media (max-width: 900px) {
   .site-header nav { display: none; }
+  .sky-video-media {
+    object-position: center center;
+  }
+  .sky-video-card {
+    width: min(260px, 70vw);
+    padding: 13px 15px;
+  }
+  .sky-video-card strong { font-size: 17px; }
+  .sky-video-card small { font-size: 12px; }
   .sky-world-hero { min-height: 100svh; }
   .sky-world-hud {
     top: 92px;
@@ -1138,6 +1487,23 @@ footer small { grid-column: 1 / -1; color: var(--muted); }
 @media (max-width: 600px) {
   .site-header { top: 8px; width: calc(100% - 16px); }
   .header-cta { width: 42px; height: 42px; padding: 0; font-size: 0; }
+  .sky-video-media {
+    inset: -6%;
+    width: 112%;
+    height: 112%;
+    object-position: center center;
+  }
+  .sky-video-card {
+    display: none;
+  }
+  .sky-video-live-caption {
+    display: block;
+  }
+  .sky-video-hotspot:hover .sky-video-hotspot-glow,
+  .sky-video-hotspot:focus-visible .sky-video-hotspot-glow,
+  .sky-video-hotspot.is-active .sky-video-hotspot-glow {
+    transform: translateY(-8px) scale(1.02);
+  }
   .sky-world-hero {
     min-height: 100svh;
     background:
