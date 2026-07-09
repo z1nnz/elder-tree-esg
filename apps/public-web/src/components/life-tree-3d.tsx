@@ -642,6 +642,7 @@ type TaipeiDistrict = {
 };
 
 type HeatSpot = {
+  district: TaipeiDistrictBoundary["name"];
   position: Vec3Tuple;
   scale: number;
   label: string;
@@ -658,18 +659,18 @@ type DistrictMission = {
 };
 
 const districtVisuals = {
-  北投區: { height: 0.34, color: "#b9d59a" },
-  士林區: { height: 0.42, color: "#a5ca82" },
-  內湖區: { height: 0.32, color: "#9fca8b" },
-  中山區: { height: 0.28, color: "#87bd85" },
-  大同區: { height: 0.24, color: "#bdd39a" },
-  松山區: { height: 0.26, color: "#b3cf92" },
-  南港區: { height: 0.36, color: "#bdd18f" },
-  中正區: { height: 0.3, color: "#91bd80" },
-  信義區: { height: 0.34, color: "#9fc784" },
-  萬華區: { height: 0.23, color: "#d1d39e" },
-  大安區: { height: 0.38, color: "#83b978" },
-  文山區: { height: 0.46, color: "#c5d188" },
+  北投區: { height: 0.34, color: "#9fbd76" },
+  士林區: { height: 0.42, color: "#88b366" },
+  內湖區: { height: 0.32, color: "#83b06f" },
+  中山區: { height: 0.28, color: "#70a76c" },
+  大同區: { height: 0.24, color: "#a9bb78" },
+  松山區: { height: 0.26, color: "#9ab976" },
+  南港區: { height: 0.36, color: "#a5bd72" },
+  中正區: { height: 0.3, color: "#78a668" },
+  信義區: { height: 0.34, color: "#86b16b" },
+  萬華區: { height: 0.23, color: "#babc7a" },
+  大安區: { height: 0.38, color: "#6ba764" },
+  文山區: { height: 0.46, color: "#adbb6e" },
 } satisfies Record<string, { height: number; color: string }>;
 
 const districtMissions: Record<string, DistrictMission> = {
@@ -707,11 +708,11 @@ function districtCenter(name: TaipeiDistrictBoundary["name"], lift = 0.42): Vec3
 }
 
 const heatSpots: HeatSpot[] = [
-  { position: districtCenter("北投區", 0.44), scale: 0.82, label: "補水", color: districtMissions.北投區.heat, value: 96 },
-  { position: districtCenter("內湖區", 0.48), scale: 0.68, label: "觀察", color: districtMissions.內湖區.heat, value: 58 },
-  { position: districtCenter("大安區", 0.58), scale: 0.92, label: "伸展", color: districtMissions.大安區.heat, value: 104 },
-  { position: districtCenter("南港區", 0.5), scale: 0.7, label: "呼吸", color: districtMissions.南港區.heat, value: 64 },
-  { position: districtCenter("文山區", 0.5), scale: 0.74, label: "觀鳥", color: districtMissions.文山區.heat, value: 72 },
+  { district: "北投區", position: districtCenter("北投區", 0.44), scale: 0.66, label: "補水", color: districtMissions.北投區.heat, value: 96 },
+  { district: "士林區", position: districtCenter("士林區", 0.48), scale: 0.58, label: "花草", color: districtMissions.士林區.heat, value: 58 },
+  { district: "中正區", position: districtCenter("中正區", 0.5), scale: 0.56, label: "陪伴", color: districtMissions.中正區.heat, value: 48 },
+  { district: "大安區", position: districtCenter("大安區", 0.58), scale: 0.78, label: "伸展", color: districtMissions.大安區.heat, value: 104 },
+  { district: "文山區", position: districtCenter("文山區", 0.5), scale: 0.62, label: "觀鳥", color: districtMissions.文山區.heat, value: 72 },
 ];
 
 const districtScreenHotspots = [
@@ -882,24 +883,24 @@ function HeatBloom({
   return (
     <group ref={pulse} position={position}>
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.3 * scale, 64]} />
-        <meshBasicMaterial color="#15d5c8" transparent opacity={dimmed ? 0.06 : 0.18} side={DoubleSide} depthWrite={false} />
+        <circleGeometry args={[0.26 * scale, 64]} />
+        <meshBasicMaterial color="#15d5c8" transparent opacity={dimmed ? 0.035 : 0.14} side={DoubleSide} depthWrite={false} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]}>
-        <circleGeometry args={[0.18 * scale, 64]} />
-        <meshBasicMaterial color="#ffe45e" transparent opacity={dimmed ? 0.1 : 0.34} side={DoubleSide} depthWrite={false} />
+        <circleGeometry args={[0.16 * scale, 64]} />
+        <meshBasicMaterial color="#ffe45e" transparent opacity={dimmed ? 0.07 : 0.28} side={DoubleSide} depthWrite={false} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.024, 0]}>
         <circleGeometry args={[0.08 * scale, 64]} />
-        <meshBasicMaterial color={color} transparent opacity={dimmed ? 0.24 : 0.72} side={DoubleSide} depthWrite={false} />
+        <meshBasicMaterial color={color} transparent opacity={dimmed ? 0.16 : 0.68} side={DoubleSide} depthWrite={false} />
       </mesh>
       <mesh position={[0, 0.32, 0]}>
         <cylinderGeometry args={[0.012, 0.012, 0.5, 10]} />
-        <meshBasicMaterial color="#fff0a3" transparent opacity={dimmed ? 0.12 : 0.42} blending={AdditiveBlending} depthWrite={false} />
+        <meshBasicMaterial color="#fff0a3" transparent opacity={dimmed ? 0.06 : 0.38} blending={AdditiveBlending} depthWrite={false} />
       </mesh>
       <mesh position={[0, 0.58, 0]}>
         <sphereGeometry args={[0.04, 14, 10]} />
-        <meshBasicMaterial color="#fff7ad" transparent opacity={dimmed ? 0.2 : 0.76} blending={AdditiveBlending} depthWrite={false} />
+        <meshBasicMaterial color="#fff7ad" transparent opacity={dimmed ? 0.12 : 0.72} blending={AdditiveBlending} depthWrite={false} />
       </mesh>
     </group>
   );
@@ -987,7 +988,7 @@ function TaipeiDistrictPlate({
           ]}
         />
         <meshStandardMaterial
-          color={isActive ? "#fff2c3" : "#f3ead8"}
+          color={isActive ? "#f7df9a" : "#e9d8bb"}
           roughness={0.82}
           metalness={0.02}
         />
@@ -1075,7 +1076,7 @@ function CityDataTerrain({
   });
 
   return (
-    <group ref={group} rotation={[0, Math.PI / 2 - 0.08, 0]} position={[0.02, -0.22, 0.06]} scale={[1.34, 1.06, 1.02]}>
+    <group ref={group} rotation={[0, Math.PI / 2 - 0.08, 0]} position={[0.02, -0.08, 0.02]} scale={[1.36, 1.04, 1.04]}>
       {taipeiDistricts.map((district, index) => (
         <TaipeiDistrictPlate
           key={district.name}
@@ -1086,26 +1087,39 @@ function CityDataTerrain({
         />
       ))}
       {heatSpots.map((spot, index) => (
-        <HeatBloom key={spot.label} {...spot} index={index} reduced={reduced} dimmed={Boolean(activeDistrict)} />
+        <HeatBloom
+          key={spot.label}
+          {...spot}
+          index={index}
+          reduced={reduced}
+          dimmed={Boolean(activeDistrict && activeDistrict !== spot.district)}
+        />
       ))}
     </group>
   );
 }
 
-export function RadarMap3D() {
+export function RadarMap3D({
+  activeDistrict: controlledActiveDistrict,
+  onActiveDistrictChange,
+}: {
+  activeDistrict?: string | null;
+  onActiveDistrictChange?: (name: string | null) => void;
+} = {}) {
   const reduced = useReducedMotion();
-  const [activeDistrict, setActiveDistrict] = useState<string | null>(null);
+  const [internalActiveDistrict, setInternalActiveDistrict] = useState<string | null>(null);
+  const activeDistrict = controlledActiveDistrict ?? internalActiveDistrict;
+  const setActiveDistrict = onActiveDistrictChange ?? setInternalActiveDistrict;
   const activeHotspot = districtScreenHotspots.find((hotspot) => hotspot.name === activeDistrict) ?? null;
   const activeMission = activeHotspot ? missionForDistrict(activeHotspot.name) : null;
 
   return (
     <div className="radar-3d-panel" aria-label="3D 台北任務雷達示意">
-      <Canvas camera={{ fov: 32, position: [0, 5.45, 7.1] }} dpr={[1, 1.5]}>
-        <color attach="background" args={["#fff1dc"]} />
-        <fog attach="fog" args={["#fff1dc", 7, 13]} />
-        <ambientLight intensity={0.9} />
-        <directionalLight position={[3, 5, 4]} intensity={1.72} />
-        <pointLight position={[-2.4, 2.4, 2.8]} color="#ffe2a2" intensity={1.28} />
+      <Canvas camera={{ fov: 28.5, position: [0, 5.4, 7.08] }} dpr={[1, 1.5]}>
+        <color attach="background" args={["#fff3de"]} />
+        <ambientLight intensity={0.68} />
+        <directionalLight position={[3, 5, 4]} intensity={2.05} />
+        <pointLight position={[-2.4, 2.4, 2.8]} color="#ffe2a2" intensity={0.88} />
         <CityDataTerrain
           activeDistrict={activeDistrict}
           reduced={reduced}
@@ -1113,7 +1127,7 @@ export function RadarMap3D() {
         />
         {!reduced ? (
           <EffectComposer multisampling={2}>
-            <Bloom luminanceThreshold={0.36} luminanceSmoothing={0.78} intensity={0.22} />
+            <Bloom luminanceThreshold={0.54} luminanceSmoothing={0.7} intensity={0.12} />
           </EffectComposer>
         ) : null}
         <OrbitControls

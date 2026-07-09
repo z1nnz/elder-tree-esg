@@ -282,75 +282,101 @@ function HomeHero() {
 const storySteps = [
   {
     eyebrow: "01 出門",
-    title: "先走出去，不必走很遠。",
-    body: "打開探索頁，定位只在你開始探索時工作。今天能走一小段，也算數。",
+    title: "走出去",
+    body: "不用很遠，今天先有一個願意出門的理由。",
+    district: "中正區",
+    metric: "定位開啟",
   },
   {
     eyebrow: "02 亮起",
-    title: "任務只在靠近時出現。",
-    body: "任務雷達像城市裡的光點。靠近只是解鎖，完成才會讓生命樹成長。",
+    title: "任務亮起",
+    body: "靠近只是解鎖，完成才會讓生命樹成長。",
+    district: "大安區",
+    metric: "150m 內",
   },
   {
     eyebrow: "03 完成",
-    title: "停一下，做一件小事。",
-    body: "喝水、伸展、看一片葉子。任務不是催促你變好，是陪你回到生活。",
+    title: "做一件小事",
+    body: "喝水、伸展、看一片葉子。小到不需要用力。",
+    district: "士林區",
+    metric: "+8 成長",
   },
   {
     eyebrow: "04 長葉",
-    title: "每一次完成，都長成一片新葉。",
-    body: "同一件事重送也只算一次。成長不是壓力，是被好好留下的證據。",
+    title: "長出新葉",
+    body: "同一件事重送也只算一次，成長被好好留下。",
+    district: "內湖區",
+    metric: "已保存",
   },
   {
     eyebrow: "05 靠近",
-    title: "需要時，再讓陪伴靠近。",
-    body: "家人、志工或機構只看必要摘要。陪伴是一種選擇，不是門票。",
+    title: "陪伴靠近",
+    body: "需要時，再讓家人、志工或合作單位看見必要摘要。",
+    district: "文山區",
+    metric: "可選擇",
   },
 ];
 
-function ScrollStory() {
+function InteractiveDemoShowcase() {
+  const [activeStep, setActiveStep] = useState(1);
+  const active = storySteps[activeStep] ?? storySteps[1]!;
+
   return (
-    <section className="scroll-story" aria-label="綠伴滑動故事">
-      <div className="scroll-story-viewport">
-        <div className="story-stage" aria-hidden="true">
-          <div className="story-map">
-            <span className="story-map-road" />
-            <i className="story-dot dot-one" />
-            <i className="story-dot dot-two" />
-            <i className="story-dot dot-three" />
-          </div>
-          <div className="story-phone">
+    <section className="demo-showcase section-shell" aria-label="綠伴互動產品展示">
+      <div className="demo-copy" data-reveal>
+        <p className="eyebrow">互動展示</p>
+        <h2>不用讀很多字，直接看它怎麼陪你走一段路。</h2>
+        <p>點一下步驟，任務會亮起、卡片會靠近、生命樹會長出新葉。</p>
+      </div>
+
+      <div className="demo-console" data-demo-step={activeStep} data-reveal>
+        <div className="demo-device" aria-hidden="true">
+          <div className="demo-device-top">
             <span>綠伴 Elder Tree</span>
-            <strong>任務雷達</strong>
-            <i />
-            <small>大安森林公園 · +12</small>
+            <b>{active.title}</b>
           </div>
-          <div className="story-beam" />
-          <div className="story-tree-mini">
-            <Trees size={38} />
-            <b>生命樹長出新葉</b>
+          <div className="demo-map">
+            <span className="demo-path" />
+            {storySteps.map((step, index) => (
+              <i
+                className={`demo-point demo-point-${index} ${index <= activeStep ? "is-lit" : ""}`}
+                key={step.eyebrow}
+              />
+            ))}
+            <div className="demo-player">
+              <Footprints size={20} />
+            </div>
           </div>
-          <div className="story-care">
-            <HeartHandshake size={24} />
-            <span>陪伴靠近</span>
+          <div className="demo-mission-card">
+            <span>{active.district}</span>
+            <strong>{active.title}</strong>
+            <small>{active.metric}</small>
           </div>
-          {Array.from({ length: 8 }, (_, index) => (
-            <i
-              className="story-leaf"
-              key={index}
-              style={{
-                left: `${24 + index * 7}%`,
-                transform: `rotate(${index % 2 ? -24 : 18}deg)`,
-              }}
-            />
+          <div className="demo-tree-growth">
+            <Trees size={28} />
+            <b>生命樹</b>
+            <span>新葉 +{activeStep === 0 ? 0 : activeStep * 4}</span>
+          </div>
+          {Array.from({ length: 10 }, (_, index) => (
+            <i className={`demo-leaf demo-leaf-${index}`} key={index} />
           ))}
         </div>
-        <div className="story-copy">
-          {storySteps.map((step) => (
-            <article data-reveal key={step.eyebrow}>
+
+        <div className="demo-steps" role="tablist" aria-label="產品展示步驟">
+          {storySteps.map((step, index) => (
+            <button
+              aria-selected={activeStep === index}
+              className={activeStep === index ? "is-active" : ""}
+              key={step.eyebrow}
+              onClick={() => setActiveStep(index)}
+              onMouseEnter={() => setActiveStep(index)}
+              role="tab"
+              type="button"
+            >
               <span>{step.eyebrow}</span>
-              <h2>{step.title}</h2>
+              <strong>{step.title}</strong>
               <p>{step.body}</p>
-            </article>
+            </button>
           ))}
         </div>
       </div>
@@ -472,7 +498,17 @@ function ImpactJourney() {
   );
 }
 
-function MissionList({ publicRadar }: { publicRadar: RadarState | null }) {
+const missionDistricts = ["中正區", "士林區", "大安區"] as const;
+
+function MissionList({
+  publicRadar,
+  activeDistrict,
+  onSelectDistrict,
+}: {
+  publicRadar: RadarState | null;
+  activeDistrict?: string | null;
+  onSelectDistrict?: (district: string | null) => void;
+}) {
   const handleMissionPointerMove = (event: PointerEvent<HTMLElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
     event.currentTarget.style.setProperty(
@@ -492,13 +528,21 @@ function MissionList({ publicRadar }: { publicRadar: RadarState | null }) {
         <strong>任務控制台</strong>
         <small>點選行政區或任務卡，查看任務浮起。</small>
       </div>
-      {missionShowcase(publicRadar).map(({ icon: Icon, label, distance, time, points }) => (
-        <article
-          className="mission-control-card"
-          data-reveal
+      {missionShowcase(publicRadar).map(({ icon: Icon, label, distance, time, points }, index) => {
+        const district = missionDistricts[index % missionDistricts.length];
+        const isActive = activeDistrict === district;
+        return (
+        <button
+          aria-pressed={isActive}
+          className={`mission-control-card ${isActive ? "is-active" : ""}`}
+          data-district={district}
           key={label}
+          onBlur={() => onSelectDistrict?.(null)}
+          onClick={() => onSelectDistrict?.(district)}
+          onFocus={() => onSelectDistrict?.(district)}
+          onMouseEnter={() => onSelectDistrict?.(district)}
           onPointerMove={handleMissionPointerMove}
-          tabIndex={0}
+          type="button"
         >
           <span>
             <Icon size={19} />
@@ -510,8 +554,9 @@ function MissionList({ publicRadar }: { publicRadar: RadarState | null }) {
             </small>
           </div>
           <b>{points}</b>
-        </article>
-      ))}
+        </button>
+      );
+      })}
       <p>
         <ShieldCheck size={15} /> 靠近只代表可以接取；完成後，生命樹才會長出新葉。
       </p>
@@ -520,6 +565,8 @@ function MissionList({ publicRadar }: { publicRadar: RadarState | null }) {
 }
 
 function RadarShowcase({ publicRadar }: { publicRadar: RadarState | null }) {
+  const [activeDistrict, setActiveDistrict] = useState<string | null>("大安區");
+
   return (
     <section className="radar-showcase">
       <div className="section-shell radar-layout">
@@ -531,8 +578,12 @@ function RadarShowcase({ publicRadar }: { publicRadar: RadarState | null }) {
           </p>
         </div>
         <div className="radar-panel radar-panel-3d">
-          <RadarMap3D />
-          <MissionList publicRadar={publicRadar} />
+          <RadarMap3D activeDistrict={activeDistrict} onActiveDistrictChange={setActiveDistrict} />
+          <MissionList
+            activeDistrict={activeDistrict}
+            onSelectDistrict={setActiveDistrict}
+            publicRadar={publicRadar}
+          />
         </div>
       </div>
     </section>
@@ -725,6 +776,8 @@ function ProductHeroScene() {
 }
 
 function ExploreHero({ publicRadar }: { publicRadar: RadarState | null }) {
+  const [activeDistrict, setActiveDistrict] = useState<string | null>("大安區");
+
   return (
     <section className="explore-hero">
       <div className="section-shell">
@@ -743,9 +796,13 @@ function ExploreHero({ publicRadar }: { publicRadar: RadarState | null }) {
               <span>TAIPEI LAYERED QUEST MAP</span>
               <b>12 區 · 150m 安全半徑 · 07 個公開任務</b>
             </div>
-            <RadarMap3D />
+            <RadarMap3D activeDistrict={activeDistrict} onActiveDistrictChange={setActiveDistrict} />
           </div>
-          <MissionList publicRadar={publicRadar} />
+          <MissionList
+            activeDistrict={activeDistrict}
+            onSelectDistrict={setActiveDistrict}
+            publicRadar={publicRadar}
+          />
         </div>
       </div>
     </section>
@@ -789,7 +846,7 @@ export function HomePage() {
       <main ref={root}>
         <HomeHero />
         <BrandLineStrip variant="dark" />
-        <ScrollStory />
+        <InteractiveDemoShowcase />
         <RadarShowcase publicRadar={publicRadar} />
         <ProductFlow />
         <RouteJourneyShowcase routeData={routeData} />
