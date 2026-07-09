@@ -1483,6 +1483,46 @@ button:disabled {
   background: white;
 }
 
+.template-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid rgba(15, 79, 56, 0.12);
+  border-radius: 18px;
+  background: linear-gradient(
+    135deg,
+    rgba(191, 222, 132, 0.18),
+    rgba(255, 255, 255, 0.92)
+  );
+}
+
+.template-strip span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.template-strip button {
+  padding: 8px 11px;
+  border: 1px solid rgba(15, 79, 56, 0.18);
+  border-radius: 999px;
+  background: #fffef8;
+  color: var(--forest-dark);
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(32, 67, 44, 0.08);
+}
+
+.template-strip button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .form-pair {
   grid-template-columns: 1fr 1fr;
 }
