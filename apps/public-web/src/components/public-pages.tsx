@@ -39,6 +39,11 @@ import {
   techFlow,
 } from "./public-data";
 import { PublicShell } from "./public-shell";
+import {
+  getTaipeiDistrictMission,
+  missionModeLabel,
+  taipeiMissionDistricts,
+} from "./taipei-quest-data";
 
 if (typeof window !== "undefined") {
   gsap.registerPlugin(useGSAP, ScrollTrigger);
@@ -498,7 +503,38 @@ function ImpactJourney() {
   );
 }
 
-const missionDistricts = ["中正區", "士林區", "大安區"] as const;
+function DistrictMissionDisplay({ activeDistrict }: { activeDistrict?: string | null }) {
+  const mission = getTaipeiDistrictMission(activeDistrict);
+
+  if (!activeDistrict || !mission) {
+    return (
+      <section className="mission-display is-empty" aria-live="polite">
+        <span>SELECT DISTRICT</span>
+        <strong>台北任務區</strong>
+        <p>滑到行政區，這裡會顯示可接取任務。點右側任務卡，也會同步高亮地圖板塊。</p>
+        <div>
+          <b>12 區</b>
+          <b>150m 安全半徑</b>
+          <b>不顯示私人定位</b>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="mission-display" aria-live="polite">
+      <span>CURRENT DISTRICT</span>
+      <strong>{activeDistrict}</strong>
+      <h3>{mission.title}</h3>
+      <div className="mission-display-meta">
+        <b>{missionModeLabel(mission.mode)}</b>
+        <b>+{mission.points} 成長值</b>
+        <b>{mission.status}</b>
+      </div>
+      <p>{mission.summary}</p>
+    </section>
+  );
+}
 
 function MissionList({
   publicRadar,
@@ -521,44 +557,45 @@ function MissionList({
     );
   };
 
-  return (
-    <div className="mission-list">
-      <div className="mission-console-head">
-        <span>QUEST CONSOLE</span>
-        <strong>任務控制台</strong>
-        <small>點選行政區或任務卡，查看任務浮起。</small>
-      </div>
-      {missionShowcase(publicRadar).map(({ icon: Icon, label, distance, time, points }, index) => {
-        const district = missionDistricts[index % missionDistricts.length];
-        const isActive = activeDistrict === district;
-        return (
-        <button
-          aria-pressed={isActive}
-          className={`mission-control-card ${isActive ? "is-active" : ""}`}
-          data-district={district}
-          key={label}
-          onBlur={() => onSelectDistrict?.(null)}
-          onClick={() => onSelectDistrict?.(district)}
-          onFocus={() => onSelectDistrict?.(district)}
-          onMouseEnter={() => onSelectDistrict?.(district)}
-          onPointerMove={handleMissionPointerMove}
-          type="button"
-        >
-          <span>
-            <Icon size={19} />
-          </span>
-          <div>
-            <strong>{label}</strong>
-            <small>
-              {distance} ・ {time}
-            </small>
-          </div>
-          <b>{points}</b>
-        </button>
-      );
-      })}
-      <p>
-        <ShieldCheck size={15} /> 靠近只代表可以接取；完成後，生命樹才會長出新葉。
+	  return (
+	    <div className="mission-list">
+	      <DistrictMissionDisplay activeDistrict={activeDistrict} />
+	      <div className="mission-console-head">
+	        <span>QUEST CONSOLE</span>
+	        <strong>任務控制台</strong>
+	        <small>點選任務卡，右側顯示台與 3D 板塊會同步切換。</small>
+	      </div>
+	      {missionShowcase(publicRadar).map(({ icon: Icon, label, distance, time, points }, index) => {
+	        const district = taipeiMissionDistricts[index % taipeiMissionDistricts.length];
+	        const mission = getTaipeiDistrictMission(district);
+	        const isActive = activeDistrict === district;
+	        return (
+	          <button
+	            aria-pressed={isActive}
+	            className={`mission-control-card ${isActive ? "is-active" : ""}`}
+	            data-district={district}
+	            key={`${district}-${label}`}
+	            onClick={() => onSelectDistrict?.(district)}
+	            onFocus={() => onSelectDistrict?.(district)}
+	            onMouseEnter={() => onSelectDistrict?.(district)}
+	            onPointerMove={handleMissionPointerMove}
+	            type="button"
+	          >
+	            <span>
+	              <Icon size={19} />
+	            </span>
+	            <div>
+	              <strong>{mission?.title ?? label}</strong>
+	              <small>
+	                {district} ・ {mission ? missionModeLabel(mission.mode) : distance} ・ {time}
+	              </small>
+	            </div>
+	            <b>{mission ? `+${mission.points}` : points}</b>
+	          </button>
+	        );
+	      })}
+	      <p>
+	        <ShieldCheck size={15} /> 靠近只代表可以接取；完成後，生命樹才會長出新葉。
       </p>
     </div>
   );
@@ -785,11 +822,11 @@ function ExploreHero({ publicRadar }: { publicRadar: RadarState | null }) {
           <p className="eyebrow">
             <Radar size={16} /> 城市探索
           </p>
-          <h1>讓城市像溫柔的冒險地圖。</h1>
-          <p>
-            台北行政區化成可以互動的任務板塊。滑到哪一區，任務就應該在那一區浮起來。
-          </p>
-        </div>
+	          <h1>讓城市像溫柔的冒險地圖。</h1>
+	          <p>
+	            台北行政區化成可以互動的任務板塊。滑到哪一區，右側顯示台就更新該區任務。
+	          </p>
+	        </div>
         <div className="explore-hero-board" data-reveal>
           <div className="explore-map-stage">
             <div className="explore-map-topline">

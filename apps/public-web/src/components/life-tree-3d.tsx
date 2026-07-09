@@ -30,6 +30,10 @@ import {
   type InstancedMesh,
 } from "three";
 import { taipeiDistrictBoundaries, type TaipeiDistrictBoundary } from "./taipei-district-boundaries";
+import {
+  getTaipeiDistrictMission,
+  taipeiHeatSpots,
+} from "./taipei-quest-data";
 
 const leafShape = new Shape();
 leafShape.moveTo(0, 0.16);
@@ -650,14 +654,6 @@ type HeatSpot = {
   value: number;
 };
 
-type DistrictMission = {
-  title: string;
-  mode: "SELF_CHECK" | "TIMER";
-  points: number;
-  status: string;
-  heat: string;
-};
-
 const districtVisuals = {
   北投區: { height: 0.34, color: "#9fbd76" },
   士林區: { height: 0.42, color: "#88b366" },
@@ -673,29 +669,6 @@ const districtVisuals = {
   文山區: { height: 0.46, color: "#adbb6e" },
 } satisfies Record<string, { height: number; color: string }>;
 
-const districtMissions: Record<string, DistrictMission> = {
-  北投區: { title: "補水與坡道路線", mode: "SELF_CHECK", points: 8, status: "可發布", heat: "#ff3d2e" },
-  士林區: { title: "花草觀察任務", mode: "SELF_CHECK", points: 10, status: "熱區", heat: "#ffb020" },
-  內湖區: { title: "湖畔安靜聆聽", mode: "TIMER", points: 12, status: "計時", heat: "#fb8500" },
-  中山區: { title: "街區溫和步行", mode: "SELF_CHECK", points: 7, status: "可接取", heat: "#ff6b21" },
-  大同區: { title: "老街慢行觀察", mode: "SELF_CHECK", points: 6, status: "待上架", heat: "#ffd166" },
-  松山區: { title: "河濱伸展 3 分鐘", mode: "TIMER", points: 11, status: "計時", heat: "#ffbe0b" },
-  南港區: { title: "綠帶呼吸練習", mode: "TIMER", points: 12, status: "熱區", heat: "#ffb020" },
-  中正區: { title: "陪伴通話提醒", mode: "SELF_CHECK", points: 9, status: "可接取", heat: "#14b8a6" },
-  信義區: { title: "安全地標打卡", mode: "SELF_CHECK", points: 9, status: "可接取", heat: "#ffb020" },
-  萬華區: { title: "市場補水休息", mode: "SELF_CHECK", points: 7, status: "可發布", heat: "#ffd166" },
-  大安區: { title: "大安森林公園伸展", mode: "TIMER", points: 12, status: "首發", heat: "#ef233c" },
-  文山區: { title: "步道鳥類觀察", mode: "SELF_CHECK", points: 10, status: "熱區", heat: "#fb8500" },
-};
-
-function missionForDistrict(name: string): DistrictMission {
-  return districtMissions[name] ?? districtMissions["大安區"]!;
-}
-
-function districtModeLabel(mode: DistrictMission["mode"]) {
-  return mode === "TIMER" ? "計時任務" : "自我確認";
-}
-
 const taipeiDistricts: TaipeiDistrict[] = taipeiDistrictBoundaries.map((district) => ({
   ...district,
   height: districtVisuals[district.name]?.height ?? 0.22,
@@ -707,13 +680,11 @@ function districtCenter(name: TaipeiDistrictBoundary["name"], lift = 0.42): Vec3
   return district ? [district.center[0], lift, district.center[1]] : [0, lift, 0];
 }
 
-const heatSpots: HeatSpot[] = [
-  { district: "北投區", position: districtCenter("北投區", 0.44), scale: 0.66, label: "補水", color: districtMissions.北投區.heat, value: 96 },
-  { district: "士林區", position: districtCenter("士林區", 0.48), scale: 0.58, label: "花草", color: districtMissions.士林區.heat, value: 58 },
-  { district: "中正區", position: districtCenter("中正區", 0.5), scale: 0.56, label: "陪伴", color: districtMissions.中正區.heat, value: 48 },
-  { district: "大安區", position: districtCenter("大安區", 0.58), scale: 0.78, label: "伸展", color: districtMissions.大安區.heat, value: 104 },
-  { district: "文山區", position: districtCenter("文山區", 0.5), scale: 0.62, label: "觀鳥", color: districtMissions.文山區.heat, value: 72 },
-];
+const heatSpots: HeatSpot[] = taipeiHeatSpots.map((spot) => ({
+  ...spot,
+  position: districtCenter(spot.district, spot.lift),
+  color: getTaipeiDistrictMission(spot.district)?.heat ?? "#ffb020",
+}));
 
 const districtScreenHotspots = [
   { name: "北投區", left: 72, top: 32, width: 19, height: 18 },
@@ -917,11 +888,11 @@ function TaipeiDistrictPlate({
   activeDistrict: string | null;
   setActiveDistrict: (name: string | null) => void;
 }) {
-  const shape = useMemo(() => shapeFromPoints(district.points), [district.points]);
-  const topShape = useMemo(() => shapeFromPoints(district.points), [district.points]);
-  const group = useRef<Group>(null);
-  const mission = missionForDistrict(district.name);
-  const isActive = activeDistrict === district.name;
+	  const shape = useMemo(() => shapeFromPoints(district.points), [district.points]);
+	  const topShape = useMemo(() => shapeFromPoints(district.points), [district.points]);
+	  const group = useRef<Group>(null);
+	  const mission = getTaipeiDistrictMission(district.name);
+	  const isActive = activeDistrict === district.name;
 
   useFrame(() => {
     if (!group.current) return;
@@ -996,22 +967,22 @@ function TaipeiDistrictPlate({
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02 + index * 0.002, 0]}>
         <shapeGeometry args={[topShape]} />
         <meshStandardMaterial
-          color={isActive ? "#dffc78" : district.color}
-          roughness={0.72}
-          metalness={0.03}
-          emissive={isActive ? mission.heat : "#244d35"}
-          emissiveIntensity={isActive ? 0.18 : 0.045}
-        />
-      </mesh>
+	          color={isActive ? "#dffc78" : district.color}
+	          roughness={0.72}
+	          metalness={0.03}
+	          emissive={isActive ? mission?.heat ?? "#ffb020" : "#244d35"}
+	          emissiveIntensity={isActive ? 0.18 : 0.045}
+	        />
+	      </mesh>
       <mesh
         position={[district.center[0], 0.09, district.center[1]]}
         rotation={[-Math.PI / 2, 0, 0]}
       >
-        <circleGeometry args={[isActive ? 0.26 : 0.16, 48]} />
-        <meshBasicMaterial color={mission.heat} transparent opacity={isActive ? 0.28 : 0.08} blending={AdditiveBlending} depthWrite={false} />
-      </mesh>
-    </group>
-  );
+	        <circleGeometry args={[isActive ? 0.26 : 0.16, 48]} />
+	        <meshBasicMaterial color={mission?.heat ?? "#ffb020"} transparent opacity={isActive ? 0.28 : 0.08} blending={AdditiveBlending} depthWrite={false} />
+	      </mesh>
+	    </group>
+	  );
 }
 
 function FlightLine({
@@ -1109,13 +1080,11 @@ export function RadarMap3D({
   onActiveDistrictChange?: (name: string | null) => void;
 } = {}) {
   const reduced = useReducedMotion();
-  const [internalActiveDistrict, setInternalActiveDistrict] = useState<string | null>(null);
-  const activeDistrict = controlledActiveDistrict ?? internalActiveDistrict;
-  const setActiveDistrict = onActiveDistrictChange ?? setInternalActiveDistrict;
-  const activeHotspot = districtScreenHotspots.find((hotspot) => hotspot.name === activeDistrict) ?? null;
-  const activeMission = activeHotspot ? missionForDistrict(activeHotspot.name) : null;
+	  const [internalActiveDistrict, setInternalActiveDistrict] = useState<string | null>(null);
+	  const activeDistrict = controlledActiveDistrict ?? internalActiveDistrict;
+	  const setActiveDistrict = onActiveDistrictChange ?? setInternalActiveDistrict;
 
-  return (
+	  return (
     <div className="radar-3d-panel" aria-label="3D 台北任務雷達示意">
       <Canvas camera={{ fov: 28.5, position: [0, 5.4, 7.08] }} dpr={[1, 1.5]}>
         <color attach="background" args={["#fff3de"]} />
@@ -1140,14 +1109,14 @@ export function RadarMap3D({
           minPolarAngle={MathUtils.degToRad(48)}
         />
       </Canvas>
-      <div className="district-screen-hotspots" aria-label="台北行政區互動熱區">
-        {districtScreenHotspots.map((hotspot) => {
-          const mission = missionForDistrict(hotspot.name);
-          return (
-            <button
-              aria-label={`${hotspot.name}：${mission.title}`}
-              className="district-screen-hotspot"
-              key={hotspot.name}
+	      <div className="district-screen-hotspots" aria-label="台北行政區互動熱區">
+	        {districtScreenHotspots.map((hotspot) => {
+	          const mission = getTaipeiDistrictMission(hotspot.name);
+	          return (
+	            <button
+	              aria-label={`${hotspot.name}：${mission?.title ?? "任務顯示"}`}
+	              className="district-screen-hotspot"
+	              key={hotspot.name}
               onBlur={() => setActiveDistrict(null)}
               onFocus={() => setActiveDistrict(hotspot.name)}
               onClick={() => setActiveDistrict(hotspot.name)}
@@ -1161,26 +1130,11 @@ export function RadarMap3D({
                 "--district-width": `${hotspot.width}%`,
                 "--district-height": `${hotspot.height}%`,
               } as CSSProperties}
-              type="button"
-            />
-          );
-        })}
-        {activeHotspot && activeMission ? (
-          <div
-            className="district-screen-label"
-            style={{
-              "--district-left": `${activeHotspot.left + activeHotspot.width / 2}%`,
-              "--district-top": `${Math.max(12, activeHotspot.top - 2)}%`,
-            } as CSSProperties}
-          >
-            <span>{activeHotspot.name}</span>
-            <strong>{activeMission.title}</strong>
-            <small>
-              {districtModeLabel(activeMission.mode)} · +{activeMission.points} 成長值 · {activeMission.status}
-            </small>
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
+	              type="button"
+	            />
+	          );
+	        })}
+	      </div>
+	    </div>
+	  );
 }
