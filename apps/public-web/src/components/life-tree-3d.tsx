@@ -1070,13 +1070,15 @@ function CityDataTerrain({
   setActiveDistrict: (name: string | null) => void;
 }) {
   const group = useRef<Group>(null);
+  const verticalLift = 0.22;
+
   useFrame(({ clock }) => {
     if (reduced || !group.current) return;
-    group.current.position.y = Math.sin(clock.elapsedTime * 0.85) * 0.025;
+    group.current.position.y = verticalLift + Math.sin(clock.elapsedTime * 0.85) * 0.025;
   });
 
   return (
-    <group ref={group} rotation={[0, Math.PI / 2 - 0.08, 0]} position={[0.02, -0.08, 0.02]} scale={[1.36, 1.04, 1.04]}>
+    <group ref={group} rotation={[0, Math.PI / 2 - 0.08, 0]} position={[0.02, verticalLift, 0.02]} scale={[1.36, 1.04, 1.04]}>
       {taipeiDistricts.map((district, index) => (
         <TaipeiDistrictPlate
           key={district.name}

@@ -1255,7 +1255,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 .radar-3d-panel {
   position: relative;
-  min-height: 680px;
+  min-height: 740px;
   width: 100%;
   overflow: hidden;
   border: 1px solid rgba(255, 212, 92, .38);
@@ -2648,7 +2648,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .explore-hero-board { grid-template-columns: minmax(0, 1fr) 320px; }
 .explore-hero-board .radar-3d-panel,
 .radar-panel-3d .radar-3d-panel {
-  min-height: min(74svh, 760px);
+  min-height: min(82svh, 860px);
 }
 .radar-panel-3d { grid-template-columns: minmax(760px, 1fr) 320px; }
 .mission-list { gap: 14px; }
