@@ -326,7 +326,10 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
     final pointQuests = controller.exploration.quests
         .where((quest) => quest.latitude != null && quest.longitude != null)
         .toList();
-    final radarMissions = controller.radar.missions;
+    final radarMissionViews = controller.radarMissionViews;
+    final radarMissions = radarMissionViews
+        .map((view) => view.mission)
+        .toList();
     final mapPresentation = explorationMapPresentation(
       _mapMode,
       streetStyleUrl: ExplorationScreen.mapStyleUrl,
@@ -336,11 +339,12 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
         : route.completedQuestCount / route.totalQuestCount;
     final sessionDistance =
         controller.exploration.activeSession?.distanceMeters ?? 0;
-    final featuredMission = _featuredRadarMission(radarMissions);
+    final featuredMission = controller.featuredRadarMissionView;
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 30),
       children: [
         _ExplorationHeroCard(
+          contextModel: controller.context,
           route: route,
           progress: routeProgress,
           active: controller.exploring,
@@ -348,6 +352,8 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
           unlockedCount: radarMissions
               .where((mission) => mission.status == 'UNLOCKED')
               .length,
+          tree: controller.tree,
+          locationStatus: controller.explorationLocationStatus,
         ),
         const SizedBox(height: 14),
         Container(
@@ -404,6 +410,17 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
                             child: _RadarBeacon(mission: mission),
                           ),
                         ),
+                        if (controller.latestLatitude != null &&
+                            controller.latestLongitude != null)
+                          Marker(
+                            point: Geographic(
+                              lon: controller.latestLongitude!,
+                              lat: controller.latestLatitude!,
+                            ),
+                            size: const Size(72, 86),
+                            alignment: Alignment.bottomCenter,
+                            child: const _ExplorerAvatar(),
+                          ),
                       ],
                     ),
                     const MapControlButtons(showTrackLocation: true),
@@ -425,12 +442,13 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
                     bottom: 92,
                     child: _AdventureMapHint(),
                   ),
-                const Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 124,
-                  child: IgnorePointer(child: _ExplorerAvatar()),
-                ),
+                if (controller.latestLatitude == null)
+                  const Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 124,
+                    child: IgnorePointer(child: _ExplorerAvatar()),
+                  ),
                 Positioned(
                   left: 14,
                   right: 14,
@@ -439,6 +457,8 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
                     distanceMeters: sessionDistance,
                     exploring: controller.exploring,
                     hasSession: controller.exploration.activeSession != null,
+                    sendingLocation: controller.sendingLocation,
+                    locationStatus: controller.explorationLocationStatus,
                     mission: featuredMission,
                     onPressed: controller.exploring
                         ? controller.stopExploration
@@ -454,23 +474,27 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
           icon: Icons.shield_outlined,
           text: '只在探索頁開啟定位。完成任務會讓生命樹成長；重送不會重複增加成長值。',
         ),
+        if (controller.lastGrowthAwardPoints != null) ...[
+          const SizedBox(height: 10),
+          _GrowthCelebrationBand(
+            title: controller.lastGrowthAwardTitle ?? '城市任務',
+            points: controller.lastGrowthAwardPoints!,
+          ),
+        ],
         const SizedBox(height: 8),
         const _SectionTitle(title: '任務雷達', subtitle: '靠近光點後接取任務，完成後生命樹長出新葉'),
         const SizedBox(height: 10),
-        if (radarMissions.isEmpty)
+        if (radarMissionViews.isEmpty)
           const _EmptyBlock(
             icon: Icons.radar_rounded,
             title: '目前沒有雷達任務',
             text: '營運單位發布城市任務後，會在這裡顯示剩餘時間與接取半徑。',
           )
         else
-          ...radarMissions.map(
-            (mission) => Padding(
+          ...radarMissionViews.map(
+            (view) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: _RadarMissionCard(
-                mission: mission,
-                controller: controller,
-              ),
+              child: _RadarMissionCard(view: view, controller: controller),
             ),
           ),
         const SizedBox(height: 8),
@@ -494,36 +518,32 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
   }
 }
 
-RadarMissionModel? _featuredRadarMission(List<RadarMissionModel> missions) {
-  if (missions.isEmpty) return null;
-  return missions.firstWhere(
-    (mission) => mission.status == 'UNLOCKED',
-    orElse: () => missions.firstWhere(
-      (mission) => mission.status == 'LOCKED',
-      orElse: () => missions.first,
-    ),
-  );
-}
-
 class _ExplorationHeroCard extends StatelessWidget {
   const _ExplorationHeroCard({
+    required this.contextModel,
     required this.route,
     required this.progress,
     required this.active,
     required this.radarCount,
     required this.unlockedCount,
+    required this.tree,
+    required this.locationStatus,
   });
 
+  final AppContextModel? contextModel;
   final ExplorationRouteModel? route;
   final double progress;
   final bool active;
   final int radarCount;
   final int unlockedCount;
+  final TreeSummary tree;
+  final String locationStatus;
 
   @override
   Widget build(BuildContext context) {
     final routeName = route?.name ?? '台北城市任務雷達';
-    final badgeName = route?.badgeName ?? '今日綠伴徽章';
+    final householdName =
+        contextModel?.activeHousehold.name ?? tree.householdName;
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -592,6 +612,18 @@ class _ExplorationHeroCard extends StatelessWidget {
                             ),
                           ),
                         ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            householdName,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Color(0xFF536159),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 7),
@@ -639,9 +671,9 @@ class _ExplorationHeroCard extends StatelessWidget {
               const SizedBox(width: 9),
               Expanded(
                 child: _AdventureStatPill(
-                  icon: Icons.workspace_premium_rounded,
-                  label: '徽章',
-                  value: badgeName,
+                  icon: Icons.energy_savings_leaf_rounded,
+                  label: '生命樹',
+                  value: '+${tree.growthPoints}',
                 ),
               ),
             ],
@@ -663,6 +695,8 @@ class _ExplorationHeroCard extends StatelessWidget {
               ),
             ),
           ],
+          const SizedBox(height: 12),
+          _InlineStatusBar(active: active, text: locationStatus),
         ],
       ),
     );
@@ -715,6 +749,47 @@ class _AdventureStatPill extends StatelessWidget {
   }
 }
 
+class _InlineStatusBar extends StatelessWidget {
+  const _InlineStatusBar({required this.active, required this.text});
+
+  final bool active;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: active
+            ? forestDark.withValues(alpha: 0.9)
+            : Colors.white.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            active ? Icons.sensors_rounded : Icons.info_outline_rounded,
+            color: active ? lime : forest,
+            size: 18,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: active ? Colors.white : forestDark,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AdventureMapOverlay extends StatelessWidget {
   const _AdventureMapOverlay();
 
@@ -743,6 +818,8 @@ class _ExplorationStartPanel extends StatelessWidget {
     required this.distanceMeters,
     required this.exploring,
     required this.hasSession,
+    required this.sendingLocation,
+    required this.locationStatus,
     required this.mission,
     required this.onPressed,
   });
@@ -750,7 +827,9 @@ class _ExplorationStartPanel extends StatelessWidget {
   final int distanceMeters;
   final bool exploring;
   final bool hasSession;
-  final RadarMissionModel? mission;
+  final bool sendingLocation;
+  final String locationStatus;
+  final RadarMissionViewState? mission;
   final VoidCallback onPressed;
 
   @override
@@ -778,7 +857,11 @@ class _ExplorationStartPanel extends StatelessWidget {
               color: exploring ? forestDark : const Color(0xFFEAF5DE),
             ),
             child: Icon(
-              exploring ? Icons.directions_walk_rounded : Icons.spa_rounded,
+              sendingLocation
+                  ? Icons.radar_rounded
+                  : exploring
+                  ? Icons.directions_walk_rounded
+                  : Icons.spa_rounded,
               color: exploring ? lime : forest,
             ),
           ),
@@ -788,7 +871,9 @@ class _ExplorationStartPanel extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '$distanceMeters 公尺',
+                  mission == null
+                      ? '$distanceMeters 公尺'
+                      : mission!.distanceLabel,
                   style: const TextStyle(
                     fontSize: 21,
                     fontWeight: FontWeight.w900,
@@ -797,9 +882,9 @@ class _ExplorationStartPanel extends StatelessWidget {
                 Text(
                   mission == null
                       ? hasSession
-                            ? '伺服器計算距離，生命樹等待成長'
+                            ? '伺服器計算距離 · $locationStatus'
                             : '按下開始後，附近任務光點會被偵測'
-                      : '${mission!.title} · ${_radarActionText(mission!.status)}',
+                      : '${mission!.mission.title} · ${_radarViewActionText(mission!)}',
                   style: const TextStyle(
                     color: Color(0xFF68746D),
                     fontSize: 12,
@@ -815,6 +900,85 @@ class _ExplorationStartPanel extends StatelessWidget {
               exploring ? Icons.pause_rounded : Icons.play_arrow_rounded,
             ),
             label: Text(exploring ? '暫停' : '開始'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GrowthCelebrationBand extends StatelessWidget {
+  const _GrowthCelebrationBand({required this.title, required this.points});
+
+  final String title;
+  final int points;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF113F2B), Color(0xFF6B8E23)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: forest.withValues(alpha: 0.24),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.84, end: 1),
+            duration: const Duration(milliseconds: 520),
+            curve: Curves.elasticOut,
+            builder: (context, scale, child) =>
+                Transform.scale(scale: scale, child: child),
+            child: Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: lime,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: lime.withValues(alpha: 0.46),
+                    blurRadius: 24,
+                    spreadRadius: 3,
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.eco_rounded, color: forestDark),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '生命樹長出新葉 +$points',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.78),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1135,9 +1299,9 @@ class _RadarBeacon extends StatelessWidget {
 }
 
 class _RadarMissionCard extends StatefulWidget {
-  const _RadarMissionCard({required this.mission, required this.controller});
+  const _RadarMissionCard({required this.view, required this.controller});
 
-  final RadarMissionModel mission;
+  final RadarMissionViewState view;
   final AppController controller;
 
   @override
@@ -1148,7 +1312,8 @@ class _RadarMissionCardState extends State<_RadarMissionCard> {
   Timer? _timer;
   DateTime _now = DateTime.now();
 
-  RadarMissionModel get mission => widget.mission;
+  RadarMissionViewState get view => widget.view;
+  RadarMissionModel get mission => widget.view.mission;
   AppController get controller => widget.controller;
 
   @override
@@ -1160,9 +1325,9 @@ class _RadarMissionCardState extends State<_RadarMissionCard> {
   @override
   void didUpdateWidget(covariant _RadarMissionCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.mission.id != widget.mission.id ||
-        oldWidget.mission.status != widget.mission.status ||
-        oldWidget.mission.unlockedAt != widget.mission.unlockedAt) {
+    if (oldWidget.view.mission.id != widget.view.mission.id ||
+        oldWidget.view.mission.status != widget.view.mission.status ||
+        oldWidget.view.mission.unlockedAt != widget.view.mission.unlockedAt) {
       _syncTimer();
     }
   }
@@ -1286,10 +1451,7 @@ class _RadarMissionCardState extends State<_RadarMissionCard> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                _InfoPill(
-                  icon: Icons.radar_rounded,
-                  label: '${mission.radiusMeters}m 內接取',
-                ),
+                _InfoPill(icon: Icons.radar_rounded, label: view.distanceLabel),
                 _InfoPill(
                   icon: Icons.timer_outlined,
                   label:
@@ -1307,6 +1469,15 @@ class _RadarMissionCardState extends State<_RadarMissionCard> {
                       ? '計時任務'
                       : '自我確認',
                 ),
+                if (view.distanceMeters != null && !mission.isCompleted)
+                  _InfoPill(
+                    icon: view.insideRadius
+                        ? Icons.radio_button_checked_rounded
+                        : Icons.near_me_outlined,
+                    label: view.insideRadius
+                        ? '可接取範圍內'
+                        : '半徑 ${mission.radiusMeters}m',
+                  ),
                 _InfoPill(
                   icon: Icons.energy_savings_leaf_outlined,
                   label: '生命樹 +${mission.growthPoints}',
@@ -1375,7 +1546,7 @@ class _RadarMissionCardState extends State<_RadarMissionCard> {
                             ? Icons.event_busy_rounded
                             : Icons.location_searching_rounded,
                       ),
-                      label: Text(_radarActionText(mission.status)),
+                      label: Text(_radarViewActionText(view)),
                     ),
             ),
           ],
@@ -2643,6 +2814,19 @@ String _radarActionText(String status) => switch (status) {
   'EXPIRED' => '任務已結束',
   _ => '走進半徑後可接取',
 };
+
+String _radarViewActionText(RadarMissionViewState view) {
+  if (view.canComplete) return '可完成，生命樹會長出新葉';
+  if (view.mission.status == 'UNLOCKED' &&
+      view.timerRemaining > Duration.zero) {
+    return '計時中，還需 ${_formatDuration(view.timerRemaining)}';
+  }
+  if (view.canUnlock) return '已進入半徑，等待後端解鎖';
+  if (view.mission.status == 'LOCKED' && view.distanceMeters != null) {
+    return '再靠近一些即可接取';
+  }
+  return _radarActionText(view.mission.status);
+}
 
 IconData _radarIcon(RadarMissionModel mission) {
   if (mission.status == 'COMPLETED') return Icons.check_rounded;

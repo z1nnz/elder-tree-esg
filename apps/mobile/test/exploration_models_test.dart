@@ -60,10 +60,7 @@ void main() {
         'startedAt': null,
         'minimumSeconds': null,
         'dueAt': null,
-        'capability': {
-          'enabled': false,
-          'reason': 'BLAZE_REQUIRED',
-        },
+        'capability': {'enabled': false, 'reason': 'BLAZE_REQUIRED'},
       });
       final radar = RadarStateModel.fromJson({
         'generatedAt': '2026-07-07T12:00:00.000Z',
@@ -102,4 +99,41 @@ void main() {
       expect(radar.missions.single.growthPoints, 8);
     },
   );
+
+  test('derives radar timer completion from unlock time', () {
+    final mission = RadarMissionModel.fromJson({
+      'id': 'timer-radar',
+      'title': '三分鐘慢呼吸',
+      'description': '停下來慢慢呼吸。',
+      'category': 'WELLNESS',
+      'tag': '慢呼吸',
+      'latitude': 25.04236,
+      'longitude': 121.51542,
+      'radiusMeters': 90,
+      'startsAt': '2026-07-07T08:00:00.000Z',
+      'endsAt': '2026-07-07T10:00:00.000Z',
+      'remainingSeconds': 3600,
+      'verificationMode': 'TIMER',
+      'minimumSeconds': 180,
+      'growthPoints': 10,
+      'badgeName': null,
+      'publicationStatus': 'PUBLISHED',
+      'status': 'UNLOCKED',
+      'unlockedAt': '2026-07-07T09:00:00.000Z',
+      'completedAt': null,
+    });
+
+    expect(
+      mission.timerRemainingAt(DateTime.parse('2026-07-07T09:02:59.000Z')),
+      const Duration(seconds: 1),
+    );
+    expect(
+      mission.canCompleteAt(DateTime.parse('2026-07-07T09:02:59.000Z')),
+      isFalse,
+    );
+    expect(
+      mission.canCompleteAt(DateTime.parse('2026-07-07T09:03:00.000Z')),
+      isTrue,
+    );
+  });
 }

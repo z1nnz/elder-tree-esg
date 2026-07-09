@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { VerificationMode } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { PrismaService } from "../database/prisma.service";
 import type { ClockService } from "../time/clock.service";
@@ -774,6 +775,15 @@ describeWithDatabase("PersistentStoreService", () => {
           occurredAt: now.toISOString(),
         }),
       ).rejects.toThrow("inside the mission radius");
+      await expect(
+        radarStore.unlockRadarMission(radarUid, mission.id, {
+          eventKey: `radar-blurry-${randomUUID()}`,
+          latitude: 25.04411,
+          longitude: 121.52944,
+          accuracyMeters: 51,
+          occurredAt: now.toISOString(),
+        }),
+      ).rejects.toThrow("within 50 meters");
 
       const unlocked = await radarStore.unlockRadarMission(radarUid, mission.id, {
         eventKey: `radar-near-${randomUUID()}`,
@@ -829,6 +839,29 @@ describeWithDatabase("PersistentStoreService", () => {
     },
     60_000,
   );
+
+  it("refuses to publish PHOTO_AI radar missions while Blaze is disabled", async () => {
+    const photoRadar = await prisma.radarMission.create({
+      data: {
+        title: "照片辨識雷達任務",
+        description: "本階段不應發布。",
+        category: "PHOTO",
+        tag: "拍照",
+        latitude: 25.04411,
+        longitude: 121.52944,
+        radiusMeters: 90,
+        startsAt: new Date("2026-07-07T05:00:00.000Z"),
+        endsAt: new Date("2026-07-07T07:00:00.000Z"),
+        verificationMode: VerificationMode.PHOTO_AI,
+        growthPoints: 12,
+      },
+    });
+    createdRadarMissionIds.add(photoRadar.id);
+
+    await expect(
+      store.publishAdminRadarMission(photoRadar.id),
+    ).rejects.toThrow("PHOTO_AI radar missions require Blaze");
+  });
 
   it(
     "requires radar timer missions to elapse after unlock",
