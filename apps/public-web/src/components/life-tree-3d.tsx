@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
 import {
   Float,
-  Html,
   OrbitControls,
   Trail,
 } from "@react-three/drei";
@@ -715,6 +714,21 @@ const heatSpots: HeatSpot[] = [
   { position: districtCenter("文山區", 0.5), scale: 0.74, label: "觀鳥", color: districtMissions.文山區.heat, value: 72 },
 ];
 
+const districtScreenHotspots = [
+  { name: "北投區", left: 72, top: 32, width: 19, height: 18 },
+  { name: "士林區", left: 55, top: 29, width: 20, height: 18 },
+  { name: "內湖區", left: 68, top: 49, width: 20, height: 15 },
+  { name: "中山區", left: 49, top: 48, width: 13, height: 13 },
+  { name: "大同區", left: 39, top: 48, width: 12, height: 12 },
+  { name: "松山區", left: 60, top: 55, width: 13, height: 12 },
+  { name: "南港區", left: 76, top: 57, width: 17, height: 14 },
+  { name: "中正區", left: 43, top: 60, width: 13, height: 12 },
+  { name: "信義區", left: 56, top: 64, width: 14, height: 12 },
+  { name: "萬華區", left: 30, top: 58, width: 13, height: 14 },
+  { name: "大安區", left: 45, top: 68, width: 18, height: 13 },
+  { name: "文山區", left: 15, top: 58, width: 22, height: 20 },
+] satisfies Array<{ name: TaipeiDistrictBoundary["name"]; left: number; top: number; width: number; height: number }>;
+
 function terrainHeight(x: number, y: number) {
   const northWestHills = Math.exp(-((x + 1.55) ** 2 / 0.82 + (y + 1.38) ** 2 / 0.72)) * 0.72;
   const southEastHills = Math.exp(-((x - 1.18) ** 2 / 0.9 + (y - 1.15) ** 2 / 0.64)) * 0.58;
@@ -844,10 +858,9 @@ function HeatBloom({
   position,
   scale,
   color,
-  label,
-  value,
   index,
   reduced,
+  dimmed,
 }: {
   position: Vec3Tuple;
   scale: number;
@@ -856,9 +869,9 @@ function HeatBloom({
   value: number;
   index: number;
   reduced: boolean;
+  dimmed: boolean;
 }) {
   const pulse = useRef<Group>(null);
-  const labelWidth = 0.28 + label.length * 0.065;
 
   useFrame(({ clock }) => {
     if (reduced || !pulse.current) return;
@@ -869,59 +882,26 @@ function HeatBloom({
   return (
     <group ref={pulse} position={position}>
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.42 * scale, 64]} />
-        <meshBasicMaterial color="#15d5c8" transparent opacity={0.32} side={DoubleSide} />
+        <circleGeometry args={[0.3 * scale, 64]} />
+        <meshBasicMaterial color="#15d5c8" transparent opacity={dimmed ? 0.06 : 0.18} side={DoubleSide} depthWrite={false} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]}>
-        <circleGeometry args={[0.26 * scale, 64]} />
-        <meshBasicMaterial color="#ffe45e" transparent opacity={0.56} side={DoubleSide} />
+        <circleGeometry args={[0.18 * scale, 64]} />
+        <meshBasicMaterial color="#ffe45e" transparent opacity={dimmed ? 0.1 : 0.34} side={DoubleSide} depthWrite={false} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.024, 0]}>
-        <circleGeometry args={[0.13 * scale, 64]} />
-        <meshBasicMaterial color={color} transparent opacity={0.9} side={DoubleSide} />
+        <circleGeometry args={[0.08 * scale, 64]} />
+        <meshBasicMaterial color={color} transparent opacity={dimmed ? 0.24 : 0.72} side={DoubleSide} depthWrite={false} />
       </mesh>
-      <mesh position={[0, 0.42, 0]}>
-        <cylinderGeometry args={[0.018, 0.018, 0.72, 10]} />
-        <meshBasicMaterial color="#fff0a3" transparent opacity={0.74} blending={AdditiveBlending} />
+      <mesh position={[0, 0.32, 0]}>
+        <cylinderGeometry args={[0.012, 0.012, 0.5, 10]} />
+        <meshBasicMaterial color="#fff0a3" transparent opacity={dimmed ? 0.12 : 0.42} blending={AdditiveBlending} depthWrite={false} />
       </mesh>
-      <mesh position={[0, 0.82, 0]}>
-        <sphereGeometry args={[0.055, 14, 10]} />
-        <meshBasicMaterial color="#fff7ad" transparent opacity={0.95} blending={AdditiveBlending} />
-      </mesh>
-      <mesh position={[0, 0.98, 0]} rotation={[0, 0, -0.2]}>
-        <planeGeometry args={[labelWidth, 0.16]} />
-        <meshBasicMaterial color="#fffdf7" transparent opacity={0.84} />
-      </mesh>
-      <mesh position={[0, 1.11, 0]} rotation={[0, 0, -0.2]}>
-        <planeGeometry args={[0.2 + value / 420, 0.024]} />
-        <meshBasicMaterial color={color} transparent opacity={0.92} blending={AdditiveBlending} />
+      <mesh position={[0, 0.58, 0]}>
+        <sphereGeometry args={[0.04, 14, 10]} />
+        <meshBasicMaterial color="#fff7ad" transparent opacity={dimmed ? 0.2 : 0.76} blending={AdditiveBlending} depthWrite={false} />
       </mesh>
     </group>
-  );
-}
-
-function DistrictHoverLabel({
-  district,
-  mission,
-}: {
-  district: TaipeiDistrict;
-  mission: DistrictMission;
-}) {
-  return (
-    <Html
-      position={[district.center[0], 0.9, district.center[1]]}
-      center
-      distanceFactor={3.9}
-      style={{ pointerEvents: "none" }}
-    >
-      <div className="district-hover-label">
-        <span>{district.name}</span>
-        <strong>{mission.title}</strong>
-        <small>
-          {districtModeLabel(mission.mode)} · +{mission.points} 成長值 · {mission.status}
-        </small>
-      </div>
-    </Html>
   );
 }
 
@@ -1023,13 +1003,12 @@ function TaipeiDistrictPlate({
         />
       </mesh>
       <mesh
-        position={[district.center[0], 0.08, district.center[1]]}
+        position={[district.center[0], 0.09, district.center[1]]}
         rotation={[-Math.PI / 2, 0, 0]}
       >
-        <circleGeometry args={[isActive ? 0.32 : 0.22, 48]} />
-        <meshBasicMaterial color={mission.heat} transparent opacity={isActive ? 0.36 : 0.18} blending={AdditiveBlending} />
+        <circleGeometry args={[isActive ? 0.26 : 0.16, 48]} />
+        <meshBasicMaterial color={mission.heat} transparent opacity={isActive ? 0.28 : 0.08} blending={AdditiveBlending} depthWrite={false} />
       </mesh>
-      {isActive ? <DistrictHoverLabel district={district} mission={mission} /> : null}
     </group>
   );
 }
@@ -1080,16 +1059,23 @@ function FlightLine({
   );
 }
 
-function CityDataTerrain({ reduced }: { reduced: boolean }) {
+function CityDataTerrain({
+  reduced,
+  activeDistrict,
+  setActiveDistrict,
+}: {
+  reduced: boolean;
+  activeDistrict: string | null;
+  setActiveDistrict: (name: string | null) => void;
+}) {
   const group = useRef<Group>(null);
-  const [activeDistrict, setActiveDistrict] = useState<string | null>("大安區");
   useFrame(({ clock }) => {
     if (reduced || !group.current) return;
     group.current.position.y = Math.sin(clock.elapsedTime * 0.85) * 0.025;
   });
 
   return (
-    <group ref={group} rotation={[0, Math.PI / 2 - 0.08, 0]} position={[0.02, -0.3, 0.04]} scale={[1.55, 1.06, 1.22]}>
+    <group ref={group} rotation={[0, Math.PI / 2 - 0.08, 0]} position={[0.02, -0.22, 0.06]} scale={[1.34, 1.06, 1.02]}>
       {taipeiDistricts.map((district, index) => (
         <TaipeiDistrictPlate
           key={district.name}
@@ -1100,7 +1086,7 @@ function CityDataTerrain({ reduced }: { reduced: boolean }) {
         />
       ))}
       {heatSpots.map((spot, index) => (
-        <HeatBloom key={spot.label} {...spot} index={index} reduced={reduced} />
+        <HeatBloom key={spot.label} {...spot} index={index} reduced={reduced} dimmed={Boolean(activeDistrict)} />
       ))}
     </group>
   );
@@ -1108,20 +1094,23 @@ function CityDataTerrain({ reduced }: { reduced: boolean }) {
 
 export function RadarMap3D() {
   const reduced = useReducedMotion();
+  const [activeDistrict, setActiveDistrict] = useState<string | null>(null);
+  const activeHotspot = districtScreenHotspots.find((hotspot) => hotspot.name === activeDistrict) ?? null;
+  const activeMission = activeHotspot ? missionForDistrict(activeHotspot.name) : null;
 
   return (
     <div className="radar-3d-panel" aria-label="3D 台北任務雷達示意">
-      <div className="radar-3d-title">
-        <span>TAIPEI LAYERED QUEST MAP</span>
-        <b>台北 3D 分層任務大屏</b>
-      </div>
-      <Canvas camera={{ fov: 36, position: [0, 5.55, 7.35] }} dpr={[1, 1.5]}>
+      <Canvas camera={{ fov: 32, position: [0, 5.45, 7.1] }} dpr={[1, 1.5]}>
         <color attach="background" args={["#fff1dc"]} />
         <fog attach="fog" args={["#fff1dc", 7, 13]} />
         <ambientLight intensity={0.9} />
         <directionalLight position={[3, 5, 4]} intensity={1.72} />
         <pointLight position={[-2.4, 2.4, 2.8]} color="#ffe2a2" intensity={1.28} />
-        <CityDataTerrain reduced={reduced} />
+        <CityDataTerrain
+          activeDistrict={activeDistrict}
+          reduced={reduced}
+          setActiveDistrict={setActiveDistrict}
+        />
         {!reduced ? (
           <EffectComposer multisampling={2}>
             <Bloom luminanceThreshold={0.36} luminanceSmoothing={0.78} intensity={0.22} />
@@ -1135,20 +1124,46 @@ export function RadarMap3D() {
           minPolarAngle={MathUtils.degToRad(48)}
         />
       </Canvas>
-      <div className="radar-3d-side-panel">
-        <span>台北任務區</span>
-        <b>12</b>
-        <small>滑鼠移到行政區，板塊會浮起並顯示任務</small>
-        <i>不顯示私人定位</i>
-      </div>
-      <div className="radar-3d-stats">
-        <span>TAIPEI <b>12 區</b></span>
-        <span>SAFE RADIUS <b>150m</b></span>
-        <span>OPEN QUESTS <b>07</b></span>
-      </div>
-      <div className="radar-3d-caption">
-        <b>台北橫向 3D 分層任務圖</b>
-        <span>以台北行政區輪廓建立可互動板塊；借資料大屏語言呈現任務熱力、光柱與安全半徑。</span>
+      <div className="district-screen-hotspots" aria-label="台北行政區互動熱區">
+        {districtScreenHotspots.map((hotspot) => {
+          const mission = missionForDistrict(hotspot.name);
+          return (
+            <button
+              aria-label={`${hotspot.name}：${mission.title}`}
+              className="district-screen-hotspot"
+              key={hotspot.name}
+              onBlur={() => setActiveDistrict(null)}
+              onFocus={() => setActiveDistrict(hotspot.name)}
+              onClick={() => setActiveDistrict(hotspot.name)}
+              onMouseEnter={() => setActiveDistrict(hotspot.name)}
+              onMouseLeave={() => setActiveDistrict(null)}
+              onPointerEnter={() => setActiveDistrict(hotspot.name)}
+              onPointerLeave={() => setActiveDistrict(null)}
+              style={{
+                "--district-left": `${hotspot.left}%`,
+                "--district-top": `${hotspot.top}%`,
+                "--district-width": `${hotspot.width}%`,
+                "--district-height": `${hotspot.height}%`,
+              } as CSSProperties}
+              type="button"
+            />
+          );
+        })}
+        {activeHotspot && activeMission ? (
+          <div
+            className="district-screen-label"
+            style={{
+              "--district-left": `${activeHotspot.left + activeHotspot.width / 2}%`,
+              "--district-top": `${Math.max(12, activeHotspot.top - 2)}%`,
+            } as CSSProperties}
+          >
+            <span>{activeHotspot.name}</span>
+            <strong>{activeMission.title}</strong>
+            <small>
+              {districtModeLabel(activeMission.mode)} · +{activeMission.points} 成長值 · {activeMission.status}
+            </small>
+          </div>
+        ) : null}
       </div>
     </div>
   );

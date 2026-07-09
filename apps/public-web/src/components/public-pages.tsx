@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import type { ExplorationRouteSummary, RadarState } from "@elder-tree/contracts";
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
@@ -19,6 +19,7 @@ import {
   Sparkles,
   Trees,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import {
   brandLines,
   contactHref,
@@ -129,6 +130,22 @@ function usePublicAnimations(dependencies: unknown[] = []) {
           });
 
           if (desktop) {
+            if (root.current?.querySelector(".scroll-story")) {
+              const storyTimeline = gsap.timeline({
+                scrollTrigger: {
+                  trigger: ".scroll-story",
+                  start: "top top",
+                  end: "bottom bottom",
+                  scrub: 0.8,
+                },
+              });
+              storyTimeline
+                .to(".story-phone", { y: -22, rotate: -3, scale: 0.96, ease: "none" }, 0)
+                .to(".story-map", { autoAlpha: 1, y: 0, scale: 1, ease: "none" }, 0.16)
+                .to(".story-beam", { scaleY: 1, autoAlpha: 1, ease: "none" }, 0.28)
+                .to(".story-leaf", { autoAlpha: 1, y: -40, stagger: 0.04, ease: "none" }, 0.45)
+                .to(".story-care", { autoAlpha: 1, y: 0, scale: 1, ease: "none" }, 0.64);
+            }
             if (root.current?.querySelector(".mission-dot")) {
               gsap.to(".mission-dot", {
                 scale: 1.16,
@@ -262,6 +279,85 @@ function HomeHero() {
   return <SkyWorldArtHero />;
 }
 
+const storySteps = [
+  {
+    eyebrow: "01 出門",
+    title: "先走出去，不必走很遠。",
+    body: "打開探索頁，定位只在你開始探索時工作。今天能走一小段，也算數。",
+  },
+  {
+    eyebrow: "02 亮起",
+    title: "任務只在靠近時出現。",
+    body: "任務雷達像城市裡的光點。靠近只是解鎖，完成才會讓生命樹成長。",
+  },
+  {
+    eyebrow: "03 完成",
+    title: "停一下，做一件小事。",
+    body: "喝水、伸展、看一片葉子。任務不是催促你變好，是陪你回到生活。",
+  },
+  {
+    eyebrow: "04 長葉",
+    title: "每一次完成，都長成一片新葉。",
+    body: "同一件事重送也只算一次。成長不是壓力，是被好好留下的證據。",
+  },
+  {
+    eyebrow: "05 靠近",
+    title: "需要時，再讓陪伴靠近。",
+    body: "家人、志工或機構只看必要摘要。陪伴是一種選擇，不是門票。",
+  },
+];
+
+function ScrollStory() {
+  return (
+    <section className="scroll-story" aria-label="綠伴滑動故事">
+      <div className="scroll-story-viewport">
+        <div className="story-stage" aria-hidden="true">
+          <div className="story-map">
+            <span className="story-map-road" />
+            <i className="story-dot dot-one" />
+            <i className="story-dot dot-two" />
+            <i className="story-dot dot-three" />
+          </div>
+          <div className="story-phone">
+            <span>綠伴 Elder Tree</span>
+            <strong>任務雷達</strong>
+            <i />
+            <small>大安森林公園 · +12</small>
+          </div>
+          <div className="story-beam" />
+          <div className="story-tree-mini">
+            <Trees size={38} />
+            <b>生命樹長出新葉</b>
+          </div>
+          <div className="story-care">
+            <HeartHandshake size={24} />
+            <span>陪伴靠近</span>
+          </div>
+          {Array.from({ length: 8 }, (_, index) => (
+            <i
+              className="story-leaf"
+              key={index}
+              style={{
+                left: `${24 + index * 7}%`,
+                transform: `rotate(${index % 2 ? -24 : 18}deg)`,
+              }}
+            />
+          ))}
+        </div>
+        <div className="story-copy">
+          {storySteps.map((step) => (
+            <article data-reveal key={step.eyebrow}>
+              <span>{step.eyebrow}</span>
+              <h2>{step.title}</h2>
+              <p>{step.body}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function BrandLineStrip({ variant = "light" }: { variant?: "light" | "dark" }) {
   return (
     <section className={`brand-lines brand-lines-${variant}`} aria-label="綠伴品牌短句">
@@ -377,10 +473,33 @@ function ImpactJourney() {
 }
 
 function MissionList({ publicRadar }: { publicRadar: RadarState | null }) {
+  const handleMissionPointerMove = (event: PointerEvent<HTMLElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    event.currentTarget.style.setProperty(
+      "--mx",
+      `${((event.clientX - bounds.left) / bounds.width) * 100}%`,
+    );
+    event.currentTarget.style.setProperty(
+      "--my",
+      `${((event.clientY - bounds.top) / bounds.height) * 100}%`,
+    );
+  };
+
   return (
     <div className="mission-list">
+      <div className="mission-console-head">
+        <span>QUEST CONSOLE</span>
+        <strong>任務控制台</strong>
+        <small>點選行政區或任務卡，查看任務浮起。</small>
+      </div>
       {missionShowcase(publicRadar).map(({ icon: Icon, label, distance, time, points }) => (
-        <article data-reveal key={label}>
+        <article
+          className="mission-control-card"
+          data-reveal
+          key={label}
+          onPointerMove={handleMissionPointerMove}
+          tabIndex={0}
+        >
           <span>
             <Icon size={19} />
           </span>
@@ -553,16 +672,20 @@ function PageHero({
   title,
   body,
   icon: Icon,
+  variant,
+  children,
 }: {
   eyebrow: string;
   title: string;
   body: string;
-  icon: typeof Trees;
+  icon: LucideIcon;
+  variant: "product" | "explore" | "partners" | "impact";
+  children: ReactNode;
 }) {
   return (
-    <section className="sub-hero">
-      <div className="section-shell sub-hero-grid">
-        <div className="hero-copy">
+    <section className={`page-hero page-hero-${variant}`}>
+      <div className="section-shell page-hero-grid">
+        <div className="page-hero-copy" data-reveal>
           <p className="eyebrow">
             <Icon size={16} /> {eyebrow}
           </p>
@@ -577,9 +700,83 @@ function PageHero({
             </a>
           </div>
         </div>
-        <SubHeroPanel />
+        <div className="page-hero-visual" data-reveal>
+          {children}
+        </div>
       </div>
     </section>
+  );
+}
+
+function ProductHeroScene() {
+  return (
+    <div className="product-hero-scene">
+      <div className="product-phone-card">
+        <span>今天</span>
+        <strong>喝水 · 觀察花草 · 走 400m</strong>
+        <i />
+        <small>完成後，生命樹長出新葉 +12</small>
+      </div>
+      <div className="product-orbit-card card-a">走出去</div>
+      <div className="product-orbit-card card-b">任務亮起</div>
+      <div className="product-orbit-card card-c">樹長一點</div>
+    </div>
+  );
+}
+
+function ExploreHero({ publicRadar }: { publicRadar: RadarState | null }) {
+  return (
+    <section className="explore-hero">
+      <div className="section-shell">
+        <div className="explore-hero-heading" data-reveal>
+          <p className="eyebrow">
+            <Radar size={16} /> 城市探索
+          </p>
+          <h1>讓城市像溫柔的冒險地圖。</h1>
+          <p>
+            台北行政區化成可以互動的任務板塊。滑到哪一區，任務就應該在那一區浮起來。
+          </p>
+        </div>
+        <div className="explore-hero-board" data-reveal>
+          <div className="explore-map-stage">
+            <div className="explore-map-topline">
+              <span>TAIPEI LAYERED QUEST MAP</span>
+              <b>12 區 · 150m 安全半徑 · 07 個公開任務</b>
+            </div>
+            <RadarMap3D />
+          </div>
+          <MissionList publicRadar={publicRadar} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PartnerHeroScene() {
+  return (
+    <div className="partner-hero-scene">
+      {partnerRoles.map(({ icon: Icon, eyebrow, title }) => (
+        <article key={title}>
+          <Icon size={24} />
+          <span>{eyebrow}</span>
+          <strong>{title}</strong>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function ImpactHeroScene() {
+  return (
+    <div className="impact-hero-scene">
+      {impactPrinciples.map((item, index) => (
+        <article key={item.title}>
+          <span>{String(index + 1).padStart(2, "0")}</span>
+          <strong>{item.title}</strong>
+          <p>{item.body}</p>
+        </article>
+      ))}
+    </div>
   );
 }
 
@@ -592,6 +789,7 @@ export function HomePage() {
       <main ref={root}>
         <HomeHero />
         <BrandLineStrip variant="dark" />
+        <ScrollStory />
         <RadarShowcase publicRadar={publicRadar} />
         <ProductFlow />
         <RouteJourneyShowcase routeData={routeData} />
@@ -612,7 +810,10 @@ export function ProductPage() {
           title="任務陪你慢慢回到生活。"
           body="從一杯水、一段路、一片葉子開始。綠伴把城市探索、生命樹與陪伴網絡接在一起，讓完成感留得下來。"
           icon={Trees}
-        />
+          variant="product"
+        >
+          <ProductHeroScene />
+        </PageHero>
         <BrandLineStrip />
         <ProductFlow />
         <section className="product section-shell">
@@ -639,14 +840,8 @@ export function ExplorePage() {
   return (
     <PublicShell>
       <main ref={root}>
-        <PageHero
-          eyebrow="城市探索"
-          title="讓城市像溫柔的冒險地圖。"
-          body="固定路線陪你完成一段旅程；任務雷達讓城市裡的小事忽然亮起。走近，接取，完成，讓生命樹長出新葉。"
-          icon={Radar}
-        />
+        <ExploreHero publicRadar={publicRadar} />
         <BrandLineStrip />
-        <RadarShowcase publicRadar={publicRadar} />
         <RouteJourneyShowcase routeData={routeData} />
       </main>
     </PublicShell>
@@ -663,7 +858,10 @@ export function PartnersPage() {
           title="一個人也能開始，需要時再讓陪伴靠近。"
           body="這個入口給社福、長照、志工、社區組織與願意陪伴的人。陪伴要安全、清楚、可撤回，才不會變成新的壓力。"
           icon={HeartHandshake}
-        />
+          variant="partners"
+        >
+          <PartnerHeroScene />
+        </PageHero>
         <BrandLineStrip />
         <PartnerRoleGrid />
         <section className="paths section-shell">
@@ -685,7 +883,10 @@ export function ImpactPage() {
           title="照顧自己，也可以成為對世界溫柔的一部分。"
           body="我們把孤獨、尊嚴、城市與永續放在同一棵樹下。每一次願意生活的瞬間，都值得被留下。"
           icon={Leaf}
-        />
+          variant="impact"
+        >
+          <ImpactHeroScene />
+        </PageHero>
         <BrandLineStrip />
         <ImpactStatement />
         <ImpactJourney />
