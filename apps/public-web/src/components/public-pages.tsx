@@ -2,8 +2,17 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
-import type { ExplorationRouteSummary, RadarState } from "@elder-tree/contracts";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent,
+  type ReactNode,
+} from "react";
+import type {
+  ExplorationRouteSummary,
+  RadarState,
+} from "@elder-tree/contracts";
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -90,10 +99,13 @@ function usePublicAnimations(dependencies: unknown[] = []) {
             desktop: boolean;
           };
           if (!motion) {
-            gsap.set("[data-reveal], .hero-copy > *, .hero-visual, .world-tree-node", {
-              autoAlpha: 1,
-              clearProps: "transform",
-            });
+            gsap.set(
+              "[data-reveal], .hero-copy > *, .hero-visual, .world-tree-node",
+              {
+                autoAlpha: 1,
+                clearProps: "transform",
+              },
+            );
             return;
           }
 
@@ -101,15 +113,8 @@ function usePublicAnimations(dependencies: unknown[] = []) {
             defaults: { duration: 0.8, ease: "power3.out" },
           });
           intro
-            .from(
-              ".hero-copy > *",
-              { y: 34, autoAlpha: 0, stagger: 0.1 },
-            )
-            .from(
-              ".hero-visual",
-              { scale: 0.94, autoAlpha: 0 },
-              "<0.2",
-            )
+            .from(".hero-copy > *", { y: 34, autoAlpha: 0, stagger: 0.1 })
+            .from(".hero-visual", { scale: 0.94, autoAlpha: 0 }, "<0.2")
             .from(
               ".world-tree-node, .feature-pill",
               { scale: 0.72, autoAlpha: 0, stagger: 0.08 },
@@ -145,11 +150,31 @@ function usePublicAnimations(dependencies: unknown[] = []) {
                 },
               });
               storyTimeline
-                .to(".story-phone", { y: -22, rotate: -3, scale: 0.96, ease: "none" }, 0)
-                .to(".story-map", { autoAlpha: 1, y: 0, scale: 1, ease: "none" }, 0.16)
-                .to(".story-beam", { scaleY: 1, autoAlpha: 1, ease: "none" }, 0.28)
-                .to(".story-leaf", { autoAlpha: 1, y: -40, stagger: 0.04, ease: "none" }, 0.45)
-                .to(".story-care", { autoAlpha: 1, y: 0, scale: 1, ease: "none" }, 0.64);
+                .to(
+                  ".story-phone",
+                  { y: -22, rotate: -3, scale: 0.96, ease: "none" },
+                  0,
+                )
+                .to(
+                  ".story-map",
+                  { autoAlpha: 1, y: 0, scale: 1, ease: "none" },
+                  0.16,
+                )
+                .to(
+                  ".story-beam",
+                  { scaleY: 1, autoAlpha: 1, ease: "none" },
+                  0.28,
+                )
+                .to(
+                  ".story-leaf",
+                  { autoAlpha: 1, y: -40, stagger: 0.04, ease: "none" },
+                  0.45,
+                )
+                .to(
+                  ".story-care",
+                  { autoAlpha: 1, y: 0, scale: 1, ease: "none" },
+                  0.64,
+                );
             }
             if (root.current?.querySelector(".mission-dot")) {
               gsap.to(".mission-dot", {
@@ -327,7 +352,10 @@ function InteractiveDemoShowcase() {
   const active = storySteps[activeStep] ?? storySteps[1]!;
 
   return (
-    <section className="demo-showcase section-shell" aria-label="綠伴互動產品展示">
+    <section
+      className="demo-showcase section-shell"
+      aria-label="綠伴互動產品展示"
+    >
       <div className="demo-copy" data-reveal>
         <p className="eyebrow">互動展示</p>
         <h2>不用讀很多字，直接看它怎麼陪你走一段路。</h2>
@@ -337,8 +365,9 @@ function InteractiveDemoShowcase() {
       <div className="demo-console" data-demo-step={activeStep} data-reveal>
         <div className="demo-device" aria-hidden="true">
           <div className="demo-device-top">
-            <span>綠伴 Elder Tree</span>
+            <span>ELDER TREE RADAR</span>
             <b>{active.title}</b>
+            <small>{active.body}</small>
           </div>
           <div className="demo-map">
             <span className="demo-path" />
@@ -351,6 +380,7 @@ function InteractiveDemoShowcase() {
             <div className="demo-player">
               <Footprints size={20} />
             </div>
+            <div className="demo-radius" />
           </div>
           <div className="demo-mission-card">
             <span>{active.district}</span>
@@ -368,6 +398,10 @@ function InteractiveDemoShowcase() {
         </div>
 
         <div className="demo-steps" role="tablist" aria-label="產品展示步驟">
+          <div className="demo-steps-head">
+            <span>FLOW STATUS</span>
+            <strong>城市探索流程</strong>
+          </div>
           {storySteps.map((step, index) => (
             <button
               aria-selected={activeStep === index}
@@ -391,7 +425,10 @@ function InteractiveDemoShowcase() {
 
 function BrandLineStrip({ variant = "light" }: { variant?: "light" | "dark" }) {
   return (
-    <section className={`brand-lines brand-lines-${variant}`} aria-label="綠伴品牌短句">
+    <section
+      className={`brand-lines brand-lines-${variant}`}
+      aria-label="綠伴品牌短句"
+    >
       <div className="brand-lines-track">
         {[...brandLines, ...brandLines].map((line, index) => (
           <span key={`${line}-${index}`}>{line}</span>
@@ -503,7 +540,11 @@ function ImpactJourney() {
   );
 }
 
-function DistrictMissionDisplay({ activeDistrict }: { activeDistrict?: string | null }) {
+function DistrictMissionDisplay({
+  activeDistrict,
+}: {
+  activeDistrict?: string | null;
+}) {
   const mission = getTaipeiDistrictMission(activeDistrict);
 
   if (!activeDistrict || !mission) {
@@ -511,7 +552,9 @@ function DistrictMissionDisplay({ activeDistrict }: { activeDistrict?: string | 
       <section className="mission-display is-empty" aria-live="polite">
         <span>SELECT DISTRICT</span>
         <strong>台北任務區</strong>
-        <p>滑到行政區，這裡會顯示可接取任務。點右側任務卡，也會同步高亮地圖板塊。</p>
+        <p>
+          滑到行政區，這裡會顯示可接取任務。點右側任務卡，也會同步高亮地圖板塊。
+        </p>
         <div>
           <b>12 區</b>
           <b>150m 安全半徑</b>
@@ -557,45 +600,51 @@ function MissionList({
     );
   };
 
-	  return (
-	    <div className="mission-list">
-	      <DistrictMissionDisplay activeDistrict={activeDistrict} />
-	      <div className="mission-console-head">
-	        <span>QUEST CONSOLE</span>
-	        <strong>任務控制台</strong>
-	        <small>點選任務卡，右側顯示台與 3D 板塊會同步切換。</small>
-	      </div>
-	      {missionShowcase(publicRadar).map(({ icon: Icon, label, distance, time, points }, index) => {
-	        const district = taipeiMissionDistricts[index % taipeiMissionDistricts.length];
-	        const mission = getTaipeiDistrictMission(district);
-	        const isActive = activeDistrict === district;
-	        return (
-	          <button
-	            aria-pressed={isActive}
-	            className={`mission-control-card ${isActive ? "is-active" : ""}`}
-	            data-district={district}
-	            key={`${district}-${label}`}
-	            onClick={() => onSelectDistrict?.(district)}
-	            onFocus={() => onSelectDistrict?.(district)}
-	            onMouseEnter={() => onSelectDistrict?.(district)}
-	            onPointerMove={handleMissionPointerMove}
-	            type="button"
-	          >
-	            <span>
-	              <Icon size={19} />
-	            </span>
-	            <div>
-	              <strong>{mission?.title ?? label}</strong>
-	              <small>
-	                {district} ・ {mission ? missionModeLabel(mission.mode) : distance} ・ {time}
-	              </small>
-	            </div>
-	            <b>{mission ? `+${mission.points}` : points}</b>
-	          </button>
-	        );
-	      })}
-	      <p>
-	        <ShieldCheck size={15} /> 靠近只代表可以接取；完成後，生命樹才會長出新葉。
+  return (
+    <div className="mission-list">
+      <DistrictMissionDisplay activeDistrict={activeDistrict} />
+      <div className="mission-console-head">
+        <span>QUEST CONSOLE</span>
+        <strong>任務控制台</strong>
+        <small>點選任務卡，右側顯示台與 3D 板塊會同步切換。</small>
+      </div>
+      {missionShowcase(publicRadar).map(
+        ({ icon: Icon, label, distance, time, points }, index) => {
+          const district =
+            taipeiMissionDistricts[index % taipeiMissionDistricts.length];
+          const mission = getTaipeiDistrictMission(district);
+          const isActive = activeDistrict === district;
+          return (
+            <button
+              aria-pressed={isActive}
+              className={`mission-control-card ${isActive ? "is-active" : ""}`}
+              data-district={district}
+              key={`${district}-${label}`}
+              onClick={() => onSelectDistrict?.(district)}
+              onFocus={() => onSelectDistrict?.(district)}
+              onMouseEnter={() => onSelectDistrict?.(district)}
+              onPointerMove={handleMissionPointerMove}
+              type="button"
+            >
+              <span>
+                <Icon size={19} />
+              </span>
+              <div>
+                <strong>{mission?.title ?? label}</strong>
+                <small>
+                  {district} ・{" "}
+                  {mission ? missionModeLabel(mission.mode) : distance} ・{" "}
+                  {time}
+                </small>
+              </div>
+              <b>{mission ? `+${mission.points}` : points}</b>
+            </button>
+          );
+        },
+      )}
+      <p>
+        <ShieldCheck size={15} />{" "}
+        靠近只代表可以接取；完成後，生命樹才會長出新葉。
       </p>
     </div>
   );
@@ -615,7 +664,10 @@ function RadarShowcase({ publicRadar }: { publicRadar: RadarState | null }) {
           </p>
         </div>
         <div className="radar-panel radar-panel-3d">
-          <RadarMap3D activeDistrict={activeDistrict} onActiveDistrictChange={setActiveDistrict} />
+          <RadarMap3D
+            activeDistrict={activeDistrict}
+            onActiveDistrictChange={setActiveDistrict}
+          />
           <MissionList
             activeDistrict={activeDistrict}
             onSelectDistrict={setActiveDistrict}
@@ -644,17 +696,20 @@ function ImpactStatement() {
   );
 }
 
-function RouteJourneyShowcase({ routeData }: { routeData: ExplorationRouteSummary | null }) {
-  const quests =
-    routeData?.quests.length
-      ? routeData.quests.slice(0, 5).map((quest) => ({
-          locationName: quest.locationName,
-          title: quest.title,
-          verificationMode: quest.verificationMode,
-          growthPoints: quest.growthPoints,
-          safetyNote: quest.safetyNote ?? "安全資訊待確認。",
-        }))
-      : routeFallbackQuests;
+function RouteJourneyShowcase({
+  routeData,
+}: {
+  routeData: ExplorationRouteSummary | null;
+}) {
+  const quests = routeData?.quests.length
+    ? routeData.quests.slice(0, 5).map((quest) => ({
+        locationName: quest.locationName,
+        title: quest.title,
+        verificationMode: quest.verificationMode,
+        growthPoints: quest.growthPoints,
+        safetyNote: quest.safetyNote ?? "安全資訊待確認。",
+      }))
+    : routeFallbackQuests;
 
   return (
     <section className="journey section-shell">
@@ -681,7 +736,11 @@ function RouteJourneyShowcase({ routeData }: { routeData: ExplorationRouteSummar
         </div>
         <div className="route-quest-grid">
           {quests.map((quest, index) => (
-            <article className="route-quest-card" data-reveal key={`${quest.locationName}-${quest.title}`}>
+            <article
+              className="route-quest-card"
+              data-reveal
+              key={`${quest.locationName}-${quest.title}`}
+            >
               <span>{String(index + 1).padStart(2, "0")}</span>
               <small>{quest.locationName}</small>
               <h3>{quest.title}</h3>
@@ -704,7 +763,9 @@ function TechSection() {
       <div className="section-shell">
         <div className="section-heading light" data-reveal>
           <p className="eyebrow">技術放在後面</p>
-          <h2>我們用手機、地圖與實體樹，守住一件簡單的事：讓人被溫柔地看見。</h2>
+          <h2>
+            我們用手機、地圖與實體樹，守住一件簡單的事：讓人被溫柔地看見。
+          </h2>
         </div>
         <div className="tech-flow">
           {techFlow.map(({ icon: Icon, label, detail }, index) => (
@@ -783,7 +844,10 @@ function PageHero({
             <Link className="button primary" href="/">
               回首頁看世界樹 <ArrowRight size={17} />
             </Link>
-            <a className="button ghost" href={contactHref("綠伴合作與陪伴計畫")}>
+            <a
+              className="button ghost"
+              href={contactHref("綠伴合作與陪伴計畫")}
+            >
               聯絡合作
             </a>
           </div>
@@ -822,18 +886,21 @@ function ExploreHero({ publicRadar }: { publicRadar: RadarState | null }) {
           <p className="eyebrow">
             <Radar size={16} /> 城市探索
           </p>
-	          <h1>讓城市像溫柔的冒險地圖。</h1>
-	          <p>
-	            台北行政區化成可以互動的任務板塊。滑到哪一區，右側顯示台就更新該區任務。
-	          </p>
-	        </div>
+          <h1>讓城市像溫柔的冒險地圖。</h1>
+          <p>
+            台北行政區化成可以互動的任務板塊。滑到哪一區，右側顯示台就更新該區任務。
+          </p>
+        </div>
         <div className="explore-hero-board" data-reveal>
           <div className="explore-map-stage">
             <div className="explore-map-topline">
               <span>TAIPEI LAYERED QUEST MAP</span>
               <b>12 區 · 150m 安全半徑 · 07 個公開任務</b>
             </div>
-            <RadarMap3D activeDistrict={activeDistrict} onActiveDistrictChange={setActiveDistrict} />
+            <RadarMap3D
+              activeDistrict={activeDistrict}
+              onActiveDistrictChange={setActiveDistrict}
+            />
           </div>
           <MissionList
             activeDistrict={activeDistrict}
@@ -876,7 +943,10 @@ function ImpactHeroScene() {
 
 export function HomePage() {
   const { publicRadar, routeData } = usePublicExploration();
-  const root = usePublicAnimations([routeData?.id, publicRadar?.missions.length]);
+  const root = usePublicAnimations([
+    routeData?.id,
+    publicRadar?.missions.length,
+  ]);
 
   return (
     <PublicShell>
@@ -930,7 +1000,10 @@ export function ProductPage() {
 
 export function ExplorePage() {
   const { publicRadar, routeData } = usePublicExploration();
-  const root = usePublicAnimations([routeData?.id, publicRadar?.missions.length]);
+  const root = usePublicAnimations([
+    routeData?.id,
+    publicRadar?.missions.length,
+  ]);
   return (
     <PublicShell>
       <main ref={root}>

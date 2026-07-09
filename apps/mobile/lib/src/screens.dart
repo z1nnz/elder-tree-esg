@@ -336,6 +336,7 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
         : route.completedQuestCount / route.totalQuestCount;
     final sessionDistance =
         controller.exploration.activeSession?.distanceMeters ?? 0;
+    final featuredMission = _featuredRadarMission(radarMissions);
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 30),
       children: [
@@ -438,6 +439,7 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
                     distanceMeters: sessionDistance,
                     exploring: controller.exploring,
                     hasSession: controller.exploration.activeSession != null,
+                    mission: featuredMission,
                     onPressed: controller.exploring
                         ? controller.stopExploration
                         : controller.startExploration,
@@ -490,6 +492,17 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
       ],
     );
   }
+}
+
+RadarMissionModel? _featuredRadarMission(List<RadarMissionModel> missions) {
+  if (missions.isEmpty) return null;
+  return missions.firstWhere(
+    (mission) => mission.status == 'UNLOCKED',
+    orElse: () => missions.firstWhere(
+      (mission) => mission.status == 'LOCKED',
+      orElse: () => missions.first,
+    ),
+  );
 }
 
 class _ExplorationHeroCard extends StatelessWidget {
@@ -730,12 +743,14 @@ class _ExplorationStartPanel extends StatelessWidget {
     required this.distanceMeters,
     required this.exploring,
     required this.hasSession,
+    required this.mission,
     required this.onPressed,
   });
 
   final int distanceMeters;
   final bool exploring;
   final bool hasSession;
+  final RadarMissionModel? mission;
   final VoidCallback onPressed;
 
   @override
@@ -780,7 +795,11 @@ class _ExplorationStartPanel extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  hasSession ? '伺服器計算距離，生命樹等待成長' : '按下開始後，附近任務光點會被偵測',
+                  mission == null
+                      ? hasSession
+                            ? '伺服器計算距離，生命樹等待成長'
+                            : '按下開始後，附近任務光點會被偵測'
+                      : '${mission!.title} · ${_radarActionText(mission!.status)}',
                   style: const TextStyle(
                     color: Color(0xFF68746D),
                     fontSize: 12,
@@ -1115,17 +1134,67 @@ class _RadarBeacon extends StatelessWidget {
   }
 }
 
-class _RadarMissionCard extends StatelessWidget {
+class _RadarMissionCard extends StatefulWidget {
   const _RadarMissionCard({required this.mission, required this.controller});
 
   final RadarMissionModel mission;
   final AppController controller;
 
   @override
+  State<_RadarMissionCard> createState() => _RadarMissionCardState();
+}
+
+class _RadarMissionCardState extends State<_RadarMissionCard> {
+  Timer? _timer;
+  DateTime _now = DateTime.now();
+
+  RadarMissionModel get mission => widget.mission;
+  AppController get controller => widget.controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncTimer();
+  }
+
+  @override
+  void didUpdateWidget(covariant _RadarMissionCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.mission.id != widget.mission.id ||
+        oldWidget.mission.status != widget.mission.status ||
+        oldWidget.mission.unlockedAt != widget.mission.unlockedAt) {
+      _syncTimer();
+    }
+  }
+
+  void _syncTimer() {
+    _timer?.cancel();
+    _now = DateTime.now();
+    if (mission.isTimer && mission.status == 'UNLOCKED') {
+      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        setState(() => _now = DateTime.now());
+        if (mission.timerRemainingAt(_now) == Duration.zero) {
+          _timer?.cancel();
+          _timer = null;
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final accent = _radarAccentColor(mission);
     final completed = mission.status == 'COMPLETED';
     final unlocked = mission.status == 'UNLOCKED';
+    final timerRemaining = mission.timerRemainingAt(_now);
+    final canComplete = mission.canCompleteAt(_now);
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
@@ -1223,7 +1292,20 @@ class _RadarMissionCard extends StatelessWidget {
                 ),
                 _InfoPill(
                   icon: Icons.timer_outlined,
-                  label: _formatRemaining(mission.remainingSeconds),
+                  label:
+                      unlocked &&
+                          mission.isTimer &&
+                          timerRemaining > Duration.zero
+                      ? '計時 ${_formatDuration(timerRemaining)}'
+                      : _formatRemaining(mission.remainingSeconds),
+                ),
+                _InfoPill(
+                  icon: mission.verificationMode == VerificationMode.timer
+                      ? Icons.hourglass_bottom_rounded
+                      : Icons.touch_app_rounded,
+                  label: mission.verificationMode == VerificationMode.timer
+                      ? '計時任務'
+                      : '自我確認',
                 ),
                 _InfoPill(
                   icon: Icons.energy_savings_leaf_outlined,
@@ -1247,30 +1329,44 @@ class _RadarMissionCard extends StatelessWidget {
                     )
                   : unlocked
                   ? FilledButton.icon(
-                      onPressed: () async {
-                        final confirmed = await showDialog<bool>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('完成雷達任務'),
-                            content: Text('確認完成「${mission.title}」，讓生命樹長出新葉嗎？'),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context, false),
-                                child: const Text('還沒有'),
-                              ),
-                              FilledButton(
-                                onPressed: () => Navigator.pop(context, true),
-                                child: const Text('已完成'),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (confirmed == true) {
-                          await controller.completeRadarMission(mission);
-                        }
-                      },
-                      icon: const Icon(Icons.check_circle_outline_rounded),
-                      label: const Text('完成並讓樹成長'),
+                      onPressed: canComplete
+                          ? () async {
+                              final confirmed = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('完成雷達任務'),
+                                  content: Text(
+                                    '確認完成「${mission.title}」，讓生命樹長出新葉嗎？',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, false),
+                                      child: const Text('還沒有'),
+                                    ),
+                                    FilledButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, true),
+                                      child: const Text('已完成'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirmed == true) {
+                                await controller.completeRadarMission(mission);
+                              }
+                            }
+                          : null,
+                      icon: Icon(
+                        canComplete
+                            ? Icons.check_circle_outline_rounded
+                            : Icons.hourglass_bottom_rounded,
+                      ),
+                      label: Text(
+                        canComplete
+                            ? '完成並讓樹成長'
+                            : '還需 ${_formatDuration(timerRemaining)}',
+                      ),
                     )
                   : OutlinedButton.icon(
                       onPressed: null,
@@ -2530,8 +2626,20 @@ String _formatRemaining(int seconds) {
   return '剩 $minutes 分';
 }
 
+String _formatDuration(Duration duration) {
+  final safe = duration.isNegative ? Duration.zero : duration;
+  final minutes = safe.inMinutes;
+  final seconds = safe.inSeconds % 60;
+  if (minutes > 0) {
+    return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  }
+  return '${seconds}s';
+}
+
 String _radarActionText(String status) => switch (status) {
   'UPCOMING' => '尚未開始',
+  'UNLOCKED' => '可完成',
+  'COMPLETED' => '已完成',
   'EXPIRED' => '任務已結束',
   _ => '走進半徑後可接取',
 };

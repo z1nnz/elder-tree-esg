@@ -4,7 +4,7 @@ import type {
   RadarMissionInput,
   RadarMissionSummary,
 } from "@elder-tree/contracts";
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, type CSSProperties } from "react";
 import { api } from "../lib/api";
 
 const now = new Date();
@@ -295,8 +295,7 @@ export function RadarMissionEditor({
                   setDraft({
                     ...draft,
                     verificationMode: event.target.value as
-                      | "SELF_CHECK"
-                      | "TIMER",
+                      "SELF_CHECK" | "TIMER",
                   })
                 }
               >
@@ -350,62 +349,151 @@ export function RadarMissionEditor({
           {message ? <p className="form-message">{message}</p> : null}
         </form>
 
-        <div className="radar-admin-list">
-          {missions.length === 0 ? (
-            <div className="empty-state">尚未建立雷達任務。</div>
-          ) : (
-            missions.map((mission) => (
-              <article key={mission.id}>
-                <div>
-                  <span
-                    className={`status-pill ${mission.publicationStatus.toLowerCase()}`}
-                  >
-                    {mission.publicationStatus}
-                  </span>
-                  <h3>{mission.title}</h3>
-                  <p>{mission.description}</p>
-                  <small>
-                    {mission.tag}・{mission.radiusMeters}m・+
-                    {mission.growthPoints}・
-                    {new Date(mission.endsAt).toLocaleString("zh-TW")}
-                  </small>
-                </div>
-                <div className="radar-admin-actions">
-                  {mission.publicationStatus === "DRAFT" ? (
-                    <>
+        <div className="radar-admin-side">
+          <RadarMissionPreview draft={draft} editingId={editingId} />
+          <div className="radar-admin-list">
+            {missions.length === 0 ? (
+              <div className="empty-state">尚未建立雷達任務。</div>
+            ) : (
+              missions.map((mission) => (
+                <article key={mission.id}>
+                  <div>
+                    <span
+                      className={`status-pill ${mission.publicationStatus.toLowerCase()}`}
+                    >
+                      {missionStatusLabel(mission)}
+                    </span>
+                    <h3>{mission.title}</h3>
+                    <p>{mission.description}</p>
+                    <small>
+                      {mission.tag}・{mission.radiusMeters}m・+
+                      {mission.growthPoints}・
+                      {mission.verificationMode === "TIMER"
+                        ? `計時 ${mission.minimumSeconds ?? 0}s`
+                        : "自我確認"}
+                      ・{new Date(mission.endsAt).toLocaleString("zh-TW")}
+                    </small>
+                  </div>
+                  <div className="radar-admin-actions">
+                    {mission.publicationStatus === "DRAFT" ? (
+                      <>
+                        <button
+                          className="secondary-button"
+                          disabled={busy}
+                          onClick={() => edit(mission)}
+                        >
+                          編輯
+                        </button>
+                        <button
+                          className="primary-button"
+                          disabled={busy}
+                          onClick={() => void publish(mission.id)}
+                        >
+                          發布
+                        </button>
+                      </>
+                    ) : null}
+                    {mission.publicationStatus === "PUBLISHED" ? (
                       <button
                         className="secondary-button"
                         disabled={busy}
-                        onClick={() => edit(mission)}
+                        onClick={() => void archive(mission.id)}
                       >
-                        編輯
+                        封存
                       </button>
-                      <button
-                        className="primary-button"
-                        disabled={busy}
-                        onClick={() => void publish(mission.id)}
-                      >
-                        發布
-                      </button>
-                    </>
-                  ) : null}
-                  {mission.publicationStatus === "PUBLISHED" ? (
-                    <button
-                      className="secondary-button"
-                      disabled={busy}
-                      onClick={() => void archive(mission.id)}
-                    >
-                      封存
-                    </button>
-                  ) : null}
-                </div>
-              </article>
-            ))
-          )}
+                    ) : null}
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
         </div>
       </div>
     </section>
   );
+}
+
+function RadarMissionPreview({
+  draft,
+  editingId,
+}: {
+  draft: RadarDraft;
+  editingId: string | null;
+}) {
+  const startsAt = new Date(draft.startsAt);
+  const endsAt = new Date(draft.endsAt);
+  const windowValid =
+    Number.isFinite(startsAt.getTime()) && Number.isFinite(endsAt.getTime());
+  return (
+    <aside className="radar-admin-preview" aria-label="雷達任務預覽">
+      <span className="eyebrow">MISSION PREVIEW</span>
+      <h3>
+        {draft.title || (editingId ? "編輯中的雷達任務" : "新的雷達任務草稿")}
+      </h3>
+      <p>
+        {draft.description ||
+          "填入任務說明後，這裡會顯示給 App 使用者看的任務摘要。"}
+      </p>
+      <div className="radar-preview-map">
+        <i
+          style={
+            {
+              "--x": `${coordinateToPercent(draft.longitude, 121.46, 121.62)}%`,
+              "--y": `${coordinateToPercent(draft.latitude, 25.12, 24.96)}%`,
+            } as CSSProperties
+          }
+        />
+      </div>
+      <dl>
+        <div>
+          <dt>座標</dt>
+          <dd>
+            {draft.latitude.toFixed(5)}, {draft.longitude.toFixed(5)}
+          </dd>
+        </div>
+        <div>
+          <dt>半徑</dt>
+          <dd>{draft.radiusMeters}m</dd>
+        </div>
+        <div>
+          <dt>完成方式</dt>
+          <dd>
+            {draft.verificationMode === "TIMER"
+              ? `計時 ${draft.minimumSeconds}s`
+              : "自我確認"}
+          </dd>
+        </div>
+        <div>
+          <dt>成長值</dt>
+          <dd>+{draft.growthPoints}</dd>
+        </div>
+      </dl>
+      <small>
+        {windowValid
+          ? `${startsAt.toLocaleString("zh-TW")} — ${endsAt.toLocaleString("zh-TW")}`
+          : "請設定有效時間窗"}
+      </small>
+    </aside>
+  );
+}
+
+function coordinateToPercent(value: number, min: number, max: number) {
+  if (max === min) return 50;
+  return Math.min(92, Math.max(8, ((value - min) / (max - min)) * 100));
+}
+
+function missionStatusLabel(mission: RadarMissionSummary) {
+  if (
+    mission.publicationStatus === "PUBLISHED" &&
+    mission.status === "EXPIRED"
+  ) {
+    return "已過期";
+  }
+  return {
+    DRAFT: "草稿",
+    PUBLISHED: "已發布",
+    ARCHIVED: "已封存",
+  }[mission.publicationStatus];
 }
 
 function toLocalInputValue(date: Date): string {

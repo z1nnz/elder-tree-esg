@@ -381,10 +381,35 @@ class AppController extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    final timerRemaining = mission.timerRemainingAt(DateTime.now());
+    if (timerRemaining > Duration.zero) {
+      notice =
+          '「${mission.title}」還需要 ${timerRemaining.inSeconds} 秒，完成後生命樹才會成長。';
+      notifyListeners();
+      return;
+    }
     try {
-      radar = await _api.completeRadarMission(mission.id);
-      tree = await _api.getTree();
-      impact = await _api.getImpactSummary();
+      if (offlineDemo) {
+        radar = RadarStateModel(
+          generatedAt: DateTime.now(),
+          missions: radar.missions
+              .map(
+                (item) => item.id == mission.id
+                    ? item.copyWith(
+                        status: 'COMPLETED',
+                        completedAt: DateTime.now(),
+                      )
+                    : item,
+              )
+              .toList(),
+        );
+        _applyLocalGrowth(mission.growthPoints);
+      } else {
+        radar = await _api.completeRadarMission(mission.id);
+        tree = await _api.getTree();
+        impact = await _api.getImpactSummary();
+        exploration = await _api.getExplorationState();
+      }
       notice = '完成了「${mission.title}」，陪伴樹獲得 ${mission.growthPoints} 點成長值。';
     } catch (error) {
       notice = '雷達任務暫時無法完成：$error';
