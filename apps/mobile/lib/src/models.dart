@@ -202,6 +202,54 @@ class RadarMissionModel {
 
   bool get isUnlocked => status == 'UNLOCKED' || status == 'COMPLETED';
   bool get isCompleted => status == 'COMPLETED';
+  bool get isLocked => status == 'LOCKED' || status == 'UPCOMING';
+  bool get isExpired => status == 'EXPIRED';
+  bool get isTimer => verificationMode == VerificationMode.timer;
+
+  Duration get remainingDuration =>
+      Duration(seconds: remainingSeconds < 0 ? 0 : remainingSeconds);
+
+  Duration timerRemainingAt(DateTime now) {
+    if (!isTimer ||
+        minimumSeconds == null ||
+        unlockedAt == null ||
+        isCompleted) {
+      return Duration.zero;
+    }
+    final elapsed = now.difference(unlockedAt!);
+    final remaining = Duration(seconds: minimumSeconds!) - elapsed;
+    return remaining.isNegative ? Duration.zero : remaining;
+  }
+
+  bool canCompleteAt(DateTime now) =>
+      status == 'UNLOCKED' && timerRemainingAt(now) == Duration.zero;
+
+  RadarMissionModel copyWith({
+    String? status,
+    DateTime? unlockedAt,
+    DateTime? completedAt,
+    int? remainingSeconds,
+  }) => RadarMissionModel(
+    id: id,
+    title: title,
+    description: description,
+    category: category,
+    tag: tag,
+    latitude: latitude,
+    longitude: longitude,
+    radiusMeters: radiusMeters,
+    startsAt: startsAt,
+    endsAt: endsAt,
+    remainingSeconds: remainingSeconds ?? this.remainingSeconds,
+    verificationMode: verificationMode,
+    minimumSeconds: minimumSeconds,
+    growthPoints: growthPoints,
+    badgeName: badgeName,
+    publicationStatus: publicationStatus,
+    status: status ?? this.status,
+    unlockedAt: unlockedAt ?? this.unlockedAt,
+    completedAt: completedAt ?? this.completedAt,
+  );
 
   factory RadarMissionModel.fromJson(Map<String, dynamic> json) =>
       RadarMissionModel(

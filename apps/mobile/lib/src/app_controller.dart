@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
@@ -48,7 +49,42 @@ class AppController extends ChangeNotifier {
   ExplorationStateModel exploration = _emptyExploration;
   RadarStateModel radar = _emptyRadar;
   List<String> discoveredTrees = [];
+  double? latestLatitude;
+  double? latestLongitude;
+  double? latestAccuracyMeters;
+  DateTime? latestLocationAt;
+  String explorationLocationStatus = '尚未開始探索';
+  int? lastGrowthAwardPoints;
+  String? lastGrowthAwardTitle;
   bool _sendingLocation = false;
+
+  bool get sendingLocation => _sendingLocation;
+
+  List<RadarMissionViewState> get radarMissionViews {
+    final now = DateTime.now();
+    final views = radar.missions
+        .map(
+          (mission) => RadarMissionViewState(
+            mission: mission,
+            distanceMeters: _distanceToMission(mission),
+            now: now,
+          ),
+        )
+        .toList();
+    views.sort((a, b) {
+      final priority = a.priority.compareTo(b.priority);
+      if (priority != 0) return priority;
+      final distanceA = a.distanceMeters ?? 1 << 30;
+      final distanceB = b.distanceMeters ?? 1 << 30;
+      final distance = distanceA.compareTo(distanceB);
+      if (distance != 0) return distance;
+      return a.mission.endsAt.compareTo(b.mission.endsAt);
+    });
+    return views;
+  }
+
+  RadarMissionViewState? get featuredRadarMissionView =>
+      radarMissionViews.isEmpty ? null : radarMissionViews.first;
 
   Future<void> initialize() async {
     final preferences = await SharedPreferences.getInstance();
@@ -240,6 +276,8 @@ class AppController extends ChangeNotifier {
   Future<void> startExploration() async {
     if (exploring) return;
     try {
+      explorationLocationStatus = '正在確認定位權限';
+      notifyListeners();
       final route = exploration.routes.isEmpty
           ? null
           : exploration.routes.first;
@@ -255,6 +293,7 @@ class AppController extends ChangeNotifier {
       }
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
+        explorationLocationStatus = '定位權限未開啟';
         throw const FormatException('未取得定位權限');
       }
       ExplorationSessionModel? session;
@@ -268,6 +307,9 @@ class AppController extends ChangeNotifier {
         }
       }
       exploring = true;
+      explorationLocationStatus = '等待第一個定位點';
+      lastGrowthAwardPoints = null;
+      lastGrowthAwardTitle = null;
       notice = route == null
           ? '任務雷達已開始；只會把候選座標送到後端驗證接取範圍。'
           : '探索已開始；精確座標只暫存最新一點，結束後立即清除。';
@@ -296,6 +338,11 @@ class AppController extends ChangeNotifier {
     exploring = false;
     await _locationSubscription?.cancel();
     _locationSubscription = null;
+    latestLatitude = null;
+    latestLongitude = null;
+    latestAccuracyMeters = null;
+    latestLocationAt = null;
+    explorationLocationStatus = '探索已停止';
     final sessionId = exploration.activeSession?.id;
     if (!offlineDemo && sessionId != null) {
       try {
@@ -315,13 +362,16 @@ class AppController extends ChangeNotifier {
     exploring = false;
     await _locationSubscription?.cancel();
     _locationSubscription = null;
+    explorationLocationStatus = '背景暫停定位';
     notice = 'App 已進入背景，定位追蹤已暫停；回到探索頁可繼續同一趟路線。';
     notifyListeners();
   }
 
   Future<void> _recordPosition(Position position) async {
     if (!exploring || _sendingLocation) return;
+    _updateLatestPosition(position);
     if (position.accuracy > 50) {
+      explorationLocationStatus = '定位精度不足';
       notice =
           '目前定位誤差約 ${position.accuracy.round()} 公尺，需要 50 公尺內；App 會自動等待下一個定位點。';
       notifyListeners();
@@ -329,6 +379,8 @@ class AppController extends ChangeNotifier {
     }
     final sessionId = exploration.activeSession?.id;
     _sendingLocation = true;
+    explorationLocationStatus = '正在驗證位置';
+    notifyListeners();
     try {
       if (sessionId != null) {
         exploration = await _api.recordExplorationEvent(
@@ -342,12 +394,15 @@ class AppController extends ChangeNotifier {
       }
       await _unlockNearbyRadarMissions(position);
       tasks = await _api.getTasks();
+      explorationLocationStatus = '定位已更新';
       notifyListeners();
     } catch (error) {
+      explorationLocationStatus = '定位點未被接受';
       notice = '這個定位點未被接受，請保持網路連線；App 會在下一點自動重試：$error';
       notifyListeners();
     } finally {
       _sendingLocation = false;
+      notifyListeners();
     }
   }
 
@@ -371,6 +426,7 @@ class AppController extends ChangeNotifier {
         accuracyMeters: position.accuracy,
         occurredAt: position.timestamp,
       );
+      notice = '已接近「${mission.title}」，任務已解鎖。';
     }
   }
 
@@ -381,11 +437,38 @@ class AppController extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    final timerRemaining = mission.timerRemainingAt(DateTime.now());
+    if (timerRemaining > Duration.zero) {
+      notice =
+          '「${mission.title}」還需要 ${timerRemaining.inSeconds} 秒，完成後生命樹才會成長。';
+      notifyListeners();
+      return;
+    }
     try {
-      radar = await _api.completeRadarMission(mission.id);
-      tree = await _api.getTree();
-      impact = await _api.getImpactSummary();
-      notice = '完成了「${mission.title}」，陪伴樹獲得 ${mission.growthPoints} 點成長值。';
+      if (offlineDemo) {
+        radar = RadarStateModel(
+          generatedAt: DateTime.now(),
+          missions: radar.missions
+              .map(
+                (item) => item.id == mission.id
+                    ? item.copyWith(
+                        status: 'COMPLETED',
+                        completedAt: DateTime.now(),
+                      )
+                    : item,
+              )
+              .toList(),
+        );
+        _applyLocalGrowth(mission.growthPoints);
+      } else {
+        radar = await _api.completeRadarMission(mission.id);
+        tree = await _api.getTree();
+        impact = await _api.getImpactSummary();
+        exploration = await _api.getExplorationState();
+      }
+      lastGrowthAwardPoints = mission.growthPoints;
+      lastGrowthAwardTitle = mission.title;
+      notice = '生命樹長出新葉 +${mission.growthPoints}：${mission.title}';
     } catch (error) {
       notice = '雷達任務暫時無法完成：$error';
     }
@@ -493,6 +576,25 @@ class AppController extends ChangeNotifier {
     );
   }
 
+  int? _distanceToMission(RadarMissionModel mission) {
+    final latitude = latestLatitude;
+    final longitude = latestLongitude;
+    if (latitude == null || longitude == null) return null;
+    return _haversineDistanceMeters(
+      latitude,
+      longitude,
+      mission.latitude,
+      mission.longitude,
+    ).round();
+  }
+
+  void _updateLatestPosition(Position position) {
+    latestLatitude = position.latitude;
+    latestLongitude = position.longitude;
+    latestAccuracyMeters = position.accuracy;
+    latestLocationAt = position.timestamp;
+  }
+
   @override
   void dispose() {
     _locationSubscription?.cancel();
@@ -503,6 +605,62 @@ class AppController extends ChangeNotifier {
     super.dispose();
   }
 }
+
+class RadarMissionViewState {
+  const RadarMissionViewState({
+    required this.mission,
+    required this.distanceMeters,
+    required DateTime now,
+  }) : _now = now;
+
+  final RadarMissionModel mission;
+  final int? distanceMeters;
+  final DateTime _now;
+
+  bool get insideRadius =>
+      distanceMeters != null && distanceMeters! <= mission.radiusMeters;
+
+  bool get canUnlock => mission.status == 'LOCKED' && insideRadius;
+
+  bool get canComplete => mission.canCompleteAt(_now);
+
+  Duration get timerRemaining => mission.timerRemainingAt(_now);
+
+  int get priority {
+    if (canComplete) return 0;
+    if (mission.status == 'UNLOCKED') return 1;
+    if (canUnlock) return 2;
+    if (mission.status == 'LOCKED' || mission.status == 'UPCOMING') return 3;
+    if (mission.status == 'EXPIRED') return 4;
+    return 5;
+  }
+
+  String get distanceLabel {
+    final distance = distanceMeters;
+    if (distance == null) return '等待定位';
+    if (insideRadius) return '已進入 ${mission.radiusMeters}m 半徑';
+    return '距離 ${distance}m';
+  }
+}
+
+double _haversineDistanceMeters(
+  double startLatitude,
+  double startLongitude,
+  double endLatitude,
+  double endLongitude,
+) {
+  const earthRadiusMeters = 6371000.0;
+  final dLat = _degreesToRadians(endLatitude - startLatitude);
+  final dLon = _degreesToRadians(endLongitude - startLongitude);
+  final lat1 = _degreesToRadians(startLatitude);
+  final lat2 = _degreesToRadians(endLatitude);
+  final a =
+      math.sin(dLat / 2) * math.sin(dLat / 2) +
+      math.cos(lat1) * math.cos(lat2) * math.sin(dLon / 2) * math.sin(dLon / 2);
+  return earthRadiusMeters * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+}
+
+double _degreesToRadians(double degrees) => degrees * math.pi / 180;
 
 const _emptyTree = TreeSummary(
   name: '我的陪伴樹',

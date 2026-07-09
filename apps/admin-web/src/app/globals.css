@@ -1295,7 +1295,11 @@ button:disabled {
   place-items: center;
   padding: 24px;
   background:
-    radial-gradient(circle at 15% 15%, rgba(191, 222, 132, 0.35), transparent 32%),
+    radial-gradient(
+      circle at 15% 15%,
+      rgba(191, 222, 132, 0.35),
+      transparent 32%
+    ),
     #f3f6f1;
 }
 
@@ -1511,9 +1515,118 @@ button:disabled {
 
 .radar-admin-grid {
   display: grid;
-  grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1.2fr);
+  grid-template-columns: minmax(320px, 0.86fr) minmax(0, 1.14fr);
   gap: 18px;
   align-items: start;
+}
+
+.radar-admin-side {
+  display: grid;
+  gap: 14px;
+}
+
+.radar-admin-preview {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(36, 87, 55, 0.18);
+  border-radius: 18px;
+  background:
+    radial-gradient(
+      circle at 82% 16%,
+      rgba(191, 222, 132, 0.32),
+      transparent 30%
+    ),
+    linear-gradient(135deg, #0e3328, #245737);
+  color: white;
+  box-shadow: 0 24px 60px rgba(22, 43, 29, 0.16);
+}
+
+.radar-admin-preview h3 {
+  margin: 0;
+  font-size: 25px;
+}
+
+.radar-admin-preview p {
+  margin: 0;
+  color: #d7e8dc;
+  line-height: 1.6;
+}
+
+.radar-preview-map {
+  position: relative;
+  min-height: 180px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px),
+    radial-gradient(
+      circle at 70% 40%,
+      rgba(191, 222, 132, 0.22),
+      transparent 24%
+    ),
+    rgba(255, 255, 255, 0.06);
+  background-size:
+    36px 36px,
+    36px 36px,
+    auto,
+    auto;
+}
+
+.radar-preview-map::before {
+  content: "";
+  position: absolute;
+  inset: 20%;
+  border: 1px dashed rgba(191, 222, 132, 0.28);
+  border-radius: 50%;
+}
+
+.radar-preview-map i {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: 22px;
+  height: 22px;
+  border: 4px solid white;
+  border-radius: 50%;
+  background: #bfde84;
+  box-shadow:
+    0 0 0 16px rgba(191, 222, 132, 0.14),
+    0 0 36px rgba(191, 222, 132, 0.32);
+  transform: translate(-50%, -50%);
+}
+
+.radar-admin-preview dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.radar-admin-preview dl div {
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.radar-admin-preview dt {
+  color: #bfde84;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.radar-admin-preview dd {
+  margin: 4px 0 0;
+  font-weight: 900;
+}
+
+.radar-admin-preview small {
+  color: #d7e8dc;
+  font-weight: 800;
 }
 
 .radar-admin-list {
@@ -1530,8 +1643,7 @@ button:disabled {
   border: 1px solid #d9e2da;
   border-radius: 14px;
   background:
-    linear-gradient(135deg, rgba(191, 222, 132, 0.18), transparent 36%),
-    white;
+    linear-gradient(135deg, rgba(191, 222, 132, 0.18), transparent 36%), white;
 }
 
 .radar-admin-list h3 {
