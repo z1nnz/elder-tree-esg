@@ -730,6 +730,96 @@ button:disabled {
   font-weight: 800;
 }
 
+.queue-count.warning {
+  background: #fff3ce;
+  color: #8b5e14;
+}
+
+.photo-ai-status-panel {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+  border: 1px solid #d8e6dd;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 20% 0%, rgb(205 239 130 / 30%), transparent 36%),
+    linear-gradient(135deg, #f8fcf7, #eef7f0);
+  padding: 16px;
+}
+
+.photo-ai-status-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.photo-ai-icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 16px;
+  background: #dff36b;
+  color: var(--forest);
+}
+
+.photo-ai-status-hero span,
+.photo-ai-status-card span {
+  color: #73906f;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.photo-ai-status-hero strong {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink);
+  font-size: 18px;
+}
+
+.photo-ai-status-hero small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+}
+
+.photo-ai-status-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.photo-ai-status-card {
+  min-height: 126px;
+  border: 1px solid rgb(23 52 42 / 10%);
+  border-radius: 16px;
+  background: rgb(255 255 255 / 78%);
+  padding: 13px;
+}
+
+.photo-ai-status-card strong {
+  display: block;
+  margin-top: 9px;
+  color: var(--ink);
+}
+
+.photo-ai-status-card p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.status-ok {
+  color: var(--forest);
+}
+
+.status-warn {
+  color: #ad6c18;
+}
+
 .review-list {
   margin-top: 18px;
 }
@@ -1218,6 +1308,14 @@ button:disabled {
 
   .review-compact .primary-button {
     grid-column: 1 / -1;
+  }
+
+  .photo-ai-status-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .photo-ai-status-hero {
+    align-items: flex-start;
   }
 
   .device-strip {

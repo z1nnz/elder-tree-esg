@@ -221,7 +221,7 @@ describeWithDatabase("PersistentStoreService", () => {
   );
 
   it(
-    "keeps photo AI locked until Blaze storage and verification are enabled",
+    "keeps photo AI locked until storage and verification are enabled",
     async () => {
       delete process.env.PHOTO_EVIDENCE_ENABLED;
       delete process.env.PHOTO_VERIFICATION_ENABLED;
@@ -258,7 +258,7 @@ describeWithDatabase("PersistentStoreService", () => {
           contentType: "image/jpeg",
           idempotencyKey: "locked-gemini-photo",
         }),
-      ).rejects.toThrow("requires Firebase Blaze");
+      ).rejects.toThrow("requires private storage");
     },
     60_000,
   );
@@ -314,6 +314,55 @@ describeWithDatabase("PersistentStoreService", () => {
     },
     60_000,
   );
+
+  it("exposes admin photo AI operational status without secrets", () => {
+    const previousPhotoEvidenceEnabled = process.env.PHOTO_EVIDENCE_ENABLED;
+    const previousPhotoVerificationEnabled =
+      process.env.PHOTO_VERIFICATION_ENABLED;
+    const previousStorageBucket = process.env.FIREBASE_STORAGE_BUCKET;
+    const previousVerifierUrl = process.env.AI_VERIFIER_URL;
+    process.env.PHOTO_EVIDENCE_ENABLED = "true";
+    process.env.PHOTO_VERIFICATION_ENABLED = "true";
+    process.env.FIREBASE_STORAGE_BUCKET = "test-bucket";
+    process.env.AI_VERIFIER_URL = "http://127.0.0.1:4400";
+
+    try {
+      const status = store.getPhotoAiOperationalStatus();
+
+      expect(status.photoEvidence.enabled).toBe(true);
+      expect(status.geminiPhotoVerification.enabled).toBe(true);
+      expect(status.storageBucketConfigured).toBe(true);
+      expect(status.storageBucketName).toBe("test-bucket");
+      expect(status.aiVerifierUrlConfigured).toBe(true);
+      expect(status.aiVerifierUrl).toBe("http://127.0.0.1:4400");
+      expect(status.generalPhotoAiTasksEnabled).toBe(true);
+      expect(status.radarPhotoAiTasksEnabled).toBe(false);
+      expect(JSON.stringify(status)).not.toContain("GEMINI_API_KEY");
+      expect(JSON.stringify(status)).not.toContain("DATABASE_URL");
+    } finally {
+      if (previousPhotoEvidenceEnabled === undefined) {
+        delete process.env.PHOTO_EVIDENCE_ENABLED;
+      } else {
+        process.env.PHOTO_EVIDENCE_ENABLED = previousPhotoEvidenceEnabled;
+      }
+      if (previousPhotoVerificationEnabled === undefined) {
+        delete process.env.PHOTO_VERIFICATION_ENABLED;
+      } else {
+        process.env.PHOTO_VERIFICATION_ENABLED =
+          previousPhotoVerificationEnabled;
+      }
+      if (previousStorageBucket === undefined) {
+        delete process.env.FIREBASE_STORAGE_BUCKET;
+      } else {
+        process.env.FIREBASE_STORAGE_BUCKET = previousStorageBucket;
+      }
+      if (previousVerifierUrl === undefined) {
+        delete process.env.AI_VERIFIER_URL;
+      } else {
+        process.env.AI_VERIFIER_URL = previousVerifierUrl;
+      }
+    }
+  });
 
   it(
     "completes Gemini photo tasks only when explicitly enabled and stays idempotent",
@@ -1246,7 +1295,7 @@ describeWithDatabase("PersistentStoreService", () => {
 
     await expect(
       store.publishAdminRadarMission(photoRadar.id),
-    ).rejects.toThrow("PHOTO_AI radar missions require Blaze");
+    ).rejects.toThrow("PHOTO_AI radar missions are not supported in this MVP");
   });
 
   it(

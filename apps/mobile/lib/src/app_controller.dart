@@ -89,6 +89,16 @@ class AppController extends ChangeNotifier {
   RadarMissionViewState? get featuredRadarMissionView =>
       radarMissionViews.isEmpty ? null : radarMissionViews.first;
 
+  String photoTaskActionLabel(DailyTask task) {
+    if (task.capabilityEnabled) return '拍照驗證任務';
+    return switch (task.capabilityReason) {
+      'PHOTO_STORAGE_UNAVAILABLE' => '照片儲存尚未設定',
+      'PHOTO_VERIFIER_UNAVAILABLE' => 'AI 驗證服務未連線',
+      'BLAZE_REQUIRED' => '照片驗證尚未啟用',
+      _ => '照片驗證暫時不可用',
+    };
+  }
+
   Future<void> initialize() async {
     final preferences = await SharedPreferences.getInstance();
     elderMode = preferences.getBool('elderMode') ?? true;
@@ -228,7 +238,7 @@ class AppController extends ChangeNotifier {
     if (!task.capabilityEnabled ||
         context?.photoEvidenceEnabled == false ||
         context?.geminiPhotoVerificationEnabled == false) {
-      notice = '照片 AI 驗證將於 Firebase Blaze／Storage 啟用後開放；其他任務與城市探索仍可正常使用。';
+      notice = _photoCapabilityMessage(task);
       notifyListeners();
       return;
     }
@@ -270,12 +280,48 @@ class AppController extends ChangeNotifier {
         _replaceTask(task.copyWith(status: TaskStatus.completed));
         _applyLocalGrowth(task.growthPoints);
         notice =
-            'Gemini 已辨識照片並完成「${task.title}」，陪伴樹獲得 ${task.growthPoints} 點成長值。';
+            '照片驗證已通過並完成「${task.title}」，陪伴樹獲得 ${task.growthPoints} 點成長值。';
       }
     } catch (error) {
-      notice = '照片辨識失敗：$error。請讓主體更清楚後再拍一次。';
+      notice = _friendlyPhotoError(error);
     }
     notifyListeners();
+  }
+
+  String _photoCapabilityMessage(DailyTask task) {
+    final reason =
+        task.capabilityReason ??
+        context?.geminiPhotoVerificationReason ??
+        context?.photoEvidenceReason;
+    return switch (reason) {
+      'PHOTO_STORAGE_UNAVAILABLE' || 'STORAGE_NOT_CONFIGURED' =>
+        '照片驗證需要的私人儲存空間還沒設定完成；其他任務仍可正常使用。',
+      'PHOTO_VERIFIER_UNAVAILABLE' || 'VERIFIER_DISABLED' =>
+        '照片驗證服務尚未連線。請先啟動 AI verifier，或確認 PHOTO_VERIFICATION_ENABLED 已開啟。',
+      'BLAZE_REQUIRED' => '照片驗證尚未啟用；其他任務與城市探索仍可正常使用。',
+      _ => '照片驗證暫時不可用，請稍後再試；其他任務仍可正常使用。',
+    };
+  }
+
+  String _friendlyPhotoError(Object error) {
+    final message = error.toString();
+    if (message.contains('413') ||
+        message.contains('too large') ||
+        message.contains('10 MB')) {
+      return '照片檔案太大，請重新拍一張較清楚、較近的照片。';
+    }
+    if (message.contains('Storage') ||
+        message.contains('Firebase') ||
+        message.contains('upload')) {
+      return '照片暫時無法安全上傳，請確認網路後再試一次。';
+    }
+    if (message.contains('verifier') ||
+        message.contains('Gemini') ||
+        message.contains('503') ||
+        message.contains('timeout')) {
+      return 'AI 驗證服務暫時沒有回應，照片沒有加分，請稍後再拍一次。';
+    }
+    return '照片辨識沒有完成。請讓主體更清楚、光線更穩定後再拍一次。';
   }
 
   Future<void> decideReview(FamilyReviewModel review, String decision) async {
@@ -718,7 +764,7 @@ const _fallbackTasks = [
     growthPoints: 80,
     status: TaskStatus.available,
     capabilityEnabled: false,
-    capabilityReason: 'BLAZE_REQUIRED',
+    capabilityReason: 'PHOTO_STORAGE_UNAVAILABLE',
   ),
   DailyTask(
     id: '55555555-5555-4555-8555-555555555555',
@@ -728,7 +774,7 @@ const _fallbackTasks = [
     growthPoints: 35,
     status: TaskStatus.available,
     capabilityEnabled: false,
-    capabilityReason: 'BLAZE_REQUIRED',
+    capabilityReason: 'PHOTO_STORAGE_UNAVAILABLE',
   ),
   DailyTask(
     id: '22222222-2222-4222-8222-222222222222',
