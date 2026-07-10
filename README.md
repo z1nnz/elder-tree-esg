@@ -75,7 +75,8 @@ set `GEMINI_API_KEY` in that verifier process, and keep
 `PHOTO_EVIDENCE_ENABLED=true` plus `PHOTO_VERIFICATION_ENABLED=true` when
 running `npm run dev:api:neon`. The app uploads sanitized private evidence to
 Firebase Storage; the API creates a short-lived signed URL for the verifier.
-Deploy the private rules before testing on a real account:
+Deploy the private rules before testing on a real account. The project currently
+uses `elder-tree-esg-z1nnz.firebasestorage.app` as the Storage bucket:
 
 ```sh
 firebase deploy --only storage --project elder-tree-esg-z1nnz
@@ -87,6 +88,11 @@ the intended region, and then run the deploy command again.
 
 Never commit the Admin private key or Gemini API key. If `GEMINI_API_KEY` is not
 set, the verifier stays in rules-only mode and photo tasks will not auto-pass.
+See the operational runbooks for step-by-step validation:
+
+- [Admin login and role grant](docs/operations/admin-login.md)
+- [Photo AI validation](docs/operations/photo-ai-validation.md)
+- [Device and demo testing checklist](docs/operations/device-testing-checklist.md)
 
 Run the Flutter app in another terminal:
 

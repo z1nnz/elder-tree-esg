@@ -5,6 +5,7 @@ import type {
   DashboardSnapshot,
   ExplorationRouteSummary,
   ImpactBatchSummary,
+  PhotoAiOperationalStatus,
   RadarMissionSummary,
   ReviewItem,
 } from "@elder-tree/contracts";
@@ -39,6 +40,7 @@ import {
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
+import { PhotoAiStatusPanel } from "./photo-ai-status-panel";
 import { RadarMissionEditor } from "./radar-mission-editor";
 import { RouteEditor } from "./route-editor";
 
@@ -92,6 +94,8 @@ export function OperationsDashboard() {
   const [view, setView] = useState<View>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [snapshot, setSnapshot] = useState(fallbackSnapshot);
+  const [photoAiStatus, setPhotoAiStatus] =
+    useState<PhotoAiOperationalStatus | null>(null);
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [routes, setRoutes] = useState<ExplorationRouteSummary[]>([]);
   const [radarMissions, setRadarMissions] = useState<RadarMissionSummary[]>([]);
@@ -107,20 +111,23 @@ export function OperationsDashboard() {
     try {
       const [
         nextSnapshot,
+        nextPhotoAiStatus,
         nextReviews,
         nextRoutes,
         nextRadarMissions,
         nextBatches,
         nextDevices,
       ] = await Promise.all([
-          api.dashboard(),
-          api.reviews(),
-          api.explorationRoutes(),
-          api.radarMissions(),
-          api.impactBatches(),
-          api.devices(),
-        ]);
+        api.dashboard(),
+        api.photoAiStatus(),
+        api.reviews(),
+        api.explorationRoutes(),
+        api.radarMissions(),
+        api.impactBatches(),
+        api.devices(),
+      ]);
       setSnapshot(nextSnapshot);
+      setPhotoAiStatus(nextPhotoAiStatus);
       setReviews(nextReviews);
       setRoutes(nextRoutes);
       setRadarMissions(nextRadarMissions);
@@ -312,7 +319,7 @@ export function OperationsDashboard() {
             />
           ) : null}
           {view === "reviews" ? (
-            <Reviews reviews={reviews} />
+            <Reviews reviews={reviews} photoAiStatus={photoAiStatus} />
           ) : null}
           {view === "exploration" ? (
             <div className="exploration-stack">
@@ -594,18 +601,29 @@ function Overview({
 
 function Reviews({
   reviews,
+  photoAiStatus,
 }: {
   reviews: ReviewItem[];
+  photoAiStatus: PhotoAiOperationalStatus | null;
 }) {
+  const fullyEnabled =
+    photoAiStatus?.photoEvidence.enabled === true &&
+    photoAiStatus.geminiPhotoVerification.enabled === true;
   return (
     <section className="workspace" data-view-root>
       <div className="workspace-heading">
         <div>
           <h2>照片覆核佇列</h2>
-          <p>Firebase Blaze 尚未啟用，照片驗證與覆核操作目前鎖定。</p>
+          <p>
+            一般 PHOTO_AI 任務已接上 Evidence、Firebase Storage 與 AI
+            verifier；雷達任務仍維持 SELF_CHECK / TIMER。
+          </p>
         </div>
-        <span className="queue-count">{reviews.length} 件待處理</span>
+        <span className={fullyEnabled ? "queue-count" : "queue-count warning"}>
+          {fullyEnabled ? "照片 AI 已啟用" : "需檢查環境"}
+        </span>
       </div>
+      <PhotoAiStatusPanel status={photoAiStatus} reviewCount={reviews.length} />
       {reviews.length ? (
         <div className="review-list">
           {reviews.map((item) => (
@@ -632,7 +650,7 @@ function Reviews({
                 <p>{item.explanation}</p>
                 <div className="review-actions">
                   <button className="secondary-button" disabled>
-                    照片驗證服務尚未開放
+                    {fullyEnabled ? "家人覆核決策由 App 處理" : "等待照片 AI 環境完成"}
                   </button>
                 </div>
               </div>

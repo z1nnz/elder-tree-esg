@@ -153,6 +153,23 @@ function photoCapabilityStatus() {
   } as const;
 }
 
+function photoAiOperationalStatus() {
+  const capability = photoCapabilityStatus();
+  const aiVerifierUrl = process.env.AI_VERIFIER_URL ?? "http://127.0.0.1:4400";
+  return {
+    photoEvidence: capability.photoEvidence,
+    geminiPhotoVerification: capability.geminiPhotoVerification,
+    storageBucketConfigured: Boolean(process.env.FIREBASE_STORAGE_BUCKET),
+    storageBucketName: process.env.FIREBASE_STORAGE_BUCKET ?? null,
+    aiVerifierUrlConfigured: Boolean(process.env.AI_VERIFIER_URL),
+    aiVerifierUrl,
+    storageRulesManagedSeparately: true,
+    generalPhotoAiTasksEnabled: capability.taskCapability.enabled,
+    radarPhotoAiTasksEnabled: false,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 function toTaskSummary(assignment: AssignmentWithTask): TaskSummary {
   const rule =
     assignment.task.verificationRule &&
@@ -497,7 +514,7 @@ export class PersistentStoreService {
       process.env.PHOTO_VERIFICATION_ENABLED !== "true"
     ) {
       throw new BadRequestException(
-        "Photo verification requires Firebase Blaze and private storage",
+        "Photo verification requires private storage and the verifier to be enabled",
       );
     }
     const active = await this.getActiveUser(firebaseUid);
@@ -1131,6 +1148,10 @@ export class PersistentStoreService {
     };
   }
 
+  getPhotoAiOperationalStatus() {
+    return photoAiOperationalStatus();
+  }
+
   async listAdminReviews(): Promise<ReviewItem[]> {
     if (process.env.PHOTO_EVIDENCE_ENABLED !== "true") return [];
     const reviews = await this.prisma.verificationRun.findMany({
@@ -1614,7 +1635,9 @@ export class PersistentStoreService {
     });
     if (!existing) throw new NotFoundException("Radar mission not found");
     if (existing.verificationMode === VerificationMode.PHOTO_AI) {
-      throw new BadRequestException("PHOTO_AI radar missions require Blaze");
+      throw new BadRequestException(
+        "PHOTO_AI radar missions are not supported in this MVP",
+      );
     }
     const mission = await this.prisma.radarMission.update({
       where: { id: missionId },
@@ -1740,7 +1763,9 @@ export class PersistentStoreService {
         throw new BadRequestException("Radar mission has expired");
       }
       if (progress.mission.verificationMode === VerificationMode.PHOTO_AI) {
-        throw new BadRequestException("PHOTO_AI radar missions require Blaze");
+        throw new BadRequestException(
+          "PHOTO_AI radar missions are not supported in this MVP",
+        );
       }
       if (progress.mission.verificationMode === VerificationMode.TIMER) {
         const minimumSeconds = progress.mission.minimumSeconds ?? 0;
@@ -2473,7 +2498,7 @@ export class PersistentStoreService {
   private assertValidRadarMissionInput(input: RadarMissionInput): void {
     if (!["SELF_CHECK", "TIMER"].includes(input.verificationMode)) {
       throw new BadRequestException(
-        "Radar missions only support SELF_CHECK or TIMER until Blaze is enabled",
+        "Radar missions only support SELF_CHECK or TIMER in this MVP",
       );
     }
     const startsAt = new Date(input.startsAt);

@@ -35,6 +35,11 @@ export class AdminController {
     return { data: await this.store.getAdminDashboard() };
   }
 
+  @Get("photo-ai/status")
+  photoAiStatus() {
+    return { data: this.store.getPhotoAiOperationalStatus() };
+  }
+
   @Get("reviews")
   async reviews() {
     return { data: await this.store.listAdminReviews() };

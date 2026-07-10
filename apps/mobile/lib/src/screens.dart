@@ -2446,7 +2446,7 @@ class _TaskTile extends StatelessWidget {
                   ? OutlinedButton.icon(
                       onPressed: () => controller.photographTask(task),
                       icon: const Icon(Icons.lock_outline_rounded),
-                      label: const Text('照片 AI 等 Blaze 開放'),
+                      label: Text(controller.photoTaskActionLabel(task)),
                     )
                   : !supported
                   ? OutlinedButton.icon(

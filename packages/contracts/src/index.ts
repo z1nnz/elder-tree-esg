@@ -148,6 +148,25 @@ export interface AppContext {
   };
 }
 
+export interface PhotoAiOperationalStatus {
+  photoEvidence: {
+    enabled: boolean;
+    reason: "STORAGE_NOT_CONFIGURED" | "BLAZE_REQUIRED" | null;
+  };
+  geminiPhotoVerification: {
+    enabled: boolean;
+    reason: "VERIFIER_DISABLED" | "BLAZE_REQUIRED" | null;
+  };
+  storageBucketConfigured: boolean;
+  storageBucketName: string | null;
+  aiVerifierUrlConfigured: boolean;
+  aiVerifierUrl: string;
+  storageRulesManagedSeparately: true;
+  generalPhotoAiTasksEnabled: boolean;
+  radarPhotoAiTasksEnabled: false;
+  updatedAt: string;
+}
+
 export interface HouseholdInviteSummary {
   code: string;
   householdId: string;

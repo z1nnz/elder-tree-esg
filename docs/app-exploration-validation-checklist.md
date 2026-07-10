@@ -1,6 +1,6 @@
 # App 城市探索實機驗收清單
 
-本清單用來把城市探索 MVP 從「本機測試通過」推進到「真的可以拿手機玩一次」。本階段不啟用 Blaze、Firebase Storage、Gemini，也不測照片 AI 任務。
+本清單用來把城市探索 MVP 從「本機測試通過」推進到「真的可以拿手機玩一次」。照片 AI 已進入 Blaze / Storage / Gemini 驗收階段；照片任務請另外依照 `docs/operations/photo-ai-validation.md` 驗收。
 
 ## 1. 啟動前準備
 
@@ -31,7 +31,7 @@
 ## 3. macOS App 驗收
 
 - macOS 不要求真實 GPS。
-- 只驗證登入、探索頁 UI、任務雷達列表、鎖定照片 AI 文案與受控 demo。
+- 只驗證登入、探索頁 UI、任務雷達列表、照片 AI 狀態文案與受控 demo。
 - 若啟用 simulation，必須確認 production 或未設定 `LOCATION_SIMULATION_ENABLED` 時完全拒絕模擬 API。
 
 ## 4. 後台驗收
@@ -39,7 +39,7 @@
 - 平台管理員可以建立、發布、封存雷達任務。
 - 任務列表能看出草稿、已發布、已過期、已封存。
 - 一般帳號呼叫 `/admin/*` 必須得到 403。
-- `PHOTO_AI` 任務不可發布。
+- 雷達任務仍不可發布 `PHOTO_AI`；一般任務的照片 AI 依照片驗證手冊測試。
 
 ## 5. 驗收通過標準
 
@@ -48,4 +48,4 @@
 - unlock 不加分，complete 才加分。
 - 同一任務、同一使用者、同一家庭只加一次。
 - 關閉 App、API 重啟、App 重啟後狀態仍以後端資料恢復。
-- Blaze / Storage / Gemini 在本階段沒有任何請求。
+- 城市探索流程不依賴 Blaze / Storage / Gemini；照片任務的 Storage / Gemini 請用獨立驗收清單確認。

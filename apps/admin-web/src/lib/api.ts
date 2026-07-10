@@ -7,6 +7,7 @@ import type {
   ExplorationRouteInput,
   ExplorationRouteSummary,
   ImpactBatchSummary,
+  PhotoAiOperationalStatus,
   ReviewItem,
 } from "@elder-tree/contracts";
 
@@ -36,6 +37,8 @@ export const api = {
     accessToken = token;
   },
   dashboard: () => request<DashboardSnapshot>("/admin/dashboard"),
+  photoAiStatus: () =>
+    request<PhotoAiOperationalStatus>("/admin/photo-ai/status"),
   reviews: () => request<ReviewItem[]>("/admin/reviews"),
   radarMissions: () =>
     request<RadarMissionSummary[]>("/admin/exploration/radar-missions"),

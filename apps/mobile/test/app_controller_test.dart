@@ -107,6 +107,38 @@ void main() {
     expect(fail.decision, EvidenceDecision.fail);
     expect(fail.status, TaskStatus.rejected);
   });
+
+  test('describes disabled photo AI capabilities without Blaze wording', () {
+    final controller = AppController(allowOfflineDemo: false);
+    const storageMissing = DailyTask(
+      id: 'photo-storage',
+      title: '拍植物',
+      description: '測試',
+      verificationMode: VerificationMode.photoAi,
+      growthPoints: 8,
+      status: TaskStatus.available,
+      capabilityEnabled: false,
+      capabilityReason: 'PHOTO_STORAGE_UNAVAILABLE',
+    );
+    const verifierMissing = DailyTask(
+      id: 'photo-verifier',
+      title: '拍水杯',
+      description: '測試',
+      verificationMode: VerificationMode.photoAi,
+      growthPoints: 8,
+      status: TaskStatus.available,
+      capabilityEnabled: false,
+      capabilityReason: 'PHOTO_VERIFIER_UNAVAILABLE',
+    );
+
+    expect(controller.photoTaskActionLabel(storageMissing), '照片儲存尚未設定');
+    expect(controller.photoTaskActionLabel(verifierMissing), 'AI 驗證服務未連線');
+    expect(
+      controller.photoTaskActionLabel(storageMissing).contains('Blaze'),
+      isFalse,
+    );
+    controller.dispose();
+  });
 }
 
 RadarMissionModel _radarMission({

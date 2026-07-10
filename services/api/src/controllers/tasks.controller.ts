@@ -75,7 +75,7 @@ export class TasksController {
       process.env.PHOTO_VERIFICATION_ENABLED !== "true"
     ) {
       throw new ServiceUnavailableException(
-        "Photo AI verification is locked until Firebase Blaze and private storage are enabled",
+        "Photo AI verification requires private storage and the verifier to be enabled",
       );
     }
     if (process.env.DEMO_MODE !== "false") {
