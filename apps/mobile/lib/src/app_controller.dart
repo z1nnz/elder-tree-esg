@@ -742,6 +742,19 @@ class AppController extends ChangeNotifier {
   }
 }
 
+enum AdventureMissionState {
+  waitingForLocation,
+  far,
+  near,
+  insideRadius,
+  unlocked,
+  timerRunning,
+  readyToComplete,
+  completed,
+  expired,
+  upcoming,
+}
+
 class RadarMissionViewState {
   const RadarMissionViewState({
     required this.mission,
@@ -762,13 +775,96 @@ class RadarMissionViewState {
 
   Duration get timerRemaining => mission.timerRemainingAt(_now);
 
+  AdventureMissionState get adventureState {
+    if (mission.status == 'COMPLETED') {
+      return AdventureMissionState.completed;
+    }
+    if (mission.status == 'EXPIRED') {
+      return AdventureMissionState.expired;
+    }
+    if (mission.status == 'UPCOMING') {
+      return AdventureMissionState.upcoming;
+    }
+    if (distanceMeters == null) {
+      return AdventureMissionState.waitingForLocation;
+    }
+    if (canComplete) {
+      return AdventureMissionState.readyToComplete;
+    }
+    if (mission.status == 'UNLOCKED' && timerRemaining > Duration.zero) {
+      return AdventureMissionState.timerRunning;
+    }
+    if (mission.status == 'UNLOCKED') {
+      return AdventureMissionState.unlocked;
+    }
+    if (insideRadius) {
+      return AdventureMissionState.insideRadius;
+    }
+    if (distanceMeters! <= mission.radiusMeters * 2) {
+      return AdventureMissionState.near;
+    }
+    return AdventureMissionState.far;
+  }
+
+  double get proximityProgress {
+    final distance = distanceMeters;
+    if (distance == null || mission.status == 'COMPLETED') return 0;
+    if (insideRadius || mission.status == 'UNLOCKED') return 1;
+    final radius = mission.radiusMeters.toDouble();
+    final outerRadius = math.max(radius * 3, radius + 1);
+    final progress = 1 - ((distance - radius) / (outerRadius - radius));
+    return progress.clamp(0, 1).toDouble();
+  }
+
+  String get stateLabel => switch (adventureState) {
+    AdventureMissionState.waitingForLocation => '等待定位',
+    AdventureMissionState.far => '靠近中',
+    AdventureMissionState.near => '快到了',
+    AdventureMissionState.insideRadius => '範圍內',
+    AdventureMissionState.unlocked => '可接取',
+    AdventureMissionState.timerRunning => '計時中',
+    AdventureMissionState.readyToComplete => '可完成',
+    AdventureMissionState.completed => '已完成',
+    AdventureMissionState.expired => '已結束',
+    AdventureMissionState.upcoming => '尚未開始',
+  };
+
+  String get primaryActionLabel => switch (adventureState) {
+    AdventureMissionState.readyToComplete =>
+      mission.isTimer ? '完成計時任務' : '我完成了',
+    AdventureMissionState.timerRunning => '還需 ${timerRemaining.inSeconds} 秒',
+    AdventureMissionState.unlocked => mission.isTimer ? '計時中' : '我完成了',
+    AdventureMissionState.insideRadius => '正在解鎖',
+    AdventureMissionState.near => '再靠近一點',
+    AdventureMissionState.far => '往任務光點走',
+    AdventureMissionState.waitingForLocation => '先開始探索',
+    AdventureMissionState.completed => '生命樹已成長',
+    AdventureMissionState.expired => '任務已結束',
+    AdventureMissionState.upcoming => '稍後開放',
+  };
+
+  String get helperText => switch (adventureState) {
+    AdventureMissionState.readyToComplete =>
+      '完成後生命樹會長出新葉 +${mission.growthPoints}',
+    AdventureMissionState.timerRunning => '停一下，等時間走完再完成。',
+    AdventureMissionState.unlocked => '任務已接取，可以慢慢完成。',
+    AdventureMissionState.insideRadius => '你已經進入半徑，App 會向後端確認。',
+    AdventureMissionState.near => '任務就在附近，靠近光點即可接取。',
+    AdventureMissionState.far => '城市裡有一個小任務正在等你。',
+    AdventureMissionState.waitingForLocation => '按下開始探索後，才會使用前景定位。',
+    AdventureMissionState.completed => '這次完成已經被記錄，重送不會重複加分。',
+    AdventureMissionState.expired => '這個任務已結束，可以看看其他光點。',
+    AdventureMissionState.upcoming => '這個任務還沒開始。',
+  };
+
   int get priority {
     if (canComplete) return 0;
     if (mission.status == 'UNLOCKED') return 1;
     if (canUnlock) return 2;
-    if (mission.status == 'LOCKED' || mission.status == 'UPCOMING') return 3;
-    if (mission.status == 'EXPIRED') return 4;
-    return 5;
+    if (adventureState == AdventureMissionState.near) return 3;
+    if (mission.status == 'LOCKED' || mission.status == 'UPCOMING') return 4;
+    if (mission.status == 'EXPIRED') return 5;
+    return 6;
   }
 
   String get distanceLabel {

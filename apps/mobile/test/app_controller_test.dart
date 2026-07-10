@@ -81,10 +81,56 @@ void main() {
       'done',
     ]);
     expect(views.first.canComplete, isTrue);
+    expect(views.first.adventureState, AdventureMissionState.readyToComplete);
+    expect(views.first.primaryActionLabel, '我完成了');
     expect(views[1].canUnlock, isTrue);
+    expect(views[1].adventureState, AdventureMissionState.insideRadius);
     expect(views[1].distanceLabel, startsWith('已進入'));
+    expect(views[1].proximityProgress, 1);
+    expect(views.last.adventureState, AdventureMissionState.completed);
     controller.dispose();
   });
+
+  test(
+    'describes exploration gameplay states without storing fake progress',
+    () {
+      final lockedFar = RadarMissionViewState(
+        mission: _radarMission(id: 'far', status: 'LOCKED', latitude: 25.08),
+        distanceMeters: 1200,
+        now: DateTime.parse('2026-07-07T09:00:00.000Z'),
+      );
+      final lockedNear = RadarMissionViewState(
+        mission: _radarMission(
+          id: 'near',
+          status: 'LOCKED',
+          latitude: 25.04411,
+        ),
+        distanceMeters: 120,
+        now: DateTime.parse('2026-07-07T09:00:00.000Z'),
+      );
+      final waitingLocation = RadarMissionViewState(
+        mission: _radarMission(
+          id: 'waiting',
+          status: 'LOCKED',
+          latitude: 25.04411,
+        ),
+        distanceMeters: null,
+        now: DateTime.parse('2026-07-07T09:00:00.000Z'),
+      );
+
+      expect(lockedFar.adventureState, AdventureMissionState.far);
+      expect(lockedFar.stateLabel, '靠近中');
+      expect(lockedFar.proximityProgress, 0);
+      expect(lockedNear.adventureState, AdventureMissionState.near);
+      expect(lockedNear.stateLabel, '快到了');
+      expect(lockedNear.proximityProgress, greaterThan(0));
+      expect(
+        waitingLocation.adventureState,
+        AdventureMissionState.waitingForLocation,
+      );
+      expect(waitingLocation.primaryActionLabel, '先開始探索');
+    },
+  );
 
   test('parses photo evidence decisions from the API', () {
     final pass = EvidenceDecisionModel.fromJson(const {
