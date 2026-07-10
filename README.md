@@ -91,6 +91,7 @@ set, the verifier stays in rules-only mode and photo tasks will not auto-pass.
 See the operational runbooks for step-by-step validation:
 
 - [Admin login and role grant](docs/operations/admin-login.md)
+- [App V2 validation](docs/operations/app-v2-validation.md)
 - [Photo AI validation](docs/operations/photo-ai-validation.md)
 - [Device and demo testing checklist](docs/operations/device-testing-checklist.md)
 

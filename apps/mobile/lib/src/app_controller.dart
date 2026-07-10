@@ -51,6 +51,7 @@ class AppController extends ChangeNotifier {
   ImpactSummaryModel impact = _emptyImpact;
   ExplorationStateModel exploration = _emptyExploration;
   RadarStateModel radar = _emptyRadar;
+  HomeSummaryModel? home;
   List<String> discoveredTrees = [];
   double? latestLatitude;
   double? latestLongitude;
@@ -89,6 +90,14 @@ class AppController extends ChangeNotifier {
   RadarMissionViewState? get featuredRadarMissionView =>
       radarMissionViews.isEmpty ? null : radarMissionViews.first;
 
+  DailyTask? taskById(String? taskId) {
+    if (taskId == null) return null;
+    for (final task in tasks) {
+      if (task.id == taskId) return task;
+    }
+    return null;
+  }
+
   String photoTaskActionLabel(DailyTask task) {
     if (task.capabilityEnabled) return '拍照驗證任務';
     return switch (task.capabilityReason) {
@@ -108,7 +117,7 @@ class AppController extends ChangeNotifier {
       try {
         context = await _api.updateDisplayName(_initialDisplayName!.trim());
       } catch (error) {
-        notice = '名稱同步失敗：$error';
+        notice = _friendlyActionError(error, fallback: '名稱暫時無法同步，稍後會再以帳號資料為準。');
       }
       notifyListeners();
     }
@@ -120,6 +129,7 @@ class AppController extends ChangeNotifier {
     notifyListeners();
     try {
       final results = await Future.wait([
+        _api.getHomeSummary(),
         _api.getContext(),
         _api.getTasks(),
         _api.getTree(),
@@ -130,15 +140,16 @@ class AppController extends ChangeNotifier {
         _api.getExplorationState(),
         _api.getRadarState(),
       ]);
-      context = results[0] as AppContextModel;
-      tasks = results[1] as List<DailyTask>;
-      tree = results[2] as TreeSummary;
-      messages = results[3] as List<FamilyMessageModel>;
-      devices = results[4] as List<CompanionDevice>;
-      reviews = results[5] as List<FamilyReviewModel>;
-      impact = results[6] as ImpactSummaryModel;
-      exploration = results[7] as ExplorationStateModel;
-      radar = results[8] as RadarStateModel;
+      home = results[0] as HomeSummaryModel;
+      context = results[1] as AppContextModel;
+      tasks = results[2] as List<DailyTask>;
+      tree = results[3] as TreeSummary;
+      messages = results[4] as List<FamilyMessageModel>;
+      devices = results[5] as List<CompanionDevice>;
+      reviews = results[6] as List<FamilyReviewModel>;
+      impact = results[7] as ImpactSummaryModel;
+      exploration = results[8] as ExplorationStateModel;
+      radar = results[9] as RadarStateModel;
       offlineDemo = false;
     } catch (_) {
       offlineDemo = _allowOfflineDemo;
@@ -157,7 +168,7 @@ class AppController extends ChangeNotifier {
       context = await _api.updateDisplayName(displayName.trim());
       notice = '顯示名稱已更新。';
     } catch (error) {
-      notice = '名稱更新失敗：$error';
+      notice = _friendlyActionError(error, fallback: '名稱暫時無法更新，請確認網路後再試一次。');
     }
     notifyListeners();
   }
@@ -170,7 +181,7 @@ class AppController extends ChangeNotifier {
       notice = '已切換到 ${context?.activeHousehold.name ?? '家庭'}。';
       notifyListeners();
     } catch (error) {
-      notice = '家庭切換失敗：$error';
+      notice = _friendlyActionError(error, fallback: '家庭暫時無法切換，請稍後再試一次。');
       notifyListeners();
     }
   }
@@ -182,7 +193,7 @@ class AppController extends ChangeNotifier {
       notifyListeners();
       return invite;
     } catch (error) {
-      notice = '邀請碼建立失敗：$error';
+      notice = _friendlyActionError(error, fallback: '邀請碼暫時無法建立，請稍後再試一次。');
       notifyListeners();
       return null;
     }
@@ -195,7 +206,7 @@ class AppController extends ChangeNotifier {
       notice = '已加入 ${context?.activeHousehold.name ?? '新的家庭'}。';
       notifyListeners();
     } catch (error) {
-      notice = '加入家庭失敗：$error';
+      notice = _friendlyActionError(error, fallback: '暫時無法加入家庭，請確認邀請碼後再試一次。');
       notifyListeners();
     }
   }
@@ -207,6 +218,16 @@ class AppController extends ChangeNotifier {
     await preferences.setBool('elderMode', value);
   }
 
+  Future<void> _refreshHomeSummary() async {
+    if (offlineDemo) return;
+    try {
+      home = await _api.getHomeSummary();
+    } catch (_) {
+      // Keep the primary task result visible even if the optional hub summary
+      // refresh is temporarily unavailable.
+    }
+  }
+
   Future<void> completeTask(DailyTask task) async {
     if (task.status == TaskStatus.completed) return;
     try {
@@ -216,10 +237,13 @@ class AppController extends ChangeNotifier {
       } else {
         _replaceTask(await _api.completeTask(task.id));
         tree = await _api.getTree();
+        await _refreshHomeSummary();
       }
-      notice = '完成了「${task.title}」，陪伴樹獲得 ${task.growthPoints} 點成長值。';
+      lastGrowthAwardPoints = task.growthPoints;
+      lastGrowthAwardTitle = task.title;
+      notice = '生命樹長出新葉 +${task.growthPoints}：${task.title}';
     } catch (error) {
-      notice = '任務暫時無法完成：$error';
+      notice = _friendlyActionError(error, fallback: '任務暫時無法完成，請確認網路後再試一次。');
     }
     notifyListeners();
   }
@@ -227,9 +251,10 @@ class AppController extends ChangeNotifier {
   Future<void> startTask(DailyTask task) async {
     try {
       _replaceTask(await _api.startTask(task.id));
+      await _refreshHomeSummary();
       notice = '計時已開始；離開 App 後伺服器仍會保留開始時間。';
     } catch (error) {
-      notice = '任務暫時無法開始：$error';
+      notice = _friendlyActionError(error, fallback: '任務暫時無法開始，請確認網路後再試一次。');
     }
     notifyListeners();
   }
@@ -266,6 +291,7 @@ class AppController extends ChangeNotifier {
         tree = await _api.getTree();
         impact = await _api.getImpactSummary();
         reviews = await _api.getFamilyReviews();
+        await _refreshHomeSummary();
         switch (decision.decision) {
           case EvidenceDecision.pass:
             lastGrowthAwardPoints = task.growthPoints;
@@ -279,8 +305,7 @@ class AppController extends ChangeNotifier {
       } else {
         _replaceTask(task.copyWith(status: TaskStatus.completed));
         _applyLocalGrowth(task.growthPoints);
-        notice =
-            '照片驗證已通過並完成「${task.title}」，陪伴樹獲得 ${task.growthPoints} 點成長值。';
+        notice = '照片驗證已通過並完成「${task.title}」，陪伴樹獲得 ${task.growthPoints} 點成長值。';
       }
     } catch (error) {
       notice = _friendlyPhotoError(error);
@@ -294,8 +319,8 @@ class AppController extends ChangeNotifier {
         context?.geminiPhotoVerificationReason ??
         context?.photoEvidenceReason;
     return switch (reason) {
-      'PHOTO_STORAGE_UNAVAILABLE' || 'STORAGE_NOT_CONFIGURED' =>
-        '照片驗證需要的私人儲存空間還沒設定完成；其他任務仍可正常使用。',
+      'PHOTO_STORAGE_UNAVAILABLE' ||
+      'STORAGE_NOT_CONFIGURED' => '照片驗證需要的私人儲存空間還沒設定完成；其他任務仍可正常使用。',
       'PHOTO_VERIFIER_UNAVAILABLE' || 'VERIFIER_DISABLED' =>
         '照片驗證服務尚未連線。請先啟動 AI verifier，或確認 PHOTO_VERIFICATION_ENABLED 已開啟。',
       'BLAZE_REQUIRED' => '照片驗證尚未啟用；其他任務與城市探索仍可正常使用。',
@@ -324,6 +349,37 @@ class AppController extends ChangeNotifier {
     return '照片辨識沒有完成。請讓主體更清楚、光線更穩定後再拍一次。';
   }
 
+  String _friendlyActionError(Object error, {required String fallback}) {
+    final message = error.toString().toLowerCase();
+    if (message.contains('permission') ||
+        message.contains('denied') ||
+        message.contains('權限')) {
+      return '權限尚未開啟，請到系統設定允許後再試一次。';
+    }
+    if (message.contains('socket') ||
+        message.contains('network') ||
+        message.contains('connection') ||
+        message.contains('timeout') ||
+        message.contains('timed out')) {
+      return '網路暫時不穩，請確認連線後再試一次。';
+    }
+    if (message.contains('401') || message.contains('unauthorized')) {
+      return '登入狀態已過期，請重新登入後再試一次。';
+    }
+    if (message.contains('403') || message.contains('forbidden')) {
+      return '這個操作目前沒有權限，請確認帳號或家庭設定。';
+    }
+    if (message.contains('404') || message.contains('not found')) {
+      return '找不到這筆資料，請重新整理後再試一次。';
+    }
+    if (message.contains('409') ||
+        message.contains('conflict') ||
+        message.contains('already')) {
+      return '這個狀態已更新，請重新整理畫面確認最新結果。';
+    }
+    return fallback;
+  }
+
   Future<void> decideReview(FamilyReviewModel review, String decision) async {
     try {
       await _api.decideFamilyReview(review.id, decision);
@@ -331,9 +387,10 @@ class AppController extends ChangeNotifier {
       tasks = await _api.getTasks();
       tree = await _api.getTree();
       impact = await _api.getImpactSummary();
+      await _refreshHomeSummary();
       notice = decision == 'PASS' ? '已確認任務完成。' : '已退回，對方可以重新拍攝。';
     } catch (error) {
-      notice = '覆核失敗：$error';
+      notice = _friendlyActionError(error, fallback: '覆核暫時無法送出，請稍後再試一次。');
     }
     notifyListeners();
   }
@@ -388,13 +445,16 @@ class AppController extends ChangeNotifier {
           ).listen(
             _recordPosition,
             onError: (Object error) {
-              notice = '暫時收不到定位，請確認定位服務與網路後重試：$error';
+              notice = _friendlyActionError(
+                error,
+                fallback: '暫時收不到定位，請確認定位服務與網路後再試一次。',
+              );
               notifyListeners();
             },
           );
     } catch (error) {
       exploring = false;
-      notice = '無法開始探索：$error';
+      notice = _friendlyActionError(error, fallback: '暫時無法開始探索，請確認定位與網路後再試一次。');
       notifyListeners();
     }
   }
@@ -413,7 +473,10 @@ class AppController extends ChangeNotifier {
       try {
         exploration = await _api.endExplorationSession(sessionId);
       } catch (error) {
-        notice = '定位已停止，但探索結束狀態暫時無法同步：$error';
+        notice = _friendlyActionError(
+          error,
+          fallback: '定位已停止，但探索結束狀態暫時無法同步；請稍後重新整理。',
+        );
         notifyListeners();
         return;
       }
@@ -463,7 +526,10 @@ class AppController extends ChangeNotifier {
       notifyListeners();
     } catch (error) {
       explorationLocationStatus = '定位點未被接受';
-      notice = '這個定位點未被接受，請保持網路連線；App 會在下一點自動重試：$error';
+      notice = _friendlyActionError(
+        error,
+        fallback: '這個定位點未被接受，請保持網路連線；App 會在下一點自動重試。',
+      );
       notifyListeners();
     } finally {
       _sendingLocation = false;
@@ -530,12 +596,13 @@ class AppController extends ChangeNotifier {
         tree = await _api.getTree();
         impact = await _api.getImpactSummary();
         exploration = await _api.getExplorationState();
+        await _refreshHomeSummary();
       }
       lastGrowthAwardPoints = mission.growthPoints;
       lastGrowthAwardTitle = mission.title;
       notice = '生命樹長出新葉 +${mission.growthPoints}：${mission.title}';
     } catch (error) {
-      notice = '雷達任務暫時無法完成：$error';
+      notice = _friendlyActionError(error, fallback: '雷達任務暫時無法完成，請稍後再試一次。');
     }
     notifyListeners();
   }
@@ -553,9 +620,10 @@ class AppController extends ChangeNotifier {
             )
           : await _api.sendMessage(body.trim());
       messages = [message, ...messages];
+      await _refreshHomeSummary();
       notice = message.delivered ? '訊息已同步到客廳陪伴樹。' : '訊息已保存，裝置重新連線後會送達。';
     } catch (error) {
-      notice = '訊息暫時無法送出：$error';
+      notice = _friendlyActionError(error, fallback: '訊息暫時無法送出，請確認網路後再試一次。');
     }
     notifyListeners();
   }
@@ -600,7 +668,10 @@ class AppController extends ChangeNotifier {
       devices = [device];
       notice = '已認領 ${device.name}，下一步可透過藍牙傳送 Wi-Fi 設定。';
     } catch (error) {
-      notice = '認領失敗：$error';
+      notice = _friendlyActionError(
+        error,
+        fallback: '陪伴樹暫時無法認領，請確認序號與認領碼後再試一次。',
+      );
     }
     notifyListeners();
   }

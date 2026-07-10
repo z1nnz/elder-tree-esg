@@ -12,21 +12,25 @@ class HomeScreen extends StatelessWidget {
   const HomeScreen({
     required this.controller,
     required this.onOpenTasks,
+    required this.onOpenExploration,
+    required this.onOpenFamily,
     super.key,
   });
 
   final AppController controller;
   final VoidCallback onOpenTasks;
+  final VoidCallback onOpenExploration;
+  final VoidCallback onOpenFamily;
 
   @override
   Widget build(BuildContext context) {
-    final incomplete = controller.tasks
+    final home = controller.home;
+    final homeTaskCards = home?.taskCards
+        .where((card) => card.task.status != TaskStatus.completed)
+        .toList();
+    final fallbackTasks = controller.tasks
         .where((task) => task.status != TaskStatus.completed)
         .toList();
-    final nextStage = controller.tree.nextStageAt;
-    final progress = nextStage == null
-        ? 1.0
-        : (controller.tree.growthPoints / nextStage).clamp(0.0, 1.0);
     return RefreshIndicator(
       onRefresh: controller.refresh,
       child: ListView(
@@ -37,95 +41,70 @@ class HomeScreen extends StatelessWidget {
               icon: Icons.cloud_off_rounded,
               text: '離線示範模式：操作仍可體驗，連線後會改用真實 API。',
             ),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: SizedBox(
-              height: 236,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Image.network(
-                    'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=1200&q=85',
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) =>
-                        Container(color: forestDark),
-                  ),
-                  Container(color: Colors.black.withValues(alpha: 0.42)),
-                  Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 9,
-                            vertical: 5,
-                          ),
-                          color: warmYellow,
-                          child: Text(
-                            _stageLabel(controller.tree.stage),
-                            style: const TextStyle(
-                              color: ink,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                        const Spacer(),
-                        Text(
-                          controller.tree.name,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 27,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 7),
-                        Text(
-                          '${controller.tree.householdName}一起累積了 ${controller.tree.growthPoints} 點成長值',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 15),
-                        _AnimatedTreeProgress(
-                          progress: progress,
-                          growthPoints: controller.tree.growthPoints,
-                          nextStage: nextStage,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          _TodayCompanionHero(
+            controller: controller,
+            home: home,
+            onOpenTasks: onOpenTasks,
+            onOpenExploration: onOpenExploration,
+            onOpenFamily: onOpenFamily,
           ),
           const SizedBox(height: 20),
+          if (home?.alerts.isNotEmpty ?? false) ...[
+            _HomeAlertStrip(alerts: home!.alerts),
+            const SizedBox(height: 18),
+          ],
           _SectionTitle(
-            title: '今天可以做的事',
-            subtitle: '不必趕進度，選一件舒服的就好',
+            title: '任務卡堆疊',
+            subtitle: '可開始、進行中、待覆核都放在這裡',
             action: TextButton(
               onPressed: onOpenTasks,
               child: const Text('查看全部'),
             ),
           ),
           const SizedBox(height: 10),
-          if (incomplete.isEmpty)
+          if ((homeTaskCards ?? fallbackTasks).isEmpty)
             const _EmptyBlock(
               icon: Icons.done_all_rounded,
               title: '今天的任務完成了',
               text: '休息一下，看看家人留給你的訊息。',
             )
+          else if (homeTaskCards != null)
+            ...homeTaskCards
+                .take(3)
+                .map(
+                  (card) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _HomeTaskCardTile(
+                      card: card,
+                      controller: controller,
+                    ),
+                  ),
+                )
           else
-            ...incomplete
-                .take(2)
+            ...fallbackTasks
+                .take(3)
                 .map(
                   (task) => Padding(
                     padding: const EdgeInsets.only(bottom: 10),
                     child: _TaskTile(task: task, controller: controller),
                   ),
                 ),
+          if (home?.featuredRadarMission != null) ...[
+            const SizedBox(height: 8),
+            _SectionTitle(
+              title: '最近的城市任務',
+              subtitle: '走近任務半徑後才會解鎖',
+              action: TextButton(
+                onPressed: onOpenExploration,
+                child: const Text('去探索'),
+              ),
+            ),
+            const SizedBox(height: 10),
+            _HomeRadarPreview(
+              mission: home!.featuredRadarMission!,
+              onPressed: onOpenExploration,
+            ),
+          ],
           const SizedBox(height: 10),
           _SectionTitle(
             title: '家人的陪伴',
@@ -181,6 +160,383 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _TodayCompanionHero extends StatelessWidget {
+  const _TodayCompanionHero({
+    required this.controller,
+    required this.home,
+    required this.onOpenTasks,
+    required this.onOpenExploration,
+    required this.onOpenFamily,
+  });
+
+  final AppController controller;
+  final HomeSummaryModel? home;
+  final VoidCallback onOpenTasks;
+  final VoidCallback onOpenExploration;
+  final VoidCallback onOpenFamily;
+
+  @override
+  Widget build(BuildContext context) {
+    final tree = home?.tree ?? controller.tree;
+    final nextStage = tree.nextStageAt;
+    final progress = nextStage == null
+        ? 1.0
+        : (tree.growthPoints / nextStage).clamp(0.0, 1.0);
+    final action = home?.nextAction;
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(30),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0F3B2A), Color(0xFF2B6A4D)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: forestDark.withValues(alpha: 0.24),
+            blurRadius: 26,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      home == null ? '今日陪伴' : '${home!.displayName}，今天慢慢來',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 25,
+                        height: 1.08,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      home?.activeHouseholdName ?? tree.householdName,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.72),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: lime,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        _stageLabel(tree.stage),
+                        style: const TextStyle(
+                          color: forestDark,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _CompanionSprite(sprite: home?.companionSprite),
+            ],
+          ),
+          const SizedBox(height: 18),
+          _AnimatedTreeProgress(
+            progress: progress,
+            growthPoints: tree.growthPoints,
+            nextStage: nextStage,
+          ),
+          const SizedBox(height: 16),
+          _HomeNextActionCard(
+            action: action,
+            onPressed: () => _handleNextAction(context, action),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleNextAction(
+    BuildContext context,
+    HomeNextActionModel? action,
+  ) async {
+    if (action == null) {
+      onOpenTasks();
+      return;
+    }
+    switch (action.kind) {
+      case HomeNextActionKind.reviewPhoto:
+      case HomeNextActionKind.readMessage:
+        onOpenFamily();
+      case HomeNextActionKind.startExploration:
+        onOpenExploration();
+      case HomeNextActionKind.takePhoto:
+        final task = controller.taskById(action.taskId);
+        if (task == null) return onOpenTasks();
+        await controller.photographTask(task);
+      case HomeNextActionKind.startTimer:
+        final task = controller.taskById(action.taskId);
+        if (task == null) return onOpenTasks();
+        if (task.status == TaskStatus.available) {
+          await controller.startTask(task);
+        } else {
+          onOpenTasks();
+        }
+      case HomeNextActionKind.completeTask:
+        final task = controller.taskById(action.taskId);
+        if (task == null) return onOpenTasks();
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('確認完成任務'),
+            content: Text('你已完成「${task.title}」嗎？'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('還沒有'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('已完成'),
+              ),
+            ],
+          ),
+        );
+        if (confirmed == true) {
+          await controller.completeTask(task);
+        }
+      case HomeNextActionKind.rest:
+        onOpenTasks();
+    }
+  }
+}
+
+class _CompanionSprite extends StatelessWidget {
+  const _CompanionSprite({required this.sprite});
+
+  final CompanionSpriteStateModel? sprite;
+
+  @override
+  Widget build(BuildContext context) {
+    final mood = sprite?.mood ?? CompanionSpriteMood.ready;
+    final icon = switch (mood) {
+      CompanionSpriteMood.walking => Icons.directions_walk_rounded,
+      CompanionSpriteMood.waiting => Icons.hourglass_top_rounded,
+      CompanionSpriteMood.resting => Icons.self_improvement_rounded,
+      CompanionSpriteMood.growing => Icons.eco_rounded,
+      CompanionSpriteMood.ready => Icons.auto_awesome_rounded,
+    };
+    return Column(
+      children: [
+        TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.92, end: 1),
+          duration: const Duration(milliseconds: 680),
+          curve: Curves.easeOutBack,
+          builder: (context, value, child) =>
+              Transform.scale(scale: value, child: child),
+          child: Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: lime,
+              boxShadow: [
+                BoxShadow(
+                  color: lime.withValues(alpha: 0.38),
+                  blurRadius: 26,
+                  spreadRadius: 4,
+                ),
+              ],
+            ),
+            child: Icon(icon, color: forestDark, size: 34),
+          ),
+        ),
+        const SizedBox(height: 7),
+        SizedBox(
+          width: 92,
+          child: Text(
+            sprite?.label ?? '小葉靈在這裡',
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.76),
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HomeNextActionCard extends StatelessWidget {
+  const _HomeNextActionCard({required this.action, required this.onPressed});
+
+  final HomeNextActionModel? action;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: Color(0xFFE7F66A),
+            ),
+            child: Icon(_homeActionIcon(action?.kind), color: forestDark),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  action?.title ?? '今天可以做一件小事',
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  action?.description ?? '選一件舒服的任務，讓生命樹慢慢長大。',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF5E6A63),
+                    height: 1.4,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          FilledButton(
+            onPressed: onPressed,
+            child: Text(action?.ctaLabel ?? '開始'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HomeAlertStrip extends StatelessWidget {
+  const _HomeAlertStrip({required this.alerts});
+
+  final List<HomeAlertModel> alerts;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 74,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: alerts.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
+        itemBuilder: (context, index) {
+          final alert = alerts[index];
+          return Container(
+            width: 210,
+            padding: const EdgeInsets.all(13),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF8E3),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFE8D8AA)),
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: warmYellow,
+                  foregroundColor: ink,
+                  child: Text('${alert.count}'),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        alert.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                      Text(
+                        alert.description,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF68746D),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _HomeRadarPreview extends StatelessWidget {
+  const _HomeRadarPreview({required this.mission, required this.onPressed});
+
+  final RadarMissionModel mission;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        contentPadding: const EdgeInsets.all(14),
+        leading: CircleAvatar(
+          backgroundColor: _radarAccentColor(mission).withValues(alpha: 0.16),
+          foregroundColor: _radarAccentColor(mission),
+          child: Icon(_radarIcon(mission)),
+        ),
+        title: Text(
+          mission.title,
+          style: const TextStyle(fontWeight: FontWeight.w900),
+        ),
+        subtitle: Text(
+          '半徑 ${mission.radiusMeters}m · 生命樹 +${mission.growthPoints}',
+        ),
+        trailing: FilledButton(onPressed: onPressed, child: const Text('查看')),
       ),
     );
   }
@@ -2502,6 +2858,153 @@ class _TaskTile extends StatelessWidget {
   }
 }
 
+class _HomeTaskCardTile extends StatelessWidget {
+  const _HomeTaskCardTile({required this.card, required this.controller});
+
+  final HomeTaskCardModel card;
+  final AppController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final task = card.task;
+    final canAct =
+        task.status != TaskStatus.completed &&
+        task.status != TaskStatus.verifying &&
+        task.capabilityEnabled;
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: canAct ? () => _actOnTask(context, task) : null,
+        child: Padding(
+          padding: const EdgeInsets.all(15),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: _taskColor(task.verificationMode),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Icon(_taskIcon(task.verificationMode), color: ink),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            task.title,
+                            style: const TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: lime.withValues(alpha: 0.35),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            card.stateLabel,
+                            style: const TextStyle(
+                              color: forestDark,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      task.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF69736D),
+                        height: 1.45,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Text(
+                          card.actionLabel,
+                          style: const TextStyle(
+                            color: forest,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '+${task.growthPoints}',
+                          style: const TextStyle(
+                            color: Color(0xFF69736D),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                canAct ? Icons.arrow_forward_rounded : Icons.lock_clock_rounded,
+                color: canAct ? forest : const Color(0xFF9BA79F),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _actOnTask(BuildContext context, DailyTask task) async {
+    if (task.verificationMode == VerificationMode.photoAi) {
+      await controller.photographTask(task);
+      return;
+    }
+    if (task.verificationMode == VerificationMode.timer) {
+      if (task.status == TaskStatus.available) {
+        await controller.startTask(task);
+      } else {
+        await controller.completeTask(task);
+      }
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('確認完成任務'),
+        content: Text('你已完成「${task.title}」嗎？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('還沒有'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('已完成'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await controller.completeTask(task);
+    }
+  }
+}
+
 class _TimerTaskButton extends StatefulWidget {
   const _TimerTaskButton({required this.task, required this.controller});
 
@@ -2852,6 +3355,16 @@ Color _radarAccentColor(RadarMissionModel mission) {
     _ => const Color(0xFF6A7770),
   };
 }
+
+IconData _homeActionIcon(HomeNextActionKind? kind) => switch (kind) {
+  HomeNextActionKind.takePhoto => Icons.photo_camera_rounded,
+  HomeNextActionKind.startTimer => Icons.hourglass_bottom_rounded,
+  HomeNextActionKind.reviewPhoto => Icons.fact_check_rounded,
+  HomeNextActionKind.startExploration => Icons.explore_rounded,
+  HomeNextActionKind.readMessage => Icons.favorite_rounded,
+  HomeNextActionKind.rest => Icons.self_improvement_rounded,
+  _ => Icons.check_circle_outline_rounded,
+};
 
 IconData _questIcon(ExplorationQuestModel quest) {
   if (quest.completed) return Icons.check_rounded;

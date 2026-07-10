@@ -6,6 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class UnavailableApiClient extends ApiClient {
   @override
+  Future<HomeSummaryModel> getHomeSummary() => Future.error('offline');
+
+  @override
   Future<List<DailyTask>> getTasks() => Future.error('offline');
 
   @override
@@ -106,6 +109,81 @@ void main() {
     expect(review.status, TaskStatus.verifying);
     expect(fail.decision, EvidenceDecision.fail);
     expect(fail.status, TaskStatus.rejected);
+  });
+
+  test('parses App V2 home summary for the companion hub', () {
+    final home = HomeSummaryModel.fromJson({
+      'generatedAt': '2026-07-11T00:00:00.000Z',
+      'displayName': '千咚咚',
+      'activeHouseholdName': '林家',
+      'tree': {
+        'id': 'tree-1',
+        'name': '我們家的陪伴樹',
+        'householdName': '林家',
+        'stage': 'SPROUT',
+        'growthPoints': 180,
+        'nextStageAt': 250,
+      },
+      'nextAction': {
+        'kind': 'TAKE_PHOTO',
+        'title': '拍下今天的一抹綠',
+        'description': '找一株植物。',
+        'ctaLabel': '拍照驗證',
+        'taskId': 'task-photo',
+        'radarMissionId': null,
+      },
+      'taskCards': [
+        {
+          'id': 'task-photo',
+          'title': '拍下今天的一抹綠',
+          'description': '找一株植物。',
+          'verificationMode': 'PHOTO_AI',
+          'growthPoints': 80,
+          'status': 'AVAILABLE',
+          'startedAt': null,
+          'minimumSeconds': null,
+          'dueAt': null,
+          'capability': {'enabled': true, 'reason': null},
+          'stateLabel': '可開始',
+          'actionLabel': '拍照驗證',
+        },
+      ],
+      'featuredRadarMission': null,
+      'pendingReviewCount': 1,
+      'messageCount': 1,
+      'latestMessage': {
+        'id': 'message-1',
+        'authorName': '小晴',
+        'body': '今天也慢慢來。',
+        'createdAt': '2026-07-11T00:00:00.000Z',
+        'deliveredToDeviceAt': null,
+      },
+      'capabilities': {
+        'photoEvidence': {'enabled': true, 'reason': null},
+        'geminiPhotoVerification': {'enabled': true, 'reason': null},
+      },
+      'companionSprite': {
+        'mood': 'READY',
+        'label': '小葉靈帶著今天的任務來了',
+        'energyPoints': 180,
+      },
+      'alerts': [
+        {
+          'id': 'reviews',
+          'kind': 'REVIEW',
+          'title': '等待覆核',
+          'description': '有家人的照片需要你確認。',
+          'count': 1,
+        },
+      ],
+    });
+
+    expect(home.displayName, '千咚咚');
+    expect(home.nextAction.kind, HomeNextActionKind.takePhoto);
+    expect(home.taskCards.single.actionLabel, '拍照驗證');
+    expect(home.companionSprite.mood, CompanionSpriteMood.ready);
+    expect(home.latestMessage?.delivered, isFalse);
+    expect(home.capabilities.photoEvidenceEnabled, isTrue);
   });
 
   test('describes disabled photo AI capabilities without Blaze wording', () {

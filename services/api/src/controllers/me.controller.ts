@@ -19,6 +19,11 @@ export class MeController {
     return { data: await this.store.getContext(request.user!.uid) };
   }
 
+  @Get("me/home")
+  async home(@Req() request: AuthenticatedRequest) {
+    return { data: await this.store.getHomeSummary(request.user!.uid) };
+  }
+
   @Patch("me/profile")
   async updateProfile(
     @Req() request: AuthenticatedRequest,

@@ -8,6 +8,7 @@ enum VerificationMode {
 }
 
 enum TaskStatus { available, inProgress, verifying, completed, rejected }
+
 enum EvidenceDecision { pass, review, fail }
 
 class DailyTask {
@@ -155,6 +156,219 @@ class AppContextModel {
                         as Map<String, dynamic>?)?['geminiPhotoVerification']
                     as Map<String, dynamic>?)?['reason']
                 as String?,
+      );
+}
+
+enum HomeNextActionKind {
+  completeTask,
+  startTimer,
+  takePhoto,
+  reviewPhoto,
+  startExploration,
+  readMessage,
+  rest,
+}
+
+enum CompanionSpriteMood { ready, walking, growing, waiting, resting }
+
+class HomeNextActionModel {
+  const HomeNextActionModel({
+    required this.kind,
+    required this.title,
+    required this.description,
+    required this.ctaLabel,
+    this.taskId,
+    this.radarMissionId,
+  });
+
+  final HomeNextActionKind kind;
+  final String title;
+  final String description;
+  final String ctaLabel;
+  final String? taskId;
+  final String? radarMissionId;
+
+  factory HomeNextActionModel.fromJson(Map<String, dynamic> json) =>
+      HomeNextActionModel(
+        kind: switch (json['kind']) {
+          'START_TIMER' => HomeNextActionKind.startTimer,
+          'TAKE_PHOTO' => HomeNextActionKind.takePhoto,
+          'REVIEW_PHOTO' => HomeNextActionKind.reviewPhoto,
+          'START_EXPLORATION' => HomeNextActionKind.startExploration,
+          'READ_MESSAGE' => HomeNextActionKind.readMessage,
+          'REST' => HomeNextActionKind.rest,
+          _ => HomeNextActionKind.completeTask,
+        },
+        title: json['title'] as String,
+        description: json['description'] as String,
+        ctaLabel: json['ctaLabel'] as String,
+        taskId: json['taskId'] as String?,
+        radarMissionId: json['radarMissionId'] as String?,
+      );
+}
+
+class HomeTaskCardModel {
+  const HomeTaskCardModel({
+    required this.task,
+    required this.stateLabel,
+    required this.actionLabel,
+  });
+
+  final DailyTask task;
+  final String stateLabel;
+  final String actionLabel;
+
+  factory HomeTaskCardModel.fromJson(Map<String, dynamic> json) =>
+      HomeTaskCardModel(
+        task: DailyTask.fromJson(json),
+        stateLabel: json['stateLabel'] as String,
+        actionLabel: json['actionLabel'] as String,
+      );
+}
+
+class HomeAlertModel {
+  const HomeAlertModel({
+    required this.id,
+    required this.kind,
+    required this.title,
+    required this.description,
+    required this.count,
+  });
+
+  final String id;
+  final String kind;
+  final String title;
+  final String description;
+  final int count;
+
+  factory HomeAlertModel.fromJson(Map<String, dynamic> json) => HomeAlertModel(
+    id: json['id'] as String,
+    kind: json['kind'] as String,
+    title: json['title'] as String,
+    description: json['description'] as String,
+    count: json['count'] as int,
+  );
+}
+
+class CompanionSpriteStateModel {
+  const CompanionSpriteStateModel({
+    required this.mood,
+    required this.label,
+    required this.energyPoints,
+  });
+
+  final CompanionSpriteMood mood;
+  final String label;
+  final int energyPoints;
+
+  factory CompanionSpriteStateModel.fromJson(Map<String, dynamic> json) =>
+      CompanionSpriteStateModel(
+        mood: switch (json['mood']) {
+          'WALKING' => CompanionSpriteMood.walking,
+          'GROWING' => CompanionSpriteMood.growing,
+          'WAITING' => CompanionSpriteMood.waiting,
+          'RESTING' => CompanionSpriteMood.resting,
+          _ => CompanionSpriteMood.ready,
+        },
+        label: json['label'] as String,
+        energyPoints: json['energyPoints'] as int,
+      );
+}
+
+class HomeCapabilitiesModel {
+  const HomeCapabilitiesModel({
+    required this.photoEvidenceEnabled,
+    this.photoEvidenceReason,
+    required this.geminiPhotoVerificationEnabled,
+    this.geminiPhotoVerificationReason,
+  });
+
+  final bool photoEvidenceEnabled;
+  final String? photoEvidenceReason;
+  final bool geminiPhotoVerificationEnabled;
+  final String? geminiPhotoVerificationReason;
+
+  factory HomeCapabilitiesModel.fromJson(Map<String, dynamic> json) {
+    final photoEvidence = json['photoEvidence'] as Map<String, dynamic>?;
+    final geminiPhotoVerification =
+        json['geminiPhotoVerification'] as Map<String, dynamic>?;
+    return HomeCapabilitiesModel(
+      photoEvidenceEnabled: photoEvidence?['enabled'] as bool? ?? false,
+      photoEvidenceReason: photoEvidence?['reason'] as String?,
+      geminiPhotoVerificationEnabled:
+          geminiPhotoVerification?['enabled'] as bool? ?? false,
+      geminiPhotoVerificationReason:
+          geminiPhotoVerification?['reason'] as String?,
+    );
+  }
+}
+
+class HomeSummaryModel {
+  const HomeSummaryModel({
+    required this.generatedAt,
+    required this.displayName,
+    required this.activeHouseholdName,
+    required this.tree,
+    required this.nextAction,
+    required this.taskCards,
+    required this.pendingReviewCount,
+    required this.messageCount,
+    required this.capabilities,
+    required this.companionSprite,
+    required this.alerts,
+    this.featuredRadarMission,
+    this.latestMessage,
+  });
+
+  final DateTime generatedAt;
+  final String displayName;
+  final String activeHouseholdName;
+  final TreeSummary tree;
+  final HomeNextActionModel nextAction;
+  final List<HomeTaskCardModel> taskCards;
+  final RadarMissionModel? featuredRadarMission;
+  final int pendingReviewCount;
+  final int messageCount;
+  final FamilyMessageModel? latestMessage;
+  final HomeCapabilitiesModel capabilities;
+  final CompanionSpriteStateModel companionSprite;
+  final List<HomeAlertModel> alerts;
+
+  factory HomeSummaryModel.fromJson(Map<String, dynamic> json) =>
+      HomeSummaryModel(
+        generatedAt: DateTime.parse(json['generatedAt'] as String),
+        displayName: json['displayName'] as String,
+        activeHouseholdName: json['activeHouseholdName'] as String,
+        tree: TreeSummary.fromJson(json['tree'] as Map<String, dynamic>),
+        nextAction: HomeNextActionModel.fromJson(
+          json['nextAction'] as Map<String, dynamic>,
+        ),
+        taskCards: (json['taskCards'] as List)
+            .cast<Map<String, dynamic>>()
+            .map(HomeTaskCardModel.fromJson)
+            .toList(),
+        featuredRadarMission: json['featuredRadarMission'] == null
+            ? null
+            : RadarMissionModel.fromJson(
+                json['featuredRadarMission'] as Map<String, dynamic>,
+              ),
+        pendingReviewCount: json['pendingReviewCount'] as int,
+        messageCount: json['messageCount'] as int,
+        latestMessage: json['latestMessage'] == null
+            ? null
+            : FamilyMessageModel.fromJson(
+                json['latestMessage'] as Map<String, dynamic>,
+              ),
+        capabilities: HomeCapabilitiesModel.fromJson(
+          json['capabilities'] as Map<String, dynamic>,
+        ),
+        companionSprite: CompanionSpriteStateModel.fromJson(
+          json['companionSprite'] as Map<String, dynamic>,
+        ),
+        alerts: (json['alerts'] as List)
+            .cast<Map<String, dynamic>>()
+            .map(HomeAlertModel.fromJson)
+            .toList(),
       );
 }
 

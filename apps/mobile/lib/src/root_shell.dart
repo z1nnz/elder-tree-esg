@@ -47,6 +47,8 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       HomeScreen(
         controller: widget.controller,
         onOpenTasks: () => setState(() => index = 1),
+        onOpenExploration: () => setState(() => index = 2),
+        onOpenFamily: () => setState(() => index = 3),
       ),
       TasksScreen(controller: widget.controller),
       ExplorationScreen(controller: widget.controller),
