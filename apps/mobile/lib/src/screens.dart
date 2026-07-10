@@ -671,6 +671,8 @@ class ExplorationScreen extends StatefulWidget {
 
 class _ExplorationScreenState extends State<ExplorationScreen> {
   ExplorationMapMode _mapMode = ExplorationMapMode.adventure;
+  bool _showAllRadarMissions = false;
+  bool _showRouteDetails = false;
 
   AppController get controller => widget.controller;
 
@@ -696,6 +698,9 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
     final sessionDistance =
         controller.exploration.activeSession?.distanceMeters ?? 0;
     final featuredMission = controller.featuredRadarMissionView;
+    final visibleRadarMissionViews = _showAllRadarMissions
+        ? radarMissionViews
+        : radarMissionViews.take(3).toList();
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 30),
       children: [
@@ -726,7 +731,7 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
             ],
           ),
           child: SizedBox(
-            height: 430,
+            height: 520,
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -755,15 +760,22 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
                             child: _QuestBeacon(quest: quest),
                           ),
                         ),
-                        ...radarMissions.map(
-                          (mission) => Marker(
+                        ...radarMissionViews.map(
+                          (view) => Marker(
                             point: Geographic(
-                              lon: mission.longitude,
-                              lat: mission.latitude,
+                              lon: view.mission.longitude,
+                              lat: view.mission.latitude,
                             ),
-                            size: const Size(74, 88),
+                            size: view.mission.id == featuredMission?.mission.id
+                                ? const Size(104, 118)
+                                : const Size(78, 92),
                             alignment: Alignment.bottomCenter,
-                            child: _RadarBeacon(mission: mission),
+                            child: _RadarBeacon(
+                              view: view,
+                              featured:
+                                  view.mission.id ==
+                                  featuredMission?.mission.id,
+                            ),
                           ),
                         ),
                         if (controller.latestLatitude != null &&
@@ -795,30 +807,33 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
                 if (_mapMode == ExplorationMapMode.adventure)
                   const Positioned(
                     left: 14,
-                    bottom: 92,
+                    bottom: 136,
                     child: _AdventureMapHint(),
                   ),
                 if (controller.latestLatitude == null)
                   const Positioned(
                     left: 0,
                     right: 0,
-                    bottom: 124,
+                    bottom: 170,
                     child: IgnorePointer(child: _ExplorerAvatar()),
                   ),
                 Positioned(
                   left: 14,
                   right: 14,
                   bottom: 14,
-                  child: _ExplorationStartPanel(
+                  child: _ExplorationMissionDock(
                     distanceMeters: sessionDistance,
                     exploring: controller.exploring,
                     hasSession: controller.exploration.activeSession != null,
                     sendingLocation: controller.sendingLocation,
                     locationStatus: controller.explorationLocationStatus,
                     mission: featuredMission,
-                    onPressed: controller.exploring
+                    onStartStopPressed: controller.exploring
                         ? controller.stopExploration
                         : controller.startExploration,
+                    onCompleteMission: featuredMission == null
+                        ? null
+                        : () => _confirmCompleteRadarMission(featuredMission),
                   ),
                 ),
               ],
@@ -838,7 +853,18 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
           ),
         ],
         const SizedBox(height: 8),
-        const _SectionTitle(title: '任務雷達', subtitle: '靠近光點後接取任務，完成後生命樹長出新葉'),
+        _SectionTitle(
+          title: '任務雷達',
+          subtitle: '先顯示最接近的任務，想看完整清單再展開',
+          action: radarMissionViews.length <= 3
+              ? null
+              : TextButton(
+                  onPressed: () => setState(
+                    () => _showAllRadarMissions = !_showAllRadarMissions,
+                  ),
+                  child: Text(_showAllRadarMissions ? '收起' : '全部'),
+                ),
+        ),
         const SizedBox(height: 10),
         if (radarMissionViews.isEmpty)
           const _EmptyBlock(
@@ -847,14 +873,24 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
             text: '營運單位發布城市任務後，會在這裡顯示剩餘時間與接取半徑。',
           )
         else
-          ...radarMissionViews.map(
+          ...visibleRadarMissionViews.map(
             (view) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: _RadarMissionCard(view: view, controller: controller),
             ),
           ),
         const SizedBox(height: 8),
-        const _SectionTitle(title: '探索任務', subtitle: '走過指定距離或進入地標範圍時自動解鎖'),
+        _SectionTitle(
+          title: '探索任務',
+          subtitle: '路線地標與距離任務放在這裡，避免地圖一開始太擠',
+          action: route == null
+              ? null
+              : TextButton(
+                  onPressed: () =>
+                      setState(() => _showRouteDetails = !_showRouteDetails),
+                  child: Text(_showRouteDetails ? '收起' : '展開'),
+                ),
+        ),
         const SizedBox(height: 10),
         if (route == null)
           const _EmptyBlock(
@@ -862,6 +898,8 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
             title: '附近還沒有探索點',
             text: '營運單位建立地標後會出現在這裡；距離任務仍可照常累積。',
           )
+        else if (!_showRouteDetails)
+          _RouteSummaryCard(route: route, progress: routeProgress)
         else
           ...route.quests.map(
             (quest) => Padding(
@@ -871,6 +909,29 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
           ),
       ],
     );
+  }
+
+  Future<void> _confirmCompleteRadarMission(RadarMissionViewState view) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('完成雷達任務'),
+        content: Text('確認完成「${view.mission.title}」，讓生命樹長出新葉嗎？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('還沒有'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('已完成'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await controller.completeRadarMission(view.mission);
+    }
   }
 }
 
@@ -1169,15 +1230,16 @@ class _AdventureMapOverlay extends StatelessWidget {
   }
 }
 
-class _ExplorationStartPanel extends StatelessWidget {
-  const _ExplorationStartPanel({
+class _ExplorationMissionDock extends StatelessWidget {
+  const _ExplorationMissionDock({
     required this.distanceMeters,
     required this.exploring,
     required this.hasSession,
     required this.sendingLocation,
     required this.locationStatus,
     required this.mission,
-    required this.onPressed,
+    required this.onStartStopPressed,
+    required this.onCompleteMission,
   });
 
   final int distanceMeters;
@@ -1186,15 +1248,30 @@ class _ExplorationStartPanel extends StatelessWidget {
   final bool sendingLocation;
   final String locationStatus;
   final RadarMissionViewState? mission;
-  final VoidCallback onPressed;
+  final VoidCallback onStartStopPressed;
+  final VoidCallback? onCompleteMission;
 
   @override
   Widget build(BuildContext context) {
+    final view = mission;
+    final accent = view == null ? forest : _radarAccentColor(view.mission);
+    final canComplete = view?.canComplete ?? false;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.94),
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withValues(alpha: 0.96),
+            accent.withValues(alpha: 0.13),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: canComplete ? accent.withValues(alpha: 0.5) : Colors.white,
+          width: canComplete ? 2 : 1,
+        ),
         boxShadow: [
           BoxShadow(
             color: forestDark.withValues(alpha: 0.2),
@@ -1205,42 +1282,63 @@ class _ExplorationStartPanel extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: exploring ? forestDark : const Color(0xFFEAF5DE),
-            ),
-            child: Icon(
-              sendingLocation
-                  ? Icons.radar_rounded
-                  : exploring
-                  ? Icons.directions_walk_rounded
-                  : Icons.spa_rounded,
-              color: exploring ? lime : forest,
-            ),
+          _MissionDockOrb(
+            color: accent,
+            progress: view?.proximityProgress ?? 0,
+            icon: view == null
+                ? sendingLocation
+                      ? Icons.radar_rounded
+                      : exploring
+                      ? Icons.directions_walk_rounded
+                      : Icons.spa_rounded
+                : _radarIcon(view.mission),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  mission == null
-                      ? '$distanceMeters 公尺'
-                      : mission!.distanceLabel,
-                  style: const TextStyle(
-                    fontSize: 21,
-                    fontWeight: FontWeight.w900,
-                  ),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.13),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        view?.stateLabel ?? (exploring ? '探索中' : '未開始'),
+                        style: TextStyle(
+                          color: accent,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      view == null ? '$distanceMeters 公尺' : view.distanceLabel,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 4),
                 Text(
-                  mission == null
+                  view == null
                       ? hasSession
                             ? '伺服器計算距離 · $locationStatus'
-                            : '按下開始後，附近任務光點會被偵測'
-                      : '${mission!.mission.title} · ${_radarViewActionText(mission!)}',
+                            : '按下開始後，附近任務光點會被偵測。'
+                      : '${view.mission.title} · ${view.helperText}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Color(0xFF68746D),
                     fontSize: 12,
@@ -1250,15 +1348,85 @@ class _ExplorationStartPanel extends StatelessWidget {
               ],
             ),
           ),
-          FilledButton.icon(
-            onPressed: onPressed,
-            icon: Icon(
-              exploring ? Icons.pause_rounded : Icons.play_arrow_rounded,
-            ),
-            label: Text(exploring ? '暫停' : '開始'),
+          const SizedBox(width: 10),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (canComplete) ...[
+                FilledButton(
+                  onPressed: onCompleteMission,
+                  child: Text(view!.primaryActionLabel),
+                ),
+                const SizedBox(height: 7),
+              ],
+              FilledButton.icon(
+                onPressed: onStartStopPressed,
+                icon: Icon(
+                  exploring ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                ),
+                label: Text(exploring ? '停止' : '開始'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: exploring ? forestDark : forest,
+                ),
+              ),
+            ],
           ),
         ],
       ),
+    );
+  }
+}
+
+class _MissionDockOrb extends StatelessWidget {
+  const _MissionDockOrb({
+    required this.color,
+    required this.progress,
+    required this.icon,
+  });
+
+  final Color color;
+  final double progress;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(end: progress),
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            SizedBox(
+              width: 62,
+              height: 62,
+              child: CircularProgressIndicator(
+                value: value,
+                strokeWidth: 5,
+                color: color,
+                backgroundColor: color.withValues(alpha: 0.14),
+              ),
+            ),
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: forestDark,
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.38),
+                    blurRadius: 18,
+                    spreadRadius: value >= 1 ? 2 : 0,
+                  ),
+                ],
+              ),
+              child: Icon(icon, color: lime),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -1585,15 +1753,21 @@ class _QuestBeacon extends StatelessWidget {
 }
 
 class _RadarBeacon extends StatelessWidget {
-  const _RadarBeacon({required this.mission});
+  const _RadarBeacon({required this.view, required this.featured});
 
-  final RadarMissionModel mission;
+  final RadarMissionViewState view;
+  final bool featured;
 
   @override
   Widget build(BuildContext context) {
+    final mission = view.mission;
     final color = _radarAccentColor(mission);
     final completed = mission.status == 'COMPLETED';
     final unlocked = mission.status == 'UNLOCKED';
+    final pulse =
+        view.adventureState == AdventureMissionState.readyToComplete ||
+        view.adventureState == AdventureMissionState.insideRadius ||
+        featured;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1610,34 +1784,60 @@ class _RadarBeacon extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        Container(
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: completed
-                  ? [forestDark, forest]
-                  : unlocked
-                  ? [warmYellow, color]
-                  : [Colors.white, color.withValues(alpha: 0.82)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 3),
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.36),
-                blurRadius: 22,
-                spreadRadius: unlocked ? 2 : 0,
-                offset: const Offset(0, 9),
+        TweenAnimationBuilder<double>(
+          tween: Tween<double>(end: pulse ? 1 : 0),
+          duration: const Duration(milliseconds: 520),
+          curve: Curves.easeOutCubic,
+          builder: (context, value, child) {
+            return Stack(
+              alignment: Alignment.center,
+              children: [
+                if (pulse)
+                  Container(
+                    width: 76 + value * 18,
+                    height: 76 + value * 18,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: color.withValues(alpha: 0.12 * (1 - value)),
+                      border: Border.all(
+                        color: color.withValues(alpha: 0.26 * (1 - value)),
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                child!,
+              ],
+            );
+          },
+          child: Container(
+            width: featured ? 66 : 56,
+            height: featured ? 66 : 56,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: completed
+                    ? [forestDark, forest]
+                    : unlocked
+                    ? [warmYellow, color]
+                    : [Colors.white, color.withValues(alpha: 0.82)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-            ],
-          ),
-          child: Icon(
-            completed ? Icons.done_all_rounded : _radarIcon(mission),
-            color: completed || unlocked ? Colors.white : color,
-            size: 25,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 3),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withValues(alpha: featured ? 0.48 : 0.36),
+                  blurRadius: featured ? 30 : 22,
+                  spreadRadius: unlocked ? 2 : 0,
+                  offset: const Offset(0, 9),
+                ),
+              ],
+            ),
+            child: Icon(
+              completed ? Icons.done_all_rounded : _radarIcon(mission),
+              color: completed || unlocked ? Colors.white : color,
+              size: featured ? 30 : 25,
+            ),
           ),
         ),
         Container(width: 5, height: 12, color: color),
@@ -1785,7 +1985,10 @@ class _RadarMissionCardState extends State<_RadarMissionCard> {
                               ),
                             ),
                           ),
-                          _RadarStatusChip(status: mission.status),
+                          _RadarStatusChip(
+                            status: mission.status,
+                            label: view.stateLabel,
+                          ),
                         ],
                       ),
                       const SizedBox(height: 4),
@@ -1907,6 +2110,82 @@ class _RadarMissionCardState extends State<_RadarMissionCard> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _RouteSummaryCard extends StatelessWidget {
+  const _RouteSummaryCard({required this.route, required this.progress});
+
+  final ExplorationRouteModel route;
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFFFFFF), Color(0xFFEAF6DD)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: const Color(0xFFDCE9D6)),
+        boxShadow: [
+          BoxShadow(
+            color: forest.withValues(alpha: 0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: forestDark,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Icon(Icons.route_rounded, color: lime),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  route.name,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  '${route.completedQuestCount}/${route.totalQuestCount} 個地標完成 · 點「展開」看完整旅程',
+                  style: const TextStyle(
+                    color: Color(0xFF66706A),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 8,
+                    color: forest,
+                    backgroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2100,9 +2379,10 @@ class _QuestStatusChip extends StatelessWidget {
 }
 
 class _RadarStatusChip extends StatelessWidget {
-  const _RadarStatusChip({required this.status});
+  const _RadarStatusChip({required this.status, this.label});
 
   final String status;
+  final String? label;
 
   @override
   Widget build(BuildContext context) {
@@ -2120,13 +2400,14 @@ class _RadarStatusChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        switch (status) {
-          'COMPLETED' => '完成',
-          'UNLOCKED' => '可完成',
-          'EXPIRED' => '已結束',
-          'UPCOMING' => '即將開始',
-          _ => '靠近解鎖',
-        },
+        label ??
+            switch (status) {
+              'COMPLETED' => '完成',
+              'UNLOCKED' => '可完成',
+              'EXPIRED' => '已結束',
+              'UPCOMING' => '即將開始',
+              _ => '靠近解鎖',
+            },
         style: TextStyle(
           color: status == 'COMPLETED' ? Colors.white : color,
           fontSize: 11,
@@ -3310,25 +3591,11 @@ String _formatDuration(Duration duration) {
   return '${seconds}s';
 }
 
-String _radarActionText(String status) => switch (status) {
-  'UPCOMING' => '尚未開始',
-  'UNLOCKED' => '可完成',
-  'COMPLETED' => '已完成',
-  'EXPIRED' => '任務已結束',
-  _ => '走進半徑後可接取',
-};
-
 String _radarViewActionText(RadarMissionViewState view) {
-  if (view.canComplete) return '可完成，生命樹會長出新葉';
-  if (view.mission.status == 'UNLOCKED' &&
-      view.timerRemaining > Duration.zero) {
+  if (view.adventureState == AdventureMissionState.timerRunning) {
     return '計時中，還需 ${_formatDuration(view.timerRemaining)}';
   }
-  if (view.canUnlock) return '已進入半徑，等待後端解鎖';
-  if (view.mission.status == 'LOCKED' && view.distanceMeters != null) {
-    return '再靠近一些即可接取';
-  }
-  return _radarActionText(view.mission.status);
+  return view.primaryActionLabel;
 }
 
 IconData _radarIcon(RadarMissionModel mission) {
