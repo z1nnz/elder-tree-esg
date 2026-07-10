@@ -70,18 +70,23 @@ cd ../..
 npm run dev:ai
 ```
 
-Photo evidence is intentionally locked while the project remains off Blaze.
-Keep `PHOTO_EVIDENCE_ENABLED=false`; the app will show the task as unavailable
-and the API will not call Storage or Gemini. When the plan changes, enable
-Firebase Storage in `asia-east1`, configure a Firebase Admin service account,
-and then deploy the private rules:
+Photo evidence is available for local Blaze validation. Start the AI verifier,
+set `GEMINI_API_KEY` in that verifier process, and keep
+`PHOTO_EVIDENCE_ENABLED=true` plus `PHOTO_VERIFICATION_ENABLED=true` when
+running `npm run dev:api:neon`. The app uploads sanitized private evidence to
+Firebase Storage; the API creates a short-lived signed URL for the verifier.
+Deploy the private rules before testing on a real account:
 
 ```sh
 firebase deploy --only storage --project elder-tree-esg-z1nnz
 ```
 
-Firebase currently requires the Blaze plan before a new default Storage bucket
-can be created. Never commit the Admin private key or Gemini API key.
+If the deploy command says Storage has not been set up, open the Firebase
+Console Storage page for `elder-tree-esg-z1nnz`, click **Get Started**, choose
+the intended region, and then run the deploy command again.
+
+Never commit the Admin private key or Gemini API key. If `GEMINI_API_KEY` is not
+set, the verifier stays in rules-only mode and photo tasks will not auto-pass.
 
 Run the Flutter app in another terminal:
 

@@ -73,16 +73,6 @@ def apply_rules(
 
 
 async def verify_photo(request: PhotoVerificationRequest) -> VerificationResult:
-    if request.demo_labels is not None:
-        classification = ModelClassification(
-            labels=request.demo_labels,
-            confidence=request.demo_confidence or 0.72,
-            description="Demo classification generated without external AI.",
-            unsafe_content=False,
-            contains_face=False,
-        )
-        return apply_rules(request, classification, "demo-rules")
-
     api_key = os.getenv("GEMINI_API_KEY")
     model_name = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
     if not api_key or (request.image_url is None and request.image_base64 is None):

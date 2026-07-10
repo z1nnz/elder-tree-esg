@@ -116,6 +116,43 @@ interface GeminiPhotoTaskInput {
   idempotencyKey?: string;
 }
 
+function photoCapabilityStatus() {
+  const evidenceRequested = process.env.PHOTO_EVIDENCE_ENABLED === "true";
+  const storageConfigured = Boolean(process.env.FIREBASE_STORAGE_BUCKET);
+  const verifierRequested = process.env.PHOTO_VERIFICATION_ENABLED === "true";
+  const photoEvidenceEnabled = evidenceRequested && storageConfigured;
+  const geminiPhotoVerificationEnabled =
+    photoEvidenceEnabled && verifierRequested;
+  return {
+    photoEvidence: {
+      enabled: photoEvidenceEnabled,
+      reason: photoEvidenceEnabled
+        ? null
+        : evidenceRequested
+          ? "STORAGE_NOT_CONFIGURED"
+          : "BLAZE_REQUIRED",
+    },
+    geminiPhotoVerification: {
+      enabled: geminiPhotoVerificationEnabled,
+      reason: geminiPhotoVerificationEnabled
+        ? null
+        : evidenceRequested
+          ? "VERIFIER_DISABLED"
+          : "BLAZE_REQUIRED",
+    },
+    taskCapability: {
+      enabled: geminiPhotoVerificationEnabled,
+      reason: geminiPhotoVerificationEnabled
+        ? null
+        : !evidenceRequested
+          ? "BLAZE_REQUIRED"
+          : !storageConfigured
+            ? "PHOTO_STORAGE_UNAVAILABLE"
+            : "PHOTO_VERIFIER_UNAVAILABLE",
+    },
+  } as const;
+}
+
 function toTaskSummary(assignment: AssignmentWithTask): TaskSummary {
   const rule =
     assignment.task.verificationRule &&
@@ -123,9 +160,7 @@ function toTaskSummary(assignment: AssignmentWithTask): TaskSummary {
     !Array.isArray(assignment.task.verificationRule)
       ? (assignment.task.verificationRule as Record<string, unknown>)
       : {};
-  const geminiPhotoVerificationEnabled =
-    process.env.PHOTO_EVIDENCE_ENABLED === "true" &&
-    process.env.PHOTO_VERIFICATION_ENABLED === "true";
+  const capability = photoCapabilityStatus();
   return {
     id: assignment.id,
     title: assignment.task.title,
@@ -140,11 +175,11 @@ function toTaskSummary(assignment: AssignmentWithTask): TaskSummary {
     capability: {
       enabled:
         assignment.task.verificationMode !== VerificationMode.PHOTO_AI ||
-        geminiPhotoVerificationEnabled,
+        capability.taskCapability.enabled,
       reason:
         assignment.task.verificationMode === VerificationMode.PHOTO_AI &&
-        !geminiPhotoVerificationEnabled
-          ? "BLAZE_REQUIRED"
+        !capability.taskCapability.enabled
+          ? capability.taskCapability.reason
           : null,
     },
   };
@@ -201,6 +236,7 @@ export class PersistentStoreService {
     if (!user?.activeHouseholdId) {
       throw new NotFoundException("Active household not found");
     }
+    const capability = photoCapabilityStatus();
     return {
       displayName: user.displayName,
       activeHouseholdId: user.activeHouseholdId,
@@ -210,14 +246,8 @@ export class PersistentStoreService {
         relationship: membership.relationship,
       })),
       capabilities: {
-        photoEvidence: {
-          enabled: false,
-          reason: "BLAZE_REQUIRED",
-        },
-        geminiPhotoVerification: {
-          enabled: false,
-          reason: "BLAZE_REQUIRED",
-        },
+        photoEvidence: capability.photoEvidence,
+        geminiPhotoVerification: capability.geminiPhotoVerification,
       },
     };
   }
@@ -661,6 +691,9 @@ export class PersistentStoreService {
     evidenceId: string,
     sha256: string,
   ): Promise<EvidenceDecision> {
+    if (process.env.PHOTO_VERIFICATION_ENABLED !== "true") {
+      throw new BadRequestException("Photo verification is disabled");
+    }
     const active = await this.getActiveUser(firebaseUid);
     const evidence = await this.prisma.evidence.findFirst({
       where: {

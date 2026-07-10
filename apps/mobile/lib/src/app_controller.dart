@@ -14,9 +14,11 @@ import 'models.dart';
 class AppController extends ChangeNotifier {
   AppController({
     ApiClient? api,
+    EvidenceUploader? evidenceUploader,
     String? initialDisplayName,
     bool allowOfflineDemo = true,
   }) : _api = api ?? ApiClient(),
+       _evidenceUploader = evidenceUploader,
        _initialDisplayName = initialDisplayName,
        _allowOfflineDemo = allowOfflineDemo {
     if (!allowOfflineDemo) {
@@ -28,6 +30,7 @@ class AppController extends ChangeNotifier {
   }
 
   final ApiClient _api;
+  final EvidenceUploader? _evidenceUploader;
   final String? _initialDisplayName;
   final bool _allowOfflineDemo;
   final ImagePicker _picker = ImagePicker();
@@ -223,6 +226,7 @@ class AppController extends ChangeNotifier {
 
   Future<void> photographTask(DailyTask task) async {
     if (!task.capabilityEnabled ||
+        context?.photoEvidenceEnabled == false ||
         context?.geminiPhotoVerificationEnabled == false) {
       notice = '照片 AI 驗證將於 Firebase Blaze／Storage 啟用後開放；其他任務與城市探索仍可正常使用。';
       notifyListeners();
@@ -236,23 +240,38 @@ class AppController extends ChangeNotifier {
       );
       if (photo == null) return;
       if (!offlineDemo) {
-        final prepared = await preparePhotoEvidence(photo);
-        _replaceTask(
-          await _api.completeGeminiPhotoTask(
-            taskId: task.id,
-            imageBase64: prepared.base64Image,
-            contentType: prepared.contentType,
-            idempotencyKey: 'mobile-gemini-${task.id}-${prepared.sha256}',
-          ),
+        notice = '正在安全上傳照片，完成後會立即交給 AI 判斷。';
+        notifyListeners();
+        final evidence = await _api.initializePhotoEvidence(
+          task.id,
+          '${task.id}-${DateTime.now().millisecondsSinceEpoch}.jpg',
         );
+        final uploaded = await (_evidenceUploader ?? FirebaseEvidenceUploader())
+            .upload(photo, evidence);
+        final decision = await _api.completePhotoEvidence(
+          evidence.id,
+          uploaded.sha256,
+        );
+        tasks = await _api.getTasks();
         tree = await _api.getTree();
+        impact = await _api.getImpactSummary();
         reviews = await _api.getFamilyReviews();
+        switch (decision.decision) {
+          case EvidenceDecision.pass:
+            lastGrowthAwardPoints = task.growthPoints;
+            lastGrowthAwardTitle = task.title;
+            notice = '生命樹長出新葉 +${task.growthPoints}：${task.title}';
+          case EvidenceDecision.review:
+            notice = '照片已送出，AI 需要家人再確認；確認通過後生命樹才會成長。';
+          case EvidenceDecision.fail:
+            notice = '這張照片沒有通過驗證，可以讓主體更清楚後重新拍一次。';
+        }
       } else {
         _replaceTask(task.copyWith(status: TaskStatus.completed));
         _applyLocalGrowth(task.growthPoints);
+        notice =
+            'Gemini 已辨識照片並完成「${task.title}」，陪伴樹獲得 ${task.growthPoints} 點成長值。';
       }
-      notice =
-          'Gemini 已辨識照片並完成「${task.title}」，陪伴樹獲得 ${task.growthPoints} 點成長值。';
     } catch (error) {
       notice = '照片辨識失敗：$error。請讓主體更清楚後再拍一次。';
     }

@@ -64,7 +64,7 @@ export class InitializeEvidenceDto {
   fileName!: string;
 
   @ApiProperty({ example: "image/jpeg" })
-  @IsIn(["image/jpeg", "image/png", "image/heic"])
+  @IsIn(["image/jpeg", "image/png"])
   contentType!: string;
 }
 
@@ -77,7 +77,7 @@ export class CompleteEvidenceDto {
 
 export class CompleteGeminiPhotoTaskDto {
   @ApiProperty({ example: "image/jpeg" })
-  @IsIn(["image/jpeg", "image/png", "image/webp", "image/heic"])
+  @IsIn(["image/jpeg", "image/png"])
   contentType!: string;
 
   @ApiProperty({ description: "Base64-encoded sanitized image bytes" })

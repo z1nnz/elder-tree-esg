@@ -1,5 +1,7 @@
 from app.schemas import ModelClassification, PhotoVerificationRequest
-from app.verifier import apply_rules
+import asyncio
+
+from app.verifier import apply_rules, verify_photo
 
 
 def request(**overrides):
@@ -68,6 +70,19 @@ def test_match_any_required_accepts_one_matching_label():
     assert result.decision == "PASS"
 
 
+def test_high_confidence_hydration_image_passes():
+    result = apply_rules(
+        request(required_labels=["water bottle", "cup"], match_any_required=True),
+        ModelClassification(
+            labels=["cup", "drink"],
+            confidence=0.91,
+            description="A cup with a drink is clearly visible.",
+        ),
+        "test-model",
+    )
+    assert result.decision == "PASS"
+
+
 def test_unsafe_content_fails():
     result = apply_rules(
         request(),
@@ -80,3 +95,32 @@ def test_unsafe_content_fails():
         "test-model",
     )
     assert result.decision == "FAIL"
+
+
+def test_missing_gemini_key_does_not_pass(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    result = asyncio.run(
+        verify_photo(request(image_base64="ZmFrZS1qcGVn", content_type="image/jpeg"))
+    )
+    assert result.decision == "FAIL"
+    assert result.model == "rules-only"
+    assert "LOW_CONFIDENCE" in result.reason_codes
+
+
+def test_demo_override_payload_does_not_bypass_missing_gemini_key(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    result = asyncio.run(
+        verify_photo(
+            PhotoVerificationRequest(
+                evidence_id="evidence-demo",
+                task_title="拍下一株植物",
+                image_base64="ZmFrZS1qcGVn",
+                content_type="image/jpeg",
+                required_labels=["plant"],
+                demo_labels=["plant"],
+                demo_confidence=0.99,
+            )
+        )
+    )
+    assert result.decision == "FAIL"
+    assert result.model == "rules-only"

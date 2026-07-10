@@ -123,9 +123,12 @@ export class TasksController {
     @Param("id") id: string,
     @Body() dto: CompleteEvidenceDto,
   ) {
-    if (process.env.PHOTO_EVIDENCE_ENABLED !== "true") {
+    if (
+      process.env.PHOTO_EVIDENCE_ENABLED !== "true" ||
+      process.env.PHOTO_VERIFICATION_ENABLED !== "true"
+    ) {
       throw new ServiceUnavailableException(
-        "Photo evidence is disabled until private storage is configured",
+        "Photo evidence verification is disabled until private storage and the verifier are configured",
       );
     }
     if (process.env.DEMO_MODE !== "false") {

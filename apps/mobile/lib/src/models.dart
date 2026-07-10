@@ -8,6 +8,7 @@ enum VerificationMode {
 }
 
 enum TaskStatus { available, inProgress, verifying, completed, rejected }
+enum EvidenceDecision { pass, review, fail }
 
 class DailyTask {
   const DailyTask({
@@ -327,6 +328,38 @@ class EvidenceUploadModel {
         id: json['id'] as String,
         storagePath: json['storagePath'] as String,
         contentType: json['contentType'] as String,
+      );
+}
+
+class EvidenceDecisionModel {
+  const EvidenceDecisionModel({
+    required this.evidenceId,
+    required this.decision,
+    required this.status,
+  });
+
+  final String evidenceId;
+  final EvidenceDecision decision;
+  final TaskStatus status;
+
+  factory EvidenceDecisionModel.fromJson(Map<String, dynamic> json) =>
+      EvidenceDecisionModel(
+        evidenceId: json['evidenceId'] as String,
+        decision: switch (json['decision']) {
+          'PASS' => EvidenceDecision.pass,
+          'REVIEW' => EvidenceDecision.review,
+          'FAIL' => EvidenceDecision.fail,
+          final value => throw FormatException(
+            'Unknown evidence decision: $value',
+          ),
+        },
+        status: switch (json['status']) {
+          'IN_PROGRESS' => TaskStatus.inProgress,
+          'VERIFYING' => TaskStatus.verifying,
+          'COMPLETED' => TaskStatus.completed,
+          'REJECTED' => TaskStatus.rejected,
+          _ => TaskStatus.available,
+        },
       );
 }
 

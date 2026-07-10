@@ -82,6 +82,31 @@ void main() {
     expect(views[1].distanceLabel, startsWith('已進入'));
     controller.dispose();
   });
+
+  test('parses photo evidence decisions from the API', () {
+    final pass = EvidenceDecisionModel.fromJson(const {
+      'evidenceId': 'evidence-1',
+      'decision': 'PASS',
+      'status': 'COMPLETED',
+    });
+    final review = EvidenceDecisionModel.fromJson(const {
+      'evidenceId': 'evidence-2',
+      'decision': 'REVIEW',
+      'status': 'VERIFYING',
+    });
+    final fail = EvidenceDecisionModel.fromJson(const {
+      'evidenceId': 'evidence-3',
+      'decision': 'FAIL',
+      'status': 'REJECTED',
+    });
+
+    expect(pass.decision, EvidenceDecision.pass);
+    expect(pass.status, TaskStatus.completed);
+    expect(review.decision, EvidenceDecision.review);
+    expect(review.status, TaskStatus.verifying);
+    expect(fail.decision, EvidenceDecision.fail);
+    expect(fail.status, TaskStatus.rejected);
+  });
 }
 
 RadarMissionModel _radarMission({
