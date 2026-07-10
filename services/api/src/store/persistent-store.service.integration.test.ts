@@ -264,6 +264,58 @@ describeWithDatabase("PersistentStoreService", () => {
   );
 
   it(
+    "exposes photo capabilities when storage and verifier are enabled",
+    async () => {
+      const previousPhotoEvidenceEnabled = process.env.PHOTO_EVIDENCE_ENABLED;
+      const previousPhotoVerificationEnabled =
+        process.env.PHOTO_VERIFICATION_ENABLED;
+      const previousStorageBucket = process.env.FIREBASE_STORAGE_BUCKET;
+      process.env.PHOTO_EVIDENCE_ENABLED = "true";
+      process.env.PHOTO_VERIFICATION_ENABLED = "true";
+      process.env.FIREBASE_STORAGE_BUCKET = "test-bucket";
+      try {
+        const capabilityUid = `integration-photo-capability-${randomUUID()}`;
+        createdFirebaseUids.add(capabilityUid);
+        const context = await store.getContext(capabilityUid);
+        const photoTask = (await store.listTasks(capabilityUid)).find(
+          (task) => task.verificationMode === "PHOTO_AI",
+        );
+
+        expect(context.capabilities.photoEvidence).toEqual({
+          enabled: true,
+          reason: null,
+        });
+        expect(context.capabilities.geminiPhotoVerification).toEqual({
+          enabled: true,
+          reason: null,
+        });
+        expect(photoTask?.capability).toEqual({
+          enabled: true,
+          reason: null,
+        });
+      } finally {
+        if (previousPhotoEvidenceEnabled === undefined) {
+          delete process.env.PHOTO_EVIDENCE_ENABLED;
+        } else {
+          process.env.PHOTO_EVIDENCE_ENABLED = previousPhotoEvidenceEnabled;
+        }
+        if (previousPhotoVerificationEnabled === undefined) {
+          delete process.env.PHOTO_VERIFICATION_ENABLED;
+        } else {
+          process.env.PHOTO_VERIFICATION_ENABLED =
+            previousPhotoVerificationEnabled;
+        }
+        if (previousStorageBucket === undefined) {
+          delete process.env.FIREBASE_STORAGE_BUCKET;
+        } else {
+          process.env.FIREBASE_STORAGE_BUCKET = previousStorageBucket;
+        }
+      }
+    },
+    60_000,
+  );
+
+  it(
     "completes Gemini photo tasks only when explicitly enabled and stays idempotent",
     async () => {
       const previousPhotoEvidenceEnabled = process.env.PHOTO_EVIDENCE_ENABLED;
@@ -318,6 +370,156 @@ describeWithDatabase("PersistentStoreService", () => {
         expect(afterRetry.growthPoints).toBe(
           before.growthPoints + photoTask.growthPoints,
         );
+      } finally {
+        if (previousPhotoEvidenceEnabled === undefined) {
+          delete process.env.PHOTO_EVIDENCE_ENABLED;
+        } else {
+          process.env.PHOTO_EVIDENCE_ENABLED = previousPhotoEvidenceEnabled;
+        }
+        if (previousPhotoVerificationEnabled === undefined) {
+          delete process.env.PHOTO_VERIFICATION_ENABLED;
+        } else {
+          process.env.PHOTO_VERIFICATION_ENABLED =
+            previousPhotoVerificationEnabled;
+        }
+      }
+    },
+    60_000,
+  );
+
+  it(
+    "does not complete uploaded evidence while photo verification is disabled",
+    async () => {
+      const previousPhotoEvidenceEnabled = process.env.PHOTO_EVIDENCE_ENABLED;
+      const previousPhotoVerificationEnabled =
+        process.env.PHOTO_VERIFICATION_ENABLED;
+      process.env.PHOTO_EVIDENCE_ENABLED = "true";
+      delete process.env.PHOTO_VERIFICATION_ENABLED;
+      const photoUid = `integration-storage-verifier-disabled-${randomUUID()}`;
+      createdFirebaseUids.add(photoUid);
+      const fakeStorage = {
+        assertUploaded: vi.fn(async () => undefined),
+        createSignedReadUrl: vi.fn(async (path: string) =>
+          `https://storage.test/${encodeURIComponent(path)}`,
+        ),
+        deleteObject: vi.fn(async () => undefined),
+      };
+      const fakeVerifier = {
+        verify: vi.fn(async () => ({
+          decision: "PASS",
+          confidence: 0.93,
+          labels: ["plant"],
+          reasonCodes: ["RULES_SATISFIED"],
+          explanation: "A plant is visible.",
+          model: "integration-verifier",
+          ruleVersion: "1.0.0",
+        })),
+      };
+      const photoStore = new PersistentStoreService(
+        prisma,
+        undefined,
+        fakeStorage as never,
+        fakeVerifier as never,
+      );
+      try {
+        const photoTask = (await photoStore.listTasks(photoUid)).find(
+          (task) => task.verificationMode === "PHOTO_AI",
+        );
+        expect(photoTask).toBeDefined();
+        const evidence = await photoStore.initializeEvidence(
+          photoUid,
+          photoTask!.id,
+          "plant.jpg",
+          "image/jpeg",
+        );
+
+        await expect(
+          photoStore.completeEvidence(
+            photoUid,
+            evidence.id,
+            "1234567890abcdef",
+          ),
+        ).rejects.toThrow("Photo verification is disabled");
+        expect(fakeStorage.assertUploaded).not.toHaveBeenCalled();
+        expect(fakeVerifier.verify).not.toHaveBeenCalled();
+      } finally {
+        if (previousPhotoEvidenceEnabled === undefined) {
+          delete process.env.PHOTO_EVIDENCE_ENABLED;
+        } else {
+          process.env.PHOTO_EVIDENCE_ENABLED = previousPhotoEvidenceEnabled;
+        }
+        if (previousPhotoVerificationEnabled === undefined) {
+          delete process.env.PHOTO_VERIFICATION_ENABLED;
+        } else {
+          process.env.PHOTO_VERIFICATION_ENABLED =
+            previousPhotoVerificationEnabled;
+        }
+      }
+    },
+    60_000,
+  );
+
+  it.each([
+    "Unsupported evidence content type",
+    "Evidence image must be between 1 byte and 10 MB",
+    "No such object",
+  ])(
+    "does not call the verifier when storage validation fails: %s",
+    async (storageError) => {
+      const previousPhotoEvidenceEnabled = process.env.PHOTO_EVIDENCE_ENABLED;
+      const previousPhotoVerificationEnabled =
+        process.env.PHOTO_VERIFICATION_ENABLED;
+      process.env.PHOTO_EVIDENCE_ENABLED = "true";
+      process.env.PHOTO_VERIFICATION_ENABLED = "true";
+      const photoUid = `integration-storage-validation-${randomUUID()}`;
+      createdFirebaseUids.add(photoUid);
+      const fakeStorage = {
+        assertUploaded: vi.fn(async () => {
+          throw new Error(storageError);
+        }),
+        createSignedReadUrl: vi.fn(async (path: string) =>
+          `https://storage.test/${encodeURIComponent(path)}`,
+        ),
+        deleteObject: vi.fn(async () => undefined),
+      };
+      const fakeVerifier = {
+        verify: vi.fn(async () => ({
+          decision: "PASS",
+          confidence: 0.93,
+          labels: ["plant"],
+          reasonCodes: ["RULES_SATISFIED"],
+          explanation: "A plant is visible.",
+          model: "integration-verifier",
+          ruleVersion: "1.0.0",
+        })),
+      };
+      const photoStore = new PersistentStoreService(
+        prisma,
+        undefined,
+        fakeStorage as never,
+        fakeVerifier as never,
+      );
+      try {
+        const photoTask = (await photoStore.listTasks(photoUid)).find(
+          (task) => task.verificationMode === "PHOTO_AI",
+        );
+        expect(photoTask).toBeDefined();
+        const evidence = await photoStore.initializeEvidence(
+          photoUid,
+          photoTask!.id,
+          "plant.jpg",
+          "image/jpeg",
+        );
+
+        await expect(
+          photoStore.completeEvidence(
+            photoUid,
+            evidence.id,
+            "1234567890abcdef",
+          ),
+        ).rejects.toThrow(storageError);
+        expect(fakeStorage.createSignedReadUrl).not.toHaveBeenCalled();
+        expect(fakeVerifier.verify).not.toHaveBeenCalled();
       } finally {
         if (previousPhotoEvidenceEnabled === undefined) {
           delete process.env.PHOTO_EVIDENCE_ENABLED;
@@ -395,11 +597,189 @@ describeWithDatabase("PersistentStoreService", () => {
   );
 
   it(
+    "completes uploaded photo evidence once and deletes terminal storage objects",
+    async () => {
+      const previousPhotoEvidenceEnabled = process.env.PHOTO_EVIDENCE_ENABLED;
+      const previousPhotoVerificationEnabled =
+        process.env.PHOTO_VERIFICATION_ENABLED;
+      process.env.PHOTO_EVIDENCE_ENABLED = "true";
+      process.env.PHOTO_VERIFICATION_ENABLED = "true";
+      const photoUid = `integration-storage-photo-pass-${randomUUID()}`;
+      createdFirebaseUids.add(photoUid);
+      const deletedPaths: string[] = [];
+      const fakeStorage = {
+        assertUploaded: vi.fn(async () => undefined),
+        createSignedReadUrl: vi.fn(async (path: string) =>
+          `https://storage.test/${encodeURIComponent(path)}`,
+        ),
+        deleteObject: vi.fn(async (path: string) => {
+          deletedPaths.push(path);
+        }),
+      };
+      const fakeVerifier = {
+        verify: vi.fn(async () => ({
+          decision: "PASS",
+          confidence: 0.93,
+          labels: ["plant", "leaf"],
+          reasonCodes: ["RULES_SATISFIED"],
+          explanation: "A plant is clearly visible.",
+          model: "integration-verifier",
+          ruleVersion: "1.0.0",
+        })),
+      };
+      const photoStore = new PersistentStoreService(
+        prisma,
+        undefined,
+        fakeStorage as never,
+        fakeVerifier as never,
+      );
+      try {
+        const photoTask = (await photoStore.listTasks(photoUid)).find(
+          (task) => task.verificationMode === "PHOTO_AI",
+        );
+        expect(photoTask).toBeDefined();
+        const before = await photoStore.getTree(photoUid);
+        const evidence = await photoStore.initializeEvidence(
+          photoUid,
+          photoTask!.id,
+          "plant.jpg",
+          "image/jpeg",
+        );
+
+        const first = await photoStore.completeEvidence(
+          photoUid,
+          evidence.id,
+          "1234567890abcdef",
+        );
+        const retry = await photoStore.completeEvidence(
+          photoUid,
+          evidence.id,
+          "1234567890abcdef",
+        );
+        const after = await photoStore.getTree(photoUid);
+
+        expect(first.decision).toBe("PASS");
+        expect(retry.decision).toBe("PASS");
+        expect(fakeVerifier.verify).toHaveBeenCalledTimes(1);
+        expect(after.growthPoints).toBe(
+          before.growthPoints + photoTask.growthPoints,
+        );
+        expect(deletedPaths).toContain(evidence.storagePath);
+      } finally {
+        if (previousPhotoEvidenceEnabled === undefined) {
+          delete process.env.PHOTO_EVIDENCE_ENABLED;
+        } else {
+          process.env.PHOTO_EVIDENCE_ENABLED = previousPhotoEvidenceEnabled;
+        }
+        if (previousPhotoVerificationEnabled === undefined) {
+          delete process.env.PHOTO_VERIFICATION_ENABLED;
+        } else {
+          process.env.PHOTO_VERIFICATION_ENABLED =
+            previousPhotoVerificationEnabled;
+        }
+      }
+    },
+    60_000,
+  );
+
+  it(
+    "rejects failed uploaded photo evidence without awarding growth",
+    async () => {
+      const previousPhotoEvidenceEnabled = process.env.PHOTO_EVIDENCE_ENABLED;
+      const previousPhotoVerificationEnabled =
+        process.env.PHOTO_VERIFICATION_ENABLED;
+      process.env.PHOTO_EVIDENCE_ENABLED = "true";
+      process.env.PHOTO_VERIFICATION_ENABLED = "true";
+      const photoUid = `integration-storage-photo-fail-${randomUUID()}`;
+      createdFirebaseUids.add(photoUid);
+      const deletedPaths: string[] = [];
+      const fakeStorage = {
+        assertUploaded: vi.fn(async () => undefined),
+        createSignedReadUrl: vi.fn(async (path: string) =>
+          `https://storage.test/${encodeURIComponent(path)}`,
+        ),
+        deleteObject: vi.fn(async (path: string) => {
+          deletedPaths.push(path);
+        }),
+      };
+      const fakeVerifier = {
+        verify: vi.fn(async () => ({
+          decision: "FAIL",
+          confidence: 0.2,
+          labels: ["sky"],
+          reasonCodes: ["MISSING_REQUIRED_LABEL", "LOW_CONFIDENCE"],
+          explanation: "No required evidence is visible.",
+          model: "integration-verifier",
+          ruleVersion: "1.0.0",
+        })),
+      };
+      const photoStore = new PersistentStoreService(
+        prisma,
+        undefined,
+        fakeStorage as never,
+        fakeVerifier as never,
+      );
+      try {
+        const photoTask = (await photoStore.listTasks(photoUid)).find(
+          (task) => task.verificationMode === "PHOTO_AI",
+        );
+        expect(photoTask).toBeDefined();
+        const before = await photoStore.getTree(photoUid);
+        const evidence = await photoStore.initializeEvidence(
+          photoUid,
+          photoTask!.id,
+          "sky.jpg",
+          "image/jpeg",
+        );
+
+        const result = await photoStore.completeEvidence(
+          photoUid,
+          evidence.id,
+          "abcdef1234567890",
+        );
+        const after = await photoStore.getTree(photoUid);
+        const updatedTask = (await photoStore.listTasks(photoUid)).find(
+          (task) => task.id === photoTask.id,
+        );
+        const retryEvidence = await photoStore.initializeEvidence(
+          photoUid,
+          photoTask.id,
+          "plant-retry.jpg",
+          "image/jpeg",
+        );
+
+        expect(result.decision).toBe("FAIL");
+        expect(result.status).toBe("REJECTED");
+        expect(after.growthPoints).toBe(before.growthPoints);
+        expect(updatedTask?.status).toBe("REJECTED");
+        expect(retryEvidence.id).not.toBe(evidence.id);
+        expect(deletedPaths).toContain(evidence.storagePath);
+      } finally {
+        if (previousPhotoEvidenceEnabled === undefined) {
+          delete process.env.PHOTO_EVIDENCE_ENABLED;
+        } else {
+          process.env.PHOTO_EVIDENCE_ENABLED = previousPhotoEvidenceEnabled;
+        }
+        if (previousPhotoVerificationEnabled === undefined) {
+          delete process.env.PHOTO_VERIFICATION_ENABLED;
+        } else {
+          process.env.PHOTO_VERIFICATION_ENABLED =
+            previousPhotoVerificationEnabled;
+        }
+      }
+    },
+    60_000,
+  );
+
+  it(
     "lets another household member review photo evidence exactly once",
     async () => {
       const previousPhotoEvidenceEnabled =
         process.env.PHOTO_EVIDENCE_ENABLED;
+      const previousPhotoVerificationEnabled =
+        process.env.PHOTO_VERIFICATION_ENABLED;
       process.env.PHOTO_EVIDENCE_ENABLED = "true";
+      process.env.PHOTO_VERIFICATION_ENABLED = "true";
       const submitterUid = `integration-photo-${randomUUID()}`;
       const reviewerUid = `integration-reviewer-${randomUUID()}`;
       createdFirebaseUids.add(submitterUid);
@@ -478,6 +858,12 @@ describeWithDatabase("PersistentStoreService", () => {
         delete process.env.PHOTO_EVIDENCE_ENABLED;
       } else {
         process.env.PHOTO_EVIDENCE_ENABLED = previousPhotoEvidenceEnabled;
+      }
+      if (previousPhotoVerificationEnabled === undefined) {
+        delete process.env.PHOTO_VERIFICATION_ENABLED;
+      } else {
+        process.env.PHOTO_VERIFICATION_ENABLED =
+          previousPhotoVerificationEnabled;
       }
     },
     60_000,

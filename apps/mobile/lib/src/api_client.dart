@@ -147,8 +147,13 @@ class ApiClient {
     );
   }
 
-  Future<void> completePhotoEvidence(String evidenceId, String sha256) async {
-    await _post('/evidence/$evidenceId/complete', {'sha256': sha256});
+  Future<EvidenceDecisionModel> completePhotoEvidence(
+    String evidenceId,
+    String sha256,
+  ) async {
+    return EvidenceDecisionModel.fromJson(
+      await _post('/evidence/$evidenceId/complete', {'sha256': sha256}),
+    );
   }
 
   Future<void> decideFamilyReview(String reviewId, String decision) async {

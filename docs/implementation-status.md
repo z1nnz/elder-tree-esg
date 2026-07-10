@@ -1,5 +1,18 @@
 # 實作狀態
 
+## 2026-07-10：Blaze 照片 AI 驗證 MVP
+
+- Firebase Blaze／Storage 驗證線改為可啟用狀態；`dev-api-neon` 預設開啟
+  `PHOTO_EVIDENCE_ENABLED=true` 與 `PHOTO_VERIFICATION_ENABLED=true`。
+- 一般 PHOTO_AI 任務改走正式 Evidence 流程：App 壓縮 JPEG、寫入私人
+  Storage、API 產生短效簽名 URL，再交由 AI verifier / Gemini 判斷。
+- PASS 會自動完成任務並以既有 `GrowthEntry` 冪等加分；REVIEW 進同家庭其他
+  帳號覆核；FAIL 不加分且可重新拍攝。
+- Storage Rules 維持本人可寫、App 不可讀；PASS／FAIL 或人工覆核完成後刪除
+  原圖。
+- 雷達任務 PHOTO_AI 仍維持鎖定，避免在定位任務模型尚未設計 evidence 關聯前
+  混用一般任務證據流程。
+
 ## 2026-07-07：任務雷達＋公開前台雙 CTA MVP
 
 - 新增獨立的 `RadarMission` 與 `RadarMissionProgress`，和固定路線任務分開。
@@ -54,7 +67,7 @@
 - Google Cloud、AWS 帳號與正式憑證。
 - 實體 ESP32-S3、螢幕、感測器、LED、按鍵及外殼製作。
 - APNs/FCM 憑證、正式網域與 App Store／Play Store 簽章。
-- Firebase Blaze 與 Storage；目前刻意延後，不阻塞城市探索 MVP。
+- Gemini API key、Firebase Admin service account 與已部署 Storage Rules。
 - 150 張取得同意、完成標註的 golden set。
 - 5 組長者／家庭志願者測試與研究同意流程。
 - 24 小時真機壓力測試與 Android/iOS 實機 BLE 驗收。
