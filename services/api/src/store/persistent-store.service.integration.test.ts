@@ -111,13 +111,16 @@ describeWithDatabase("PersistentStoreService", () => {
       expect((await store.listMessages(inviterUid))[0]?.body).toBe(
         "共享家庭的第一則訊息",
       );
+      expect((await store.getHomeSummary(joinerUid)).messageCount).toBe(1);
 
       const sharedTask = (await store.listTasks(joinerUid)).find(
         (task) => task.verificationMode === "SELF_CHECK",
       );
       expect(sharedTask).toBeDefined();
       await store.completeTask(joinerUid, sharedTask!.id);
-      expect((await store.getTree(inviterUid)).growthPoints).toBe(30);
+      const sharedHome = await store.getHomeSummary(inviterUid);
+      expect(sharedHome.tree.growthPoints).toBe(30);
+      expect(sharedHome.nextAction.taskId).not.toBe(sharedTask!.id);
 
       await store.setActiveHousehold(
         joinerUid,
@@ -125,6 +128,9 @@ describeWithDatabase("PersistentStoreService", () => {
       );
       expect((await store.getTree(joinerUid)).growthPoints).toBe(0);
       expect(await store.listMessages(joinerUid)).toEqual([]);
+      const personalHome = await store.getHomeSummary(joinerUid);
+      expect(personalHome.tree.growthPoints).toBe(0);
+      expect(personalHome.messageCount).toBe(0);
 
       await store.setActiveHousehold(
         joinerUid,

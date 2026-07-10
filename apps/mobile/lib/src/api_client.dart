@@ -45,6 +45,10 @@ class ApiClient {
     return AppContextModel.fromJson(await _getMap('/me/context'));
   }
 
+  Future<HomeSummaryModel> getHomeSummary() async {
+    return HomeSummaryModel.fromJson(await _getMap('/me/home'));
+  }
+
   Future<AppContextModel> updateDisplayName(String displayName) async {
     return AppContextModel.fromJson(
       await _patch('/me/profile', {'displayName': displayName}),

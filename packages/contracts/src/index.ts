@@ -148,6 +148,66 @@ export interface AppContext {
   };
 }
 
+export type HomeNextActionKind =
+  | "COMPLETE_TASK"
+  | "START_TIMER"
+  | "TAKE_PHOTO"
+  | "REVIEW_PHOTO"
+  | "START_EXPLORATION"
+  | "READ_MESSAGE"
+  | "REST";
+
+export interface HomeNextAction {
+  kind: HomeNextActionKind;
+  title: string;
+  description: string;
+  ctaLabel: string;
+  taskId: string | null;
+  radarMissionId: string | null;
+}
+
+export interface HomeTaskCard {
+  id: string;
+  title: string;
+  description: string;
+  verificationMode: TaskVerificationMode;
+  growthPoints: number;
+  status: AssignmentStatus;
+  stateLabel: string;
+  actionLabel: string;
+  capability: TaskSummary["capability"];
+}
+
+export interface HomeAlert {
+  id: string;
+  kind: "REVIEW" | "MESSAGE" | "PHOTO_AI" | "RADAR" | "DEVICE";
+  title: string;
+  description: string;
+  count: number;
+}
+
+export interface CompanionSpriteState {
+  mood: "READY" | "WALKING" | "GROWING" | "WAITING" | "RESTING";
+  label: string;
+  energyPoints: number;
+}
+
+export interface HomeSummary {
+  generatedAt: string;
+  displayName: string;
+  activeHouseholdName: string;
+  tree: TreeSummary;
+  nextAction: HomeNextAction;
+  taskCards: HomeTaskCard[];
+  featuredRadarMission: RadarMissionSummary | null;
+  pendingReviewCount: number;
+  messageCount: number;
+  latestMessage: FamilyMessage | null;
+  capabilities: AppContext["capabilities"];
+  companionSprite: CompanionSpriteState;
+  alerts: HomeAlert[];
+}
+
 export interface PhotoAiOperationalStatus {
   photoEvidence: {
     enabled: boolean;

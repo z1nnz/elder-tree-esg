@@ -13,6 +13,10 @@ import type {
   ExplorationState,
   FamilyMessage,
   FamilyReviewItem,
+  HomeAlert,
+  HomeNextAction,
+  HomeSummary,
+  HomeTaskCard,
   HouseholdInviteSummary,
   ImpactSummary,
   RadarMissionInput,
@@ -170,6 +174,162 @@ function photoAiOperationalStatus() {
   };
 }
 
+function taskStateLabel(task: TaskSummary) {
+  if (task.status === "COMPLETED") return "已完成";
+  if (task.status === "VERIFYING") return "等待覆核";
+  if (task.status === "REJECTED") return "可重新拍攝";
+  if (task.status === "IN_PROGRESS") return "進行中";
+  if (!task.capability.enabled) return "暫時不可用";
+  return "可開始";
+}
+
+function taskActionLabel(task: TaskSummary) {
+  if (task.status === "COMPLETED") return "已完成";
+  if (task.status === "VERIFYING") return "等待確認";
+  if (task.status === "REJECTED") return "重新拍攝";
+  if (!task.capability.enabled) return "暫不可用";
+  if (task.verificationMode === "PHOTO_AI") return "拍照驗證";
+  if (task.verificationMode === "TIMER") {
+    return task.status === "IN_PROGRESS" ? "查看計時" : "開始計時";
+  }
+  if (task.verificationMode === "SELF_CHECK") return "我完成了";
+  return "尚未開放";
+}
+
+function taskPriority(task: TaskSummary) {
+  if (task.status === "IN_PROGRESS") return 0;
+  if (task.status === "REJECTED") return 1;
+  if (task.status === "AVAILABLE" && task.capability.enabled) return 2;
+  if (task.status === "VERIFYING") return 3;
+  if (task.status === "AVAILABLE") return 4;
+  if (task.status === "COMPLETED") return 9;
+  return 8;
+}
+
+function toHomeTaskCard(task: TaskSummary): HomeTaskCard {
+  return {
+    id: task.id,
+    title: task.title,
+    description: task.description,
+    verificationMode: task.verificationMode,
+    growthPoints: task.growthPoints,
+    status: task.status,
+    stateLabel: taskStateLabel(task),
+    actionLabel: taskActionLabel(task),
+    capability: task.capability,
+  };
+}
+
+function selectFeaturedRadarMission(
+  missions: RadarMissionSummary[],
+): RadarMissionSummary | null {
+  const priority = (mission: RadarMissionSummary) => {
+    if (mission.status === "UNLOCKED") return 0;
+    if (mission.status === "LOCKED") return 1;
+    if (mission.status === "UPCOMING") return 2;
+    if (mission.status === "EXPIRED") return 8;
+    return 9;
+  };
+  return (
+    missions
+      .filter((mission) => mission.status !== "COMPLETED")
+      .sort((a, b) => {
+        const byPriority = priority(a) - priority(b);
+        if (byPriority !== 0) return byPriority;
+        return a.remainingSeconds - b.remainingSeconds;
+      })[0] ?? null
+  );
+}
+
+function selectHomeNextAction(input: {
+  tasks: TaskSummary[];
+  pendingReviewCount: number;
+  featuredRadarMission: RadarMissionSummary | null;
+  latestMessage: FamilyMessage | null;
+}): HomeNextAction {
+  if (input.pendingReviewCount > 0) {
+    return {
+      kind: "REVIEW_PHOTO",
+      title: "有照片需要你確認",
+      description: "幫家人看一眼，通過後生命樹才會長出新葉。",
+      ctaLabel: "前往覆核",
+      taskId: null,
+      radarMissionId: null,
+    };
+  }
+  const task = [...input.tasks]
+    .filter((item) => item.status !== "COMPLETED" && item.capability.enabled)
+    .sort((a, b) => taskPriority(a) - taskPriority(b))[0];
+  if (task) {
+    const kind =
+      task.verificationMode === "PHOTO_AI"
+        ? "TAKE_PHOTO"
+        : task.verificationMode === "TIMER"
+          ? "START_TIMER"
+          : "COMPLETE_TASK";
+    return {
+      kind,
+      title: task.title,
+      description: task.description,
+      ctaLabel: taskActionLabel(task),
+      taskId: task.id,
+      radarMissionId: null,
+    };
+  }
+  if (input.featuredRadarMission) {
+    return {
+      kind: "START_EXPLORATION",
+      title: input.featuredRadarMission.title,
+      description: "附近有一個城市任務，走近後就能接取。",
+      ctaLabel: "開始探索",
+      taskId: null,
+      radarMissionId: input.featuredRadarMission.id,
+    };
+  }
+  if (input.latestMessage) {
+    return {
+      kind: "READ_MESSAGE",
+      title: "看看家人的留言",
+      description: input.latestMessage.body,
+      ctaLabel: "查看訊息",
+      taskId: null,
+      radarMissionId: null,
+    };
+  }
+  return {
+    kind: "REST",
+    title: "今天先慢慢來",
+    description: "沒有急著完成的任務，休息也是照顧自己的一部分。",
+    ctaLabel: "看看生命樹",
+    taskId: null,
+    radarMissionId: null,
+  };
+}
+
+function companionSpriteFor(
+  tree: TreeSummary,
+  nextAction: HomeNextAction,
+): HomeSummary["companionSprite"] {
+  const mood = (() => {
+    if (nextAction.kind === "START_EXPLORATION") return "WALKING";
+    if (nextAction.kind === "REVIEW_PHOTO") return "WAITING";
+    if (nextAction.kind === "REST") return "RESTING";
+    return "READY";
+  })();
+  return {
+    mood,
+    label:
+      mood === "WALKING"
+        ? "小葉靈準備陪你出門"
+        : mood === "WAITING"
+          ? "小葉靈正在等你確認"
+          : mood === "RESTING"
+            ? "小葉靈今天陪你慢慢休息"
+            : "小葉靈帶著今天的任務來了",
+    energyPoints: tree.growthPoints,
+  };
+}
+
 function toTaskSummary(assignment: AssignmentWithTask): TaskSummary {
   const rule =
     assignment.task.verificationRule &&
@@ -269,6 +429,93 @@ export class PersistentStoreService {
     };
   }
 
+  async getHomeSummary(firebaseUid: string): Promise<HomeSummary> {
+    const [context, tree, tasks, messages, pendingReviewCount, radar] =
+      await Promise.all([
+        this.getContext(firebaseUid),
+        this.getTree(firebaseUid),
+        this.listTasks(firebaseUid),
+        this.listMessages(firebaseUid),
+        this.countPendingFamilyReviews(firebaseUid),
+        this.getRadarState(firebaseUid),
+      ]);
+    const taskCards = [...tasks]
+      .sort((a, b) => taskPriority(a) - taskPriority(b))
+      .slice(0, 4)
+      .map(toHomeTaskCard);
+    const latestMessage = messages[0] ?? null;
+    const featuredRadarMission = selectFeaturedRadarMission(radar.missions);
+    const nextAction = selectHomeNextAction({
+      tasks,
+      pendingReviewCount,
+      featuredRadarMission,
+      latestMessage,
+    });
+    const alerts: HomeAlert[] = [];
+    if (pendingReviewCount > 0) {
+      alerts.push({
+        id: "reviews",
+        kind: "REVIEW",
+        title: "等待覆核",
+        description: "有家人的照片需要你確認。",
+        count: pendingReviewCount,
+      });
+    }
+    if (latestMessage) {
+      alerts.push({
+        id: "latest-message",
+        kind: "MESSAGE",
+        title: "家庭訊息",
+        description: `${latestMessage.authorName}傳來一段話。`,
+        count: messages.length,
+      });
+    }
+    if (
+      tasks.some(
+        (task) =>
+          task.verificationMode === "PHOTO_AI" && !task.capability.enabled,
+      )
+    ) {
+      alerts.push({
+        id: "photo-ai",
+        kind: "PHOTO_AI",
+        title: "照片驗證狀態",
+        description: "照片任務會依目前 Storage 與 AI verifier 狀態顯示。",
+        count: tasks.filter((task) => task.verificationMode === "PHOTO_AI")
+          .length,
+      });
+    }
+    if (featuredRadarMission) {
+      alerts.push({
+        id: "radar",
+        kind: "RADAR",
+        title: "附近任務",
+        description: featuredRadarMission.title,
+        count: radar.missions.filter(
+          (mission) => mission.status !== "COMPLETED",
+        ).length,
+      });
+    }
+    return {
+      generatedAt: this.clock.now().toISOString(),
+      displayName: context.displayName,
+      activeHouseholdName:
+        context.households.find(
+          (household) => household.id === context.activeHouseholdId,
+        )?.name ?? tree.householdName,
+      tree,
+      nextAction,
+      taskCards,
+      featuredRadarMission,
+      pendingReviewCount,
+      messageCount: messages.length,
+      latestMessage,
+      capabilities: context.capabilities,
+      companionSprite: companionSpriteFor(tree, nextAction),
+      alerts,
+    };
+  }
+
   async updateDisplayName(
     firebaseUid: string,
     displayName: string,
@@ -330,7 +577,9 @@ export class PersistentStoreService {
         invite.usedAt ||
         invite.expiresAt.getTime() <= this.clock.now().getTime()
       ) {
-        throw new ConflictException("Household invite is expired or already used");
+        throw new ConflictException(
+          "Household invite is expired or already used",
+        );
       }
       const existingMembership = await transaction.householdMember.findUnique({
         where: {
@@ -425,7 +674,10 @@ export class PersistentStoreService {
     };
   }
 
-  async startTask(firebaseUid: string, assignmentId: string): Promise<TaskSummary> {
+  async startTask(
+    firebaseUid: string,
+    assignmentId: string,
+  ): Promise<TaskSummary> {
     const assignment = await this.findAssignment(firebaseUid, assignmentId);
     if (assignment.status === AssignmentStatus.COMPLETED) {
       throw new ConflictException("Task is already complete");
@@ -464,7 +716,10 @@ export class PersistentStoreService {
         throw new BadRequestException("PHOTO_AI tasks require evidence");
       }
       if (assignment.task.verificationMode === VerificationMode.TIMER) {
-        const rule = assignment.task.verificationRule as Record<string, unknown>;
+        const rule = assignment.task.verificationRule as Record<
+          string,
+          unknown
+        >;
         const minimumSeconds =
           typeof rule.minimumSeconds === "number" ? rule.minimumSeconds : 0;
         if (!assignment.startedAt) {
@@ -528,22 +783,26 @@ export class PersistentStoreService {
     });
     if (!assignment) throw new NotFoundException("Task assignment not found");
     if (assignment.task.verificationMode !== VerificationMode.PHOTO_AI) {
-      throw new BadRequestException("This task does not accept photo verification");
+      throw new BadRequestException(
+        "This task does not accept photo verification",
+      );
     }
     if (assignment.status === AssignmentStatus.COMPLETED) {
       return toTaskSummary(assignment);
     }
     const idempotencyKey =
-      input.idempotencyKey ?? `gemini-photo:${assignment.id}:${input.imageBase64.slice(0, 48)}`;
-    const existingAttempt = await this.prisma.photoVerificationAttempt.findUnique({
-      where: {
-        assignmentId_idempotencyKey: {
-          assignmentId: assignment.id,
-          idempotencyKey,
+      input.idempotencyKey ??
+      `gemini-photo:${assignment.id}:${input.imageBase64.slice(0, 48)}`;
+    const existingAttempt =
+      await this.prisma.photoVerificationAttempt.findUnique({
+        where: {
+          assignmentId_idempotencyKey: {
+            assignmentId: assignment.id,
+            idempotencyKey,
+          },
         },
-      },
-      include: { assignment: { include: { task: true } } },
-    });
+        include: { assignment: { include: { task: true } } },
+      });
     if (existingAttempt) {
       if (existingAttempt.decision === PrismaVerificationDecision.PASS) {
         return toTaskSummary(existingAttempt.assignment);
@@ -553,7 +812,9 @@ export class PersistentStoreService {
 
     const estimatedBytes = Math.floor((input.imageBase64.length * 3) / 4);
     if (estimatedBytes <= 0 || estimatedBytes > 10 * 1024 * 1024) {
-      throw new BadRequestException("Photo image must be between 1 byte and 10 MB");
+      throw new BadRequestException(
+        "Photo image must be between 1 byte and 10 MB",
+      );
     }
 
     const rule = assignment.task.verificationRule as Record<string, unknown>;
@@ -728,8 +989,7 @@ export class PersistentStoreService {
     if (!evidence) throw new NotFoundException("Evidence not found");
     if (evidence.verification) {
       if (
-        evidence.verification.decision !==
-        PrismaVerificationDecision.REVIEW
+        evidence.verification.decision !== PrismaVerificationDecision.REVIEW
       ) {
         await this.evidenceStorage.deleteObject(evidence.storagePath);
       }
@@ -914,6 +1174,22 @@ export class PersistentStoreService {
     );
   }
 
+  async countPendingFamilyReviews(firebaseUid: string): Promise<number> {
+    const active = await this.getActiveUser(firebaseUid);
+    return this.prisma.verificationRun.count({
+      where: {
+        decision: PrismaVerificationDecision.REVIEW,
+        reviewedAt: null,
+        evidence: {
+          assignment: {
+            householdId: active.activeHouseholdId,
+            userId: { not: active.id },
+          },
+        },
+      },
+    });
+  }
+
   async decideFamilyReview(
     firebaseUid: string,
     reviewId: string,
@@ -937,7 +1213,9 @@ export class PersistentStoreService {
     });
     if (!review) throw new NotFoundException("Family review not found");
     if (review.evidence.assignment.userId === active.id) {
-      throw new BadRequestException("Submitters cannot review their own evidence");
+      throw new BadRequestException(
+        "Submitters cannot review their own evidence",
+      );
     }
     if (review.reviewedAt) {
       await this.evidenceStorage.deleteObject(review.evidence.storagePath);
@@ -1104,10 +1382,7 @@ export class PersistentStoreService {
     ) {
       throw new BadRequestException("Invalid serial number or claim code");
     }
-    if (
-      device.householdId &&
-      device.householdId !== active.activeHouseholdId
-    ) {
+    if (device.householdId && device.householdId !== active.activeHouseholdId) {
       throw new ConflictException("Companion device is already claimed");
     }
     const claimed = await this.prisma.device.update({
@@ -1301,7 +1576,9 @@ export class PersistentStoreService {
     if (!existing) throw new NotFoundException("Exploration quest not found");
     await this.assertDraftRoute(existing.routeId);
     if (existing.routeId !== input.routeId) {
-      throw new BadRequestException("A quest cannot move between route versions");
+      throw new BadRequestException(
+        "A quest cannot move between route versions",
+      );
     }
     this.assertValidQuestInput(input);
     await this.prisma.$transaction([
@@ -1341,10 +1618,7 @@ export class PersistentStoreService {
     return this.listAdminExplorationRoutes();
   }
 
-  async reorderAdminExplorationQuests(
-    routeId: string,
-    questIds: string[],
-  ) {
+  async reorderAdminExplorationQuests(routeId: string, questIds: string[]) {
     await this.assertDraftRoute(routeId);
     const existing = await this.prisma.mapQuest.findMany({
       where: { routeId },
@@ -1397,12 +1671,9 @@ export class PersistentStoreService {
         sourceUrl: quest.sourceUrl,
         title: quest.task.title,
         description: quest.task.description,
-        verificationMode: quest.task.verificationMode as
-          | "SELF_CHECK"
-          | "TIMER",
-        minimumSeconds: (
-          quest.task.verificationRule as Record<string, unknown>
-        ).minimumSeconds as number | undefined,
+        verificationMode: quest.task.verificationMode as "SELF_CHECK" | "TIMER",
+        minimumSeconds: (quest.task.verificationRule as Record<string, unknown>)
+          .minimumSeconds as number | undefined,
         growthPoints: quest.task.growthPoints,
         triggerType: quest.triggerType,
         latitude: quest.latitude,
@@ -1417,10 +1688,7 @@ export class PersistentStoreService {
         where: {
           id: { not: routeId },
           status: "PUBLISHED",
-          OR: [
-            { slug: baseSlug },
-            { slug: { startsWith: `${baseSlug}-v` } },
-          ],
+          OR: [{ slug: baseSlug }, { slug: { startsWith: `${baseSlug}-v` } }],
         },
         data: { status: "ARCHIVED", archivedAt: this.clock.now() },
       });
@@ -1697,13 +1965,16 @@ export class PersistentStoreService {
     }
     const eventAge = this.clock.now().getTime() - occurredAt.getTime();
     if (eventAge > 5 * 60 * 1000 || eventAge < -60 * 1000) {
-      throw new BadRequestException("Radar event time is outside the accepted window");
+      throw new BadRequestException(
+        "Radar event time is outside the accepted window",
+      );
     }
     const active = await this.getActiveUser(firebaseUid);
     const mission = await this.prisma.radarMission.findFirst({
       where: { id: missionId, status: "PUBLISHED" },
     });
-    if (!mission) throw new NotFoundException("Published radar mission not found");
+    if (!mission)
+      throw new NotFoundException("Published radar mission not found");
     const now = this.clock.now();
     if (now < mission.startsAt || now > mission.endsAt) {
       throw new BadRequestException("Radar mission is not currently available");
@@ -1754,7 +2025,8 @@ export class PersistentStoreService {
         },
         include: { mission: true },
       });
-      if (!progress) throw new NotFoundException("Radar mission is not unlocked");
+      if (!progress)
+        throw new NotFoundException("Radar mission is not unlocked");
       if (progress.completedAt) return;
       if (progress.mission.status !== "PUBLISHED") {
         throw new BadRequestException("Radar mission is not published");
@@ -1917,12 +2189,10 @@ export class PersistentStoreService {
             title: quest.task.title,
             description: quest.task.description,
             verificationMode: quest.task.verificationMode as
-              | "SELF_CHECK"
-              | "TIMER",
+              "SELF_CHECK" | "TIMER",
             minimumSeconds:
-              typeof (
-                quest.task.verificationRule as Record<string, unknown>
-              ).minimumSeconds === "number"
+              typeof (quest.task.verificationRule as Record<string, unknown>)
+                .minimumSeconds === "number"
                 ? (quest.task.verificationRule as Record<string, number>)
                     .minimumSeconds
                 : null,
@@ -1945,7 +2215,8 @@ export class PersistentStoreService {
     const route = await this.prisma.explorationRoute.findFirst({
       where: { id: routeId, status: "PUBLISHED" },
     });
-    if (!route) throw new NotFoundException("Published exploration route not found");
+    if (!route)
+      throw new NotFoundException("Published exploration route not found");
     const now = this.clock.now();
     const expirationCutoff = new Date(now.getTime() - 4 * 60 * 60 * 1000);
     await this.prisma.explorationSession.updateMany({
@@ -2057,7 +2328,9 @@ export class PersistentStoreService {
       !options.simulation &&
       (eventAge > 5 * 60 * 1000 || eventAge < -60 * 1000)
     ) {
-      throw new BadRequestException("Exploration event time is outside the accepted window");
+      throw new BadRequestException(
+        "Exploration event time is outside the accepted window",
+      );
     }
     const previousReceipt = await this.prisma.locationEventReceipt.findUnique({
       where: { eventKey: event.eventKey },
@@ -2095,12 +2368,15 @@ export class PersistentStoreService {
             status: "ACTIVE",
           },
         });
-        if (!session) throw new NotFoundException("Active exploration session not found");
+        if (!session)
+          throw new NotFoundException("Active exploration session not found");
         if (
           session.lastEventAt &&
           occurredAt.getTime() <= session.lastEventAt.getTime()
         ) {
-          throw new BadRequestException("Exploration events must be chronological");
+          throw new BadRequestException(
+            "Exploration events must be chronological",
+          );
         }
         let acceptedDistanceMeters = 0;
         if (
@@ -2283,10 +2559,13 @@ export class PersistentStoreService {
     }
     const route = await this.prisma.explorationRoute.findFirst({
       where: { id: routeId, status: "PUBLISHED" },
-      include: { quests: { where: { active: true }, orderBy: { sequence: "asc" } } },
+      include: {
+        quests: { where: { active: true }, orderBy: { sequence: "asc" } },
+      },
     });
     const quest = route?.quests[step - 1];
-    if (!route || !quest) throw new NotFoundException("Simulation step not found");
+    if (!route || !quest)
+      throw new NotFoundException("Simulation step not found");
     const session = await this.startExplorationSession(firebaseUid, routeId);
     if (
       quest.triggerType === "GEOFENCE" &&
@@ -2301,9 +2580,7 @@ export class PersistentStoreService {
           latitude: quest.latitude,
           longitude: quest.longitude,
           accuracyMeters: 5,
-          occurredAt: new Date(
-            this.clock.now().getTime() + step,
-          ).toISOString(),
+          occurredAt: new Date(this.clock.now().getTime() + step).toISOString(),
         },
         { simulation: true },
       );
@@ -2390,7 +2667,8 @@ export class PersistentStoreService {
     return {
       ...(await this.getExplorationState(firebaseUid)),
       duplicate: Boolean(duplicate),
-      acceptedDistanceMeters: duplicate?.distanceMeters ?? acceptedDistanceMeters,
+      acceptedDistanceMeters:
+        duplicate?.distanceMeters ?? acceptedDistanceMeters,
       newlyUnlockedTaskIds: duplicate ? [] : [quest.taskId],
     };
   }
@@ -2420,9 +2698,7 @@ export class PersistentStoreService {
         sourceUrl: quest.sourceUrl,
         title: quest.task.title,
         description: quest.task.description,
-        verificationMode: quest.task.verificationMode as
-          | "SELF_CHECK"
-          | "TIMER",
+        verificationMode: quest.task.verificationMode as "SELF_CHECK" | "TIMER",
         minimumSeconds:
           typeof (quest.task.verificationRule as Record<string, unknown>)
             .minimumSeconds === "number"
@@ -2508,10 +2784,14 @@ export class PersistentStoreService {
       Number.isNaN(endsAt.getTime()) ||
       endsAt <= startsAt
     ) {
-      throw new BadRequestException("Radar mission requires a valid time window");
+      throw new BadRequestException(
+        "Radar mission requires a valid time window",
+      );
     }
     if (input.radiusMeters < 25 || input.radiusMeters > 150) {
-      throw new BadRequestException("Radar mission radius must be 25-150 meters");
+      throw new BadRequestException(
+        "Radar mission radius must be 25-150 meters",
+      );
     }
     if (
       input.verificationMode === "TIMER" &&
@@ -2737,7 +3017,8 @@ export class PersistentStoreService {
     updatedAt: Date;
   }): CompanionDeviceSummary {
     const desired = (device.desiredState ?? {}) as Partial<DeviceDesiredState>;
-    const reported = (device.reportedState ?? {}) as Partial<DeviceReportedState>;
+    const reported = (device.reportedState ??
+      {}) as Partial<DeviceReportedState>;
     const now = device.updatedAt.toISOString();
     return {
       id: device.id,
@@ -2758,8 +3039,7 @@ export class PersistentStoreService {
       },
       reportedState: {
         online: reported.online ?? false,
-        firmwareVersion:
-          reported.firmwareVersion ?? device.firmwareVersion,
+        firmwareVersion: reported.firmwareVersion ?? device.firmwareVersion,
         ambientLux: reported.ambientLux ?? null,
         temperatureC: reported.temperatureC ?? null,
         humidityPercent: reported.humidityPercent ?? null,
@@ -2784,8 +3064,7 @@ export class PersistentStoreService {
     if (
       existing?.activeHouseholdId &&
       existing.householdLinks.some(
-        (membership) =>
-          membership.householdId === existing.activeHouseholdId,
+        (membership) => membership.householdId === existing.activeHouseholdId,
       )
     ) {
       await this.ensureTaskSeeds();
