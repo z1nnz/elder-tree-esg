@@ -357,15 +357,21 @@ function InteractiveDemoShowcase() {
       aria-label="綠伴互動產品展示"
     >
       <div className="demo-copy" data-reveal>
-        <p className="eyebrow">互動展示</p>
-        <h2>不用讀很多字，直接看它怎麼陪你走一段路。</h2>
-        <p>點一下步驟，任務會亮起、卡片會靠近、生命樹會長出新葉。</p>
+        <p className="eyebrow">APP V2 · 今日陪伴</p>
+        <h2>像打開一張會回應你的城市地圖。</h2>
+        <p>
+          點一下流程，任務會亮起、距離會靠近、完成後生命樹會長出新葉。
+          這段是 App 的主流程展示，不是單純的文字說明。
+        </p>
       </div>
 
       <div className="demo-console" data-demo-step={activeStep} data-reveal>
         <div className="demo-device" aria-hidden="true">
+          <div className="demo-orbit-label demo-orbit-a">任務雷達</div>
+          <div className="demo-orbit-label demo-orbit-b">PHOTO AI</div>
+          <div className="demo-orbit-label demo-orbit-c">生命樹</div>
           <div className="demo-device-top">
-            <span>ELDER TREE RADAR</span>
+            <span>綠伴 RADAR</span>
             <b>{active.title}</b>
             <small>{active.body}</small>
           </div>
@@ -399,8 +405,8 @@ function InteractiveDemoShowcase() {
 
         <div className="demo-steps" role="tablist" aria-label="產品展示步驟">
           <div className="demo-steps-head">
-            <span>FLOW STATUS</span>
-            <strong>城市探索流程</strong>
+            <span>LIVE STORY</span>
+            <strong>滑動與點擊都能推進故事</strong>
           </div>
           {storySteps.map((step, index) => (
             <button
