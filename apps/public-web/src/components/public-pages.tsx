@@ -121,7 +121,7 @@ function usePublicAnimations(dependencies: unknown[] = []) {
               "<0.2",
             );
 
-          ScrollTrigger.batch("[data-reveal]", {
+          ScrollTrigger.batch("[data-reveal], [data-v2-reveal]", {
             start: "top 86%",
             once: true,
             onEnter: (elements) =>
@@ -140,6 +140,25 @@ function usePublicAnimations(dependencies: unknown[] = []) {
           });
 
           if (desktop) {
+            if (root.current?.querySelector(".v2-story")) {
+              const v2StoryTimeline = gsap.timeline({
+                scrollTrigger: {
+                  trigger: ".v2-story",
+                  start: "top top",
+                  end: "bottom bottom",
+                  scrub: 0.8,
+                },
+              });
+              v2StoryTimeline
+                .to(".v2-route-line", { scaleX: 1, ease: "none" }, 0)
+                .to(
+                  ".v2-route-node",
+                  { autoAlpha: 1, y: 0, stagger: 0.08, ease: "none" },
+                  0.08,
+                )
+                .to(".v2-phone-orbit", { y: -26, rotate: -2, ease: "none" }, 0.22)
+                .to(".v2-tree-pulse", { autoAlpha: 1, scale: 1, ease: "none" }, 0.46);
+            }
             if (root.current?.querySelector(".scroll-story")) {
               const storyTimeline = gsap.timeline({
                 scrollTrigger: {
@@ -346,6 +365,220 @@ const storySteps = [
     metric: "可選擇",
   },
 ];
+
+const natureSystems: Array<{
+  icon: LucideIcon;
+  title: string;
+  label: string;
+  body: string;
+}> = [
+  {
+    icon: Trees,
+    title: "生命樹系統",
+    label: "TREE CORE",
+    body: "把任務完成變成看得見的成長，不用排名，也能留下每天願意生活的痕跡。",
+  },
+  {
+    icon: Radar,
+    title: "城市感測",
+    label: "QUEST SIGNAL",
+    body: "任務只在靠近時亮起，範圍、安全半徑與完成條件都由系統守住。",
+  },
+  {
+    icon: ShieldCheck,
+    title: "陪伴邊界",
+    label: "CARE GATE",
+    body: "陪伴不是無限開放資料，而是需要時讓可信任的人看到必要摘要。",
+  },
+  {
+    icon: Leaf,
+    title: "永續回流",
+    label: "IMPACT LOOP",
+    body: "照顧自己的小行動，未來可以進入公益批次，而不是只有漂亮數字。",
+  },
+];
+
+const productPanels = [
+  {
+    label: "今日陪伴",
+    title: "打開 App，先看到今天最適合做的一件事。",
+    body: "長者不需要理解所有功能。首頁只保留下一步、生命樹、提醒與陪伴訊息。",
+  },
+  {
+    label: "任務卡",
+    title: "任務像卡片，不像表單。",
+    body: "SELF_CHECK、TIMER、PHOTO_AI 都用同一套語言：可開始、進行中、待覆核、已完成。",
+  },
+  {
+    label: "照片 AI",
+    title: "拍花草、喝水、完成一件小事。",
+    body: "照片由 App 上傳到私有 Storage，後端產生短效 URL，再交給 AI verifier 判斷。",
+  },
+  {
+    label: "生命樹",
+    title: "完成後，樹長出新葉。",
+    body: "成長值只相信後端結果，同一任務重送不會重複增加。",
+  },
+];
+
+function CinematicStoryExperience() {
+  return (
+    <section className="v2-story" aria-label="綠伴產品主流程">
+      <div className="v2-story-sticky">
+        <div className="v2-story-copy" data-v2-reveal>
+          <span>SCROLL EXPERIENCE</span>
+          <h2>把一次出門，變成會被城市回應的旅程。</h2>
+          <p>
+            這不是把任務塞進清單，而是讓地圖、距離、完成回饋與陪伴提醒變成一段能被感覺到的流程。
+          </p>
+        </div>
+        <div className="v2-story-stage" data-v2-reveal>
+          <div className="v2-radar-surface">
+            <span className="v2-route-line" />
+            {storySteps.map((step, index) => (
+              <button
+                className={`v2-route-node v2-route-node-${index}`}
+                key={step.eyebrow}
+                type="button"
+              >
+                <i />
+                <b>{step.title}</b>
+                <small>{step.metric}</small>
+              </button>
+            ))}
+            <div className="v2-phone-orbit">
+              <span>綠伴 Elder Tree</span>
+              <strong>今日陪伴</strong>
+              <small>最近任務 · 大安森林公園 · +12</small>
+            </div>
+            <div className="v2-tree-pulse">
+              <Trees size={24} />
+              <b>新葉 +12</b>
+            </div>
+          </div>
+          <div className="v2-story-steps">
+            {storySteps.map((step) => (
+              <article data-v2-reveal key={step.eyebrow}>
+                <span>{step.eyebrow}</span>
+                <strong>{step.title}</strong>
+                <p>{step.body}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function NatureTechIndex() {
+  return (
+    <section className="v2-nature-tech section-shell">
+      <div className="v2-section-kicker" data-v2-reveal>
+        <span>NATURE SYSTEM</span>
+        <h2>把一棵樹，拆成可以被理解的陪伴系統。</h2>
+        <p>
+          參考自然科技展示的語法，但把主題換成綠伴自己的核心：任務、樹、陪伴與公益。
+        </p>
+      </div>
+      <div className="v2-system-grid">
+        {natureSystems.map(({ icon: Icon, title, label, body }) => (
+          <article data-v2-reveal key={title}>
+            <span>{label}</span>
+            <Icon size={24} />
+            <h3>{title}</h3>
+            <p>{body}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ProductExperienceLab() {
+  return (
+    <section className="v2-product-lab section-shell">
+      <div className="v2-section-kicker" data-v2-reveal>
+        <span>APP V2</span>
+        <h2>長者看到的是下一步，不是技術系統。</h2>
+        <p>功能仍然完整，但介面只問一件事：現在要不要做一個很小的行動？</p>
+      </div>
+      <div className="v2-product-grid">
+        <div className="v2-app-frame" data-v2-reveal>
+          <div className="v2-app-status">
+            <span>今日陪伴</span>
+            <b>生命樹 128</b>
+          </div>
+          <div className="v2-app-tree">
+            <Trees size={44} />
+            <strong>下一個任務</strong>
+            <p>喝水確認 · 100m 內 · +6</p>
+          </div>
+          <div className="v2-app-card is-primary">
+            <Radar size={20} />
+            <span>任務雷達亮起</span>
+            <b>可接取</b>
+          </div>
+          <div className="v2-app-card">
+            <Camera size={20} />
+            <span>照片 AI 驗證</span>
+            <b>已啟用</b>
+          </div>
+        </div>
+        <div className="v2-product-panels">
+          {productPanels.map((panel) => (
+            <article data-v2-reveal key={panel.label}>
+              <span>{panel.label}</span>
+              <h3>{panel.title}</h3>
+              <p>{panel.body}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PartnerNetworkExperience() {
+  return (
+    <section className="v2-partner-network section-shell">
+      <div className="v2-section-kicker" data-v2-reveal>
+        <span>CARE NETWORK</span>
+        <h2>陪伴要靠近，也要有邊界。</h2>
+        <p>沒有家人也能開始；需要時，再把社福、志工、社區與企業支持接進來。</p>
+      </div>
+      <div className="v2-partner-board">
+        {partnerRoles.map(({ icon: Icon, eyebrow, title, body }) => (
+          <article data-v2-reveal key={title}>
+            <Icon size={24} />
+            <span>{eyebrow}</span>
+            <h3>{title}</h3>
+            <p>{body}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ImpactManifestoV2() {
+  return (
+    <section className="v2-impact-manifesto">
+      <div className="section-shell">
+        <p data-v2-reveal>綠伴不把孤獨包裝成流量，也不把永續變成口號。</p>
+        <h2 data-v2-reveal>我們做的是一個讓人願意再走出去一次的系統。</h2>
+        <div className="v2-impact-principles">
+          {impactPrinciples.map((item) => (
+            <article data-v2-reveal key={item.title}>
+              <strong>{item.title}</strong>
+              <span>{item.body}</span>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
 
 function InteractiveDemoShowcase() {
   const [activeStep, setActiveStep] = useState(1);
@@ -958,12 +1191,11 @@ export function HomePage() {
     <PublicShell>
       <main ref={root}>
         <HomeHero />
-        <BrandLineStrip variant="dark" />
-        <InteractiveDemoShowcase />
+        <CinematicStoryExperience />
+        <NatureTechIndex />
+        <ProductExperienceLab />
         <RadarShowcase publicRadar={publicRadar} />
-        <ProductFlow />
         <RouteJourneyShowcase routeData={routeData} />
-        <ImpactStatement />
         <ActionSection />
       </main>
     </PublicShell>
@@ -984,21 +1216,11 @@ export function ProductPage() {
         >
           <ProductHeroScene />
         </PageHero>
-        <BrandLineStrip />
+        <ProductExperienceLab />
+        <NatureTechIndex />
         <ProductFlow />
-        <section className="product section-shell">
-          <ProductCards />
-        </section>
-        <section className="feature-wall section-shell">
-          {futureFeatures.map((item) => (
-            <article className="feature-pill" data-reveal key={item.title}>
-              <Sparkles size={20} />
-              <h3>{item.title}</h3>
-              <p>{item.body}</p>
-            </article>
-          ))}
-        </section>
         <TechSection />
+        <ActionSection />
       </main>
     </PublicShell>
   );
@@ -1014,8 +1236,9 @@ export function ExplorePage() {
     <PublicShell>
       <main ref={root}>
         <ExploreHero publicRadar={publicRadar} />
-        <BrandLineStrip />
+        <RadarShowcase publicRadar={publicRadar} />
         <RouteJourneyShowcase routeData={routeData} />
+        <ActionSection />
       </main>
     </PublicShell>
   );
@@ -1035,7 +1258,7 @@ export function PartnersPage() {
         >
           <PartnerHeroScene />
         </PageHero>
-        <BrandLineStrip />
+        <PartnerNetworkExperience />
         <PartnerRoleGrid />
         <section className="paths section-shell">
           <ParticipationCards />
@@ -1060,8 +1283,7 @@ export function ImpactPage() {
         >
           <ImpactHeroScene />
         </PageHero>
-        <BrandLineStrip />
-        <ImpactStatement />
+        <ImpactManifestoV2 />
         <ImpactJourney />
         <section className="impact-roadmap section-shell">
           <div className="section-heading" data-reveal>
