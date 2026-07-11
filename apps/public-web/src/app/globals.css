@@ -5026,3 +5026,402 @@ footer small {
     display: none;
   }
 }
+
+/* Cinematic home hero: keep the existing world-tree video, redesign only the UI layer. */
+body:has(.sky-cinematic-hero) {
+  background: #06110f;
+}
+
+body:has(.sky-cinematic-hero) .site-header {
+  top: 22px;
+  min-height: 58px;
+  border-color: rgba(244, 255, 238, 0.18);
+  border-radius: 999px;
+  background: rgba(5, 13, 16, 0.34);
+  box-shadow: none;
+  backdrop-filter: blur(18px);
+}
+
+body:has(.sky-cinematic-hero) .brand {
+  color: rgba(244, 255, 238, 0.9);
+  text-shadow: 0 1px 18px rgba(0, 0, 0, 0.34);
+}
+
+body:has(.sky-cinematic-hero) .brand > span {
+  color: #efffd0;
+  background: rgba(239, 255, 208, 0.08);
+  box-shadow:
+    inset 0 0 0 1px rgba(239, 255, 208, 0.16),
+    0 0 34px rgba(199, 235, 99, 0.12);
+}
+
+body:has(.sky-cinematic-hero) .site-header nav {
+  color: rgba(244, 255, 238, 0.66);
+  letter-spacing: 0.04em;
+}
+
+body:has(.sky-cinematic-hero) .site-header nav a:hover {
+  color: #f5ffd5;
+}
+
+body:has(.sky-cinematic-hero) .header-cta {
+  border: 1px solid rgba(244, 255, 238, 0.32);
+  color: rgba(244, 255, 238, 0.92);
+  background: rgba(255, 255, 255, 0.055);
+  box-shadow: 0 0 38px rgba(226, 255, 180, 0.08);
+}
+
+.sky-cinematic-hero {
+  min-height: 190svh;
+  overflow: visible;
+  background: #06110f;
+}
+
+.sky-video-sticky {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  overflow: hidden;
+  isolation: isolate;
+  background: #06110f;
+}
+
+.sky-cinematic-hero .sky-video-media {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-position: center center;
+  filter: saturate(0.88) contrast(1.12) brightness(0.72);
+}
+
+.sky-cinematic-hero .sky-video-poster {
+  opacity: 0;
+}
+
+.sky-cinematic-hero .sky-video-vignette {
+  background:
+    radial-gradient(circle at 50% 38%, rgba(255, 255, 245, 0.08) 0 13%, transparent 34%),
+    radial-gradient(circle at 50% 46%, transparent 0 34%, rgba(0, 8, 10, 0.22) 70%, rgba(0, 3, 7, 0.72) 100%),
+    linear-gradient(90deg, rgba(0, 5, 9, 0.56), transparent 25%, transparent 72%, rgba(0, 5, 9, 0.56)),
+    linear-gradient(180deg, rgba(0, 5, 9, 0.4), transparent 24%, rgba(0, 5, 9, 0.58));
+}
+
+.sky-cinematic-hero .sky-video-orbit {
+  display: none;
+}
+
+.sky-cinematic-hero .sky-video-particles i {
+  width: 5px;
+  height: 5px;
+  background: rgba(235, 255, 206, 0.64);
+  box-shadow: 0 0 20px rgba(235, 255, 206, 0.72);
+}
+
+.sky-cinematic-hero .sky-video-hotspot {
+  display: grid;
+  place-items: center;
+  overflow: visible;
+}
+
+.sky-cinematic-hero:not(.is-explore-mode) .sky-video-hotspots {
+  pointer-events: none;
+}
+
+.sky-cinematic-hero .sky-video-hotspot-glow {
+  left: 50%;
+  top: 54%;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle, rgba(255, 255, 239, 0.96) 0 18%, rgba(226, 255, 178, 0.52) 19% 36%, transparent 62%),
+    radial-gradient(circle, rgba(93, 255, 220, 0.22), transparent 72%);
+  box-shadow:
+    0 0 28px rgba(235, 255, 203, 0.42),
+    0 0 70px rgba(123, 255, 222, 0.18);
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.76);
+}
+
+.sky-cinematic-hero.is-explore-mode .sky-video-hotspot-glow {
+  opacity: 0.95;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.sky-cinematic-hero .sky-video-hotspot:hover .sky-video-hotspot-glow,
+.sky-cinematic-hero .sky-video-hotspot:focus-visible .sky-video-hotspot-glow,
+.sky-cinematic-hero .sky-video-hotspot.is-active .sky-video-hotspot-glow {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1.42);
+}
+
+.sky-video-hotspot-label {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: calc(50% - 26px);
+  color: rgba(239, 247, 232, 0.78);
+  font-size: clamp(12px, 1vw, 15px);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-shadow:
+    0 1px 16px rgba(0, 0, 0, 0.64),
+    0 0 26px rgba(235, 255, 206, 0.24);
+  opacity: 0;
+  transform: translate(-50%, 8px);
+  transition:
+    color 0.22s ease,
+    transform 0.22s ease,
+    opacity 0.22s ease;
+  white-space: nowrap;
+}
+
+.sky-cinematic-hero.is-explore-mode .sky-video-hotspot-label {
+  opacity: 1;
+  transform: translateX(-50%);
+}
+
+.sky-cinematic-hero .sky-video-hotspot:hover .sky-video-hotspot-label,
+.sky-cinematic-hero .sky-video-hotspot:focus-visible .sky-video-hotspot-label,
+.sky-cinematic-hero .sky-video-hotspot.is-active .sky-video-hotspot-label {
+  color: #f7ffd7;
+  transform: translate(-50%, -8px);
+}
+
+.sky-cinematic-hero .sky-video-card {
+  width: min(340px, 76vw);
+  border-color: rgba(239, 255, 222, 0.24);
+  border-radius: 18px;
+  color: rgba(245, 255, 241, 0.92);
+  background:
+    linear-gradient(180deg, rgba(8, 18, 20, 0.72), rgba(5, 16, 18, 0.56));
+  box-shadow:
+    0 22px 80px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.sky-cinematic-hero:not(.is-explore-mode) .sky-video-card {
+  display: none;
+}
+
+.sky-cinematic-hero .sky-video-card strong {
+  color: #f3ffd3;
+}
+
+.sky-cinematic-hero .sky-video-card small {
+  color: rgba(234, 244, 232, 0.78);
+}
+
+.sky-cinematic-hero .sky-video-live-caption {
+  background: rgba(4, 17, 20, 0.72);
+}
+
+.sky-cinematic-hero .sky-video-intro {
+  top: 47%;
+  bottom: auto;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  width: min(1260px, calc(100% - 56px));
+  align-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: #f6f5ec;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  text-align: center;
+  transform: translate(-50%, -50%);
+  transition:
+    opacity 0.48s ease,
+    filter 0.48s ease,
+    transform 0.48s ease;
+}
+
+.sky-cinematic-hero.is-explore-mode .sky-video-intro {
+  opacity: 0;
+  pointer-events: none;
+  filter: blur(10px);
+  transform: translate(-50%, -60%);
+}
+
+.sky-cinematic-hero .sky-video-intro span {
+  color: rgba(239, 255, 217, 0.62);
+  font-size: clamp(11px, 0.95vw, 14px);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 18px rgba(0, 0, 0, 0.52);
+}
+
+.sky-cinematic-hero .sky-video-intro strong {
+  max-width: none;
+  margin-top: 22px;
+  color: rgba(250, 249, 239, 0.96);
+  font-family: "Noto Serif TC", "Songti TC", "PingFang TC", serif;
+  font-size: clamp(36px, 3.85vw, 64px);
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: 0.03em;
+  overflow-wrap: normal;
+  text-wrap: nowrap;
+  white-space: nowrap;
+  word-break: keep-all;
+  text-shadow:
+    0 2px 28px rgba(0, 0, 0, 0.62),
+    0 0 60px rgba(230, 255, 206, 0.16);
+}
+
+.sky-cinematic-hero .sky-video-intro div {
+  justify-content: center;
+  margin-top: 30px;
+  gap: 18px;
+}
+
+.sky-cinematic-hero .sky-video-intro a {
+  min-width: 180px;
+  min-height: 52px;
+  border-color: rgba(245, 255, 238, 0.42);
+  border-radius: 999px;
+  color: rgba(246, 250, 239, 0.94);
+  background: rgba(4, 16, 18, 0.28);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 34px rgba(246, 255, 221, 0.06);
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  backdrop-filter: blur(12px);
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.sky-cinematic-hero .sky-video-intro a:first-child {
+  color: rgba(246, 250, 239, 0.96);
+  background: rgba(244, 255, 236, 0.1);
+}
+
+.sky-cinematic-hero .sky-video-intro a:hover,
+.sky-cinematic-hero .sky-video-intro a:focus-visible {
+  background: rgba(244, 255, 236, 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 0 52px rgba(246, 255, 221, 0.14);
+  transform: translateY(-2px);
+}
+
+.sky-scroll-cue {
+  position: absolute;
+  z-index: 6;
+  left: 50%;
+  bottom: max(22px, env(safe-area-inset-bottom));
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  color: rgba(235, 244, 232, 0.74);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-shadow: 0 1px 16px rgba(0, 0, 0, 0.52);
+  transform: translateX(-50%);
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
+}
+
+.sky-scroll-cue i {
+  width: 18px;
+  height: 36px;
+  border: 1px solid rgba(235, 244, 232, 0.52);
+  border-radius: 999px;
+  position: relative;
+}
+
+.sky-scroll-cue i::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 7px;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(235, 244, 232, 0.72);
+  transform: translateX(-50%);
+  animation: scrollCueDot 1.8s ease-in-out infinite;
+}
+
+@keyframes scrollCueDot {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: translate(-50%, 0);
+  }
+  45% {
+    opacity: 1;
+    transform: translate(-50%, 13px);
+  }
+}
+
+@media (max-width: 900px) {
+  body:has(.sky-cinematic-hero) .site-header {
+    top: 12px;
+    width: calc(100% - 24px);
+  }
+
+  .sky-cinematic-hero .sky-video-media {
+    object-position: center center;
+  }
+
+  .sky-cinematic-hero .sky-video-intro {
+    top: auto;
+    left: 18px;
+    right: 18px;
+    bottom: calc(env(safe-area-inset-bottom) + 84px);
+    width: auto;
+    text-align: left;
+    transform: none;
+  }
+
+  .sky-cinematic-hero.is-explore-mode .sky-video-intro {
+    transform: translateY(-18px);
+  }
+
+  .sky-cinematic-hero .sky-video-intro strong {
+    margin-top: 12px;
+    font-size: clamp(32px, 9vw, 48px);
+    letter-spacing: 0.02em;
+    text-wrap: balance;
+    white-space: normal;
+  }
+
+  .sky-cinematic-hero .sky-video-intro div {
+    justify-content: flex-start;
+    margin-top: 20px;
+  }
+
+  .sky-cinematic-hero .sky-video-intro a {
+    min-width: 0;
+    min-height: 46px;
+    padding: 0 18px;
+  }
+
+  .sky-video-hotspot-label {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 600px) {
+  .sky-cinematic-hero .sky-video-hotspot-label {
+    opacity: 0.72;
+  }
+
+  .sky-cinematic-hero .sky-video-intro {
+    bottom: calc(env(safe-area-inset-bottom) + 78px);
+  }
+
+  .sky-scroll-cue span {
+    display: none;
+  }
+}
