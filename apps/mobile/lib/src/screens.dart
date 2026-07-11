@@ -1142,10 +1142,11 @@ class _AdventureStatPill extends StatelessWidget {
         border: Border.all(color: Colors.white),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, color: forest, size: 18),
-          const Spacer(),
+          const SizedBox(height: 10),
           Text(
             value,
             maxLines: 1,

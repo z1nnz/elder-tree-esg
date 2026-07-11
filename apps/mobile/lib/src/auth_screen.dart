@@ -198,11 +198,15 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 }
 
-String _messageFor(String code) => switch (code) {
-  'email-already-in-use' => '這個信箱已經註冊，請直接登入。',
-  'invalid-credential' || 'wrong-password' || 'user-not-found' => '信箱或密碼不正確。',
-  'operation-not-allowed' => 'Firebase 尚未開啟信箱登入。',
-  'network-request-failed' => '網路連線失敗，請檢查網路後再試。',
-  'weak-password' => '密碼強度不足，請使用至少 6 個字元。',
-  _ => '登入失敗，請稍後再試。',
-};
+String _messageFor(String code) {
+  return switch (code) {
+    'email-already-in-use' => '這個信箱已經註冊，請直接登入。',
+    'invalid-credential' || 'wrong-password' || 'user-not-found' => '信箱或密碼不正確。',
+    'operation-not-allowed' => 'Firebase 尚未開啟信箱登入。',
+    'network-request-failed' => '網路連線失敗，請檢查網路後再試。',
+    'too-many-requests' => '登入嘗試太多次，請稍等一下再試。',
+    'user-disabled' => '這個帳號目前已被停用。',
+    'weak-password' => '密碼強度不足，請使用至少 6 個字元。',
+    _ => '登入失敗，請稍後再試。',
+  };
+}

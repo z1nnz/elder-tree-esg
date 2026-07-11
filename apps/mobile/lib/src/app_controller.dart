@@ -133,10 +133,6 @@ class AppController extends ChangeNotifier {
         _api.getContext(),
         _api.getTasks(),
         _api.getTree(),
-        _api.getMessages(),
-        _api.getDevices(),
-        _api.getFamilyReviews(),
-        _api.getImpactSummary(),
         _api.getExplorationState(),
         _api.getRadarState(),
       ]);
@@ -144,14 +140,27 @@ class AppController extends ChangeNotifier {
       context = results[1] as AppContextModel;
       tasks = results[2] as List<DailyTask>;
       tree = results[3] as TreeSummary;
-      messages = results[4] as List<FamilyMessageModel>;
-      devices = results[5] as List<CompanionDevice>;
-      reviews = results[6] as List<FamilyReviewModel>;
-      impact = results[7] as ImpactSummaryModel;
-      exploration = results[8] as ExplorationStateModel;
-      radar = results[9] as RadarStateModel;
+      exploration = results[4] as ExplorationStateModel;
+      radar = results[5] as RadarStateModel;
       offlineDemo = false;
-    } catch (_) {
+      loading = false;
+      notifyListeners();
+
+      final optionalResults = await Future.wait<Object?>([
+        _optionalRefresh('messages', _api.getMessages()),
+        _optionalRefresh('devices', _api.getDevices()),
+        _optionalRefresh('reviews', _api.getFamilyReviews()),
+        _optionalRefresh('impact', _api.getImpactSummary()),
+      ]);
+      messages =
+          optionalResults[0] as List<FamilyMessageModel>? ?? messages;
+      devices = optionalResults[1] as List<CompanionDevice>? ?? devices;
+      reviews = optionalResults[2] as List<FamilyReviewModel>? ?? reviews;
+      impact = optionalResults[3] as ImpactSummaryModel? ?? impact;
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('[DEBUG-app-refresh] failed: $error');
+      }
       offlineDemo = _allowOfflineDemo;
       notice = _allowOfflineDemo
           ? '目前使用離線示範資料，連上 API 後會自動同步。'
@@ -159,6 +168,17 @@ class AppController extends ChangeNotifier {
     } finally {
       loading = false;
       notifyListeners();
+    }
+  }
+
+  Future<T?> _optionalRefresh<T>(String label, Future<T> request) async {
+    try {
+      return await request;
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('[DEBUG-app-refresh:$label] optional failed: $error');
+      }
+      return null;
     }
   }
 

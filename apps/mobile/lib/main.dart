@@ -1,4 +1,5 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
@@ -30,7 +31,13 @@ class _ElderTreeAppState extends State<ElderTreeApp> {
   @override
   void initState() {
     super.initState();
-    auth = widget.authService ?? FirebaseAuthService();
+    auth =
+        widget.authService ??
+        (kDebugMode &&
+                defaultTargetPlatform == TargetPlatform.macOS &&
+                const bool.fromEnvironment('ELDER_TREE_MACOS_DEMO_AUTH')
+            ? LocalDebugAuthService()
+            : FirebaseAuthService());
   }
 
   @override
@@ -80,7 +87,7 @@ class _AuthenticatedExperienceState extends State<_AuthenticatedExperience> {
     controller = AppController(
       api: ApiClient(tokenProvider: widget.auth.getIdToken),
       initialDisplayName: widget.account.displayName,
-      allowOfflineDemo: false,
+      allowOfflineDemo: widget.account.uid == 'debug-macos-demo',
     )..initialize();
   }
 
