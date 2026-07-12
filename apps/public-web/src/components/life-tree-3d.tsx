@@ -783,7 +783,11 @@ function TaipeiContourTerrain() {
   return (
     <group rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.105, 0]}>
       {[0, 1, 2, 3].map((layer) => (
-        <mesh key={`terrain-layer-${layer}`} position={[0, 0, -0.11 - layer * 0.045]}>
+        <mesh
+          key={`terrain-layer-${layer}`}
+          position={[0, 0, -0.11 - layer * 0.045]}
+          raycast={decorativeRaycast}
+        >
           <planeGeometry args={[5.9 + layer * 0.08, 4.5 + layer * 0.08, 1, 1]} />
           <meshBasicMaterial
             color={["#fff1d6", "#f5d39c", "#dba56e", "#a9774f"][layer]}
@@ -793,7 +797,7 @@ function TaipeiContourTerrain() {
           />
         </mesh>
       ))}
-      <mesh geometry={geometry} receiveShadow>
+      <mesh geometry={geometry} receiveShadow raycast={decorativeRaycast}>
         <meshStandardMaterial
           color="#c7da9b"
           roughness={0.88}
@@ -802,10 +806,10 @@ function TaipeiContourTerrain() {
           emissiveIntensity={0.052}
         />
       </mesh>
-      <mesh geometry={geometry} position={[0, 0, 0.018]}>
+      <mesh geometry={geometry} position={[0, 0, 0.018]} raycast={decorativeRaycast}>
         <meshBasicMaterial map={contourTexture} transparent opacity={0.92} depthWrite={false} />
       </mesh>
-      <mesh position={[0, 0, -0.012]}>
+      <mesh position={[0, 0, -0.012]} raycast={decorativeRaycast}>
         <planeGeometry args={[5.8, 4.4, 36, 28]} />
         <meshBasicMaterial color="#fff6de" wireframe transparent opacity={0.22} />
       </mesh>

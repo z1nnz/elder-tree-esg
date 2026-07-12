@@ -6,6 +6,7 @@ import { ExplorationController } from "./controllers/exploration.controller";
 import { FamilyController } from "./controllers/family.controller";
 import { HealthController } from "./controllers/health.controller";
 import { ImpactController } from "./controllers/impact.controller";
+import { LineController } from "./controllers/line.controller";
 import { MeController } from "./controllers/me.controller";
 import { TasksController } from "./controllers/tasks.controller";
 import { PublicController } from "./controllers/public.controller";
@@ -17,6 +18,7 @@ import { ClockService } from "./time/clock.service";
 import { EvidenceStorageService } from "./evidence/evidence-storage.service";
 import { PhotoVerifierService } from "./evidence/photo-verifier.service";
 import { PlatformAdminGuard } from "./security/platform-admin.guard";
+import { LineMessagingService } from "./line/line-messaging.service";
 
 @Module({
   controllers: [
@@ -27,6 +29,7 @@ import { PlatformAdminGuard } from "./security/platform-admin.guard";
     ExplorationController,
     DevicesController,
     AdminController,
+    LineController,
     ImpactController,
     PublicController,
   ],
@@ -36,6 +39,7 @@ import { PlatformAdminGuard } from "./security/platform-admin.guard";
     ClockService,
     EvidenceStorageService,
     PhotoVerifierService,
+    LineMessagingService,
     PlatformAdminGuard,
     PersistentStoreService,
     {

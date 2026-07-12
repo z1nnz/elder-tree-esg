@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Post, Req } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import {
   JoinHouseholdDto,
@@ -34,6 +34,30 @@ export class MeController {
         request.user!.uid,
         dto.displayName,
       ),
+    };
+  }
+
+  @Post("me/line-bindings")
+  async createLineBindingCode(@Req() request: AuthenticatedRequest) {
+    return {
+      data: await this.store.createLineBindingCode(request.user!.uid),
+    };
+  }
+
+  @Get("me/line-bindings")
+  async lineBindings(@Req() request: AuthenticatedRequest) {
+    return {
+      data: await this.store.listLineBindings(request.user!.uid),
+    };
+  }
+
+  @Delete("me/line-bindings/:id")
+  async revokeLineBinding(
+    @Req() request: AuthenticatedRequest,
+    @Param("id") id: string,
+  ) {
+    return {
+      data: await this.store.revokeLineBinding(request.user!.uid, id),
     };
   }
 

@@ -849,7 +849,6 @@ function MissionList({
               key={`${district}-${label}`}
               onClick={() => onSelectDistrict?.(district)}
               onFocus={() => onSelectDistrict?.(district)}
-              onMouseEnter={() => onSelectDistrict?.(district)}
               onPointerMove={handleMissionPointerMove}
               type="button"
             >

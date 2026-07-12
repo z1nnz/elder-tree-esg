@@ -111,6 +111,18 @@ export class CreateMessageDto {
   body!: string;
 }
 
+export class LineTestPushDto {
+  @ApiProperty()
+  @IsUUID()
+  lineBindingId!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(1, 160)
+  message?: string;
+}
+
 export class ClaimDeviceDto {
   @ApiProperty()
   @IsString()

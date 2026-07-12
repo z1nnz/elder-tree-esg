@@ -678,6 +678,15 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
   AppController get controller => widget.controller;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(controller.prepareExplorationPreview());
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final route = controller.exploration.routes.isEmpty
         ? null
@@ -2568,6 +2577,9 @@ class _FamilyScreenState extends State<FamilyScreen> {
           icon: Icons.volunteer_activism_outlined,
           text: '沒有家人也不會被排除；社工、長照機構與志工媒合將以獨立的陪伴關係與同意機制提供。',
         ),
+        const SizedBox(height: 12),
+        _LineCompanionCard(controller: widget.controller),
+        const SizedBox(height: 12),
         if (widget.controller.reviews.isNotEmpty) ...[
           const _SectionTitle(title: '等待你的確認', subtitle: '只能覆核同家庭其他成員提交的照片'),
           const SizedBox(height: 10),
@@ -2733,6 +2745,124 @@ class _FamilyScreenState extends State<FamilyScreen> {
     );
     code.dispose();
     relationship.dispose();
+  }
+}
+
+class _LineCompanionCard extends StatelessWidget {
+  const _LineCompanionCard({required this.controller});
+
+  final AppController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final activeBindings = controller.lineBindings
+        .where((binding) => binding.active)
+        .toList();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const CircleAvatar(
+                  backgroundColor: Color(0xFFE2F4C3),
+                  foregroundColor: forest,
+                  child: Icon(Icons.chat_bubble_rounded),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'LINE 陪伴入口',
+                        style: TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                      SizedBox(height: 3),
+                      Text('提醒、待覆核與快速求助會從這裡靠近。'),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: controller.refreshLineBindings,
+                  tooltip: '更新 LINE 綁定',
+                  icon: const Icon(Icons.refresh_rounded),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (activeBindings.isEmpty)
+              const Text('尚未綁定 LINE。產生 8 碼綁定碼後，到綠伴 LINE 官方帳號輸入即可。')
+            else
+              ...activeBindings.map(
+                (binding) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(
+                    Icons.check_circle_rounded,
+                    color: forest,
+                  ),
+                  title: Text(binding.householdName),
+                  subtitle: Text(
+                    '已綁定 · ${binding.createdAt.month}/${binding.createdAt.day}',
+                  ),
+                  trailing: TextButton(
+                    onPressed: () => controller.revokeLineBinding(binding),
+                    child: const Text('解除'),
+                  ),
+                ),
+              ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: () async {
+                final code = await controller.createLineBindingCode();
+                if (code != null && context.mounted) {
+                  await showDialog<void>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('LINE 綁定碼'),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SelectableText(
+                            code.code,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 30,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 4,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(code.instructions),
+                          if (code.qrPayload.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            SelectableText(
+                              code.qrPayload,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ],
+                        ],
+                      ),
+                      actions: [
+                        FilledButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('完成'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+              },
+              icon: const Icon(Icons.qr_code_2_rounded),
+              label: const Text('產生 LINE 綁定碼'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
