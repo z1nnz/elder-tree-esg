@@ -2272,3 +2272,53 @@ body {
     min-height: 400px;
   }
 }
+
+/* Adventure V2 operations center additions */
+.ops-command-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.ops-command-strip article {
+  min-height: 120px;
+  padding: 18px;
+  border: 1px solid rgba(230, 255, 210, 0.12);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 88% 12%, rgba(199, 235, 99, 0.12), transparent 38%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.035));
+}
+
+.ops-command-strip span,
+.ops-command-strip strong,
+.ops-command-strip small {
+  display: block;
+}
+
+.ops-command-strip span {
+  color: var(--lime);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.16em;
+}
+
+.ops-command-strip strong {
+  margin-top: 10px;
+  color: white;
+  font-size: 20px;
+  line-height: 1.25;
+}
+
+.ops-command-strip small {
+  margin-top: 10px;
+  color: rgba(225, 241, 232, 0.68);
+  line-height: 1.65;
+}
+
+@media (max-width: 1180px) {
+  .ops-command-strip {
+    grid-template-columns: 1fr;
+  }
+}

@@ -5926,3 +5926,138 @@ body:has(.sky-cinematic-hero) .header-cta {
     transform: none;
   }
 }
+
+/* Adventure V2 generated visual layer */
+.sky-generated-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0.54;
+  transform: translateZ(0);
+}
+
+.sky-cinematic-hero .sky-video-intro {
+  max-width: min(980px, calc(100vw - 42px));
+  padding: clamp(20px, 3vw, 34px);
+  border-color: rgba(235, 255, 219, 0.22);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(220, 255, 157, 0.16), transparent 40%),
+    linear-gradient(180deg, rgba(3, 17, 16, 0.36), rgba(3, 15, 14, 0.62));
+  backdrop-filter: blur(14px);
+}
+
+.sky-cinematic-hero .sky-video-intro p {
+  max-width: 640px;
+  margin: 14px auto 0;
+  color: rgba(244, 252, 237, 0.68);
+  font-size: clamp(14px, 1.15vw, 18px);
+  line-height: 1.8;
+  text-align: center;
+}
+
+.sky-cinematic-hero.is-explore-mode .sky-video-intro p {
+  opacity: 0;
+}
+
+.sky-cinematic-hero .sky-video-hotspot-glow {
+  background:
+    radial-gradient(circle, rgba(226, 255, 173, 0.92) 0 10%, rgba(226, 255, 173, 0.22) 24%, transparent 46%);
+  box-shadow:
+    0 0 26px rgba(218, 255, 155, 0.32),
+    0 0 70px rgba(103, 241, 211, 0.18);
+}
+
+.v2-radar-surface {
+  isolation: isolate;
+}
+
+.v2-generated-radar {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0.38;
+}
+
+.v2-radar-surface > *:not(.v2-generated-radar) {
+  position: relative;
+  z-index: 1;
+}
+
+.v2-nature-visual {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.38fr) minmax(0, 1fr);
+  gap: clamp(18px, 4vw, 48px);
+  align-items: center;
+  margin: clamp(24px, 4vw, 52px) 0;
+  padding: clamp(18px, 3vw, 34px);
+  border: 1px solid rgba(218, 255, 155, 0.14);
+  border-radius: clamp(28px, 4vw, 44px);
+  background:
+    radial-gradient(circle at 12% 34%, rgba(218, 255, 155, 0.16), transparent 28%),
+    linear-gradient(135deg, rgba(6, 27, 24, 0.78), rgba(5, 18, 17, 0.6));
+  box-shadow: 0 34px 120px rgba(0, 0, 0, 0.22);
+}
+
+.v2-nature-visual img {
+  width: min(100%, 260px);
+  justify-self: center;
+  filter: drop-shadow(0 26px 55px rgba(113, 255, 141, 0.18));
+}
+
+.v2-nature-visual div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.v2-nature-visual span {
+  padding: 10px 14px;
+  border: 1px solid rgba(230, 255, 213, 0.16);
+  border-radius: 999px;
+  color: rgba(247, 255, 240, 0.78);
+  background: rgba(255, 255, 255, 0.055);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+.v2-app-tree img {
+  width: min(48vw, 168px);
+  margin-bottom: 12px;
+}
+
+.radar-panel-3d {
+  border-color: rgba(230, 255, 210, 0.12);
+  background:
+    radial-gradient(circle at 18% 18%, rgba(218, 255, 155, 0.12), transparent 30%),
+    linear-gradient(135deg, rgba(7, 31, 27, 0.94), rgba(3, 16, 15, 0.96));
+}
+
+.radar-panel-3d .radar-3d-panel {
+  min-height: clamp(620px, 66vw, 860px);
+}
+
+.mission-display,
+.mission-control-card {
+  backdrop-filter: blur(18px);
+}
+
+@media (max-width: 760px) {
+  .v2-nature-visual {
+    grid-template-columns: 1fr;
+  }
+
+  .sky-cinematic-hero .sky-video-intro p {
+    display: none;
+  }
+}

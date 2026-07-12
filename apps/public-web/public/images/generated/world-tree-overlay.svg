@@ -1,0 +1,28 @@
+<svg width="1600" height="900" viewBox="0 0 1600 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="g1" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(800 430) rotate(90) scale(330 560)">
+      <stop stop-color="#D8FF9F" stop-opacity="0.32"/>
+      <stop offset="0.42" stop-color="#8EE8C8" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#001C18" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="beam" x1="804" y1="268" x2="812" y2="685" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#EEFFD9" stop-opacity="0"/>
+      <stop offset="0.35" stop-color="#E7FFB4" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#88F7D4" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="blur">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+  </defs>
+  <ellipse cx="800" cy="430" rx="520" ry="330" fill="url(#g1)" filter="url(#blur)"/>
+  <path d="M805 270C770 395 785 540 822 682" stroke="url(#beam)" stroke-width="2.2"/>
+  <path d="M748 345C840 400 890 468 915 575" stroke="#CFFFA3" stroke-opacity="0.12" stroke-width="1.4"/>
+  <path d="M870 346C770 418 726 502 706 620" stroke="#B9F6D6" stroke-opacity="0.12" stroke-width="1.4"/>
+  <g opacity="0.34">
+    <circle cx="712" cy="334" r="2.5" fill="#D8FF9F"/>
+    <circle cx="850" cy="300" r="3" fill="#D8FF9F"/>
+    <circle cx="918" cy="520" r="2.2" fill="#B9F6D6"/>
+    <circle cx="680" cy="540" r="2.2" fill="#B9F6D6"/>
+    <circle cx="812" cy="646" r="2.8" fill="#D8FF9F"/>
+  </g>
+</svg>
