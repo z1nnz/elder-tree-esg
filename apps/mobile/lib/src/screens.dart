@@ -656,9 +656,14 @@ class TasksScreen extends StatelessWidget {
 }
 
 class ExplorationScreen extends StatefulWidget {
-  const ExplorationScreen({required this.controller, super.key});
+  const ExplorationScreen({
+    required this.controller,
+    required this.onNavigate,
+    super.key,
+  });
 
   final AppController controller;
+  final ValueChanged<int> onNavigate;
 
   static const mapStyleUrl = String.fromEnvironment(
     'MAP_STYLE_URL',
@@ -682,7 +687,7 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      unawaited(controller.prepareExplorationPreview());
+      unawaited(controller.startExploration());
     });
   }
 
@@ -720,6 +725,14 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
         ? radarMissionViews
         : radarMissionViews.take(3).toList();
     final safeTop = MediaQuery.paddingOf(context).top;
+    final hasCurrentLocation =
+        controller.latestLatitude != null && controller.latestLongitude != null;
+    final mapCenter = hasCurrentLocation
+        ? Geographic(
+            lon: controller.latestLongitude!,
+            lat: controller.latestLatitude!,
+          )
+        : const Geographic(lon: 121.5362, lat: 25.0316);
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -736,10 +749,12 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
         ),
         Positioned.fill(
           child: MapLibreMap(
-            key: ValueKey(_mapMode),
+            key: ValueKey(
+              '$_mapMode-${hasCurrentLocation ? "located" : "city"}',
+            ),
             options: MapOptions(
               initStyle: mapPresentation.style,
-              initCenter: const Geographic(lon: 121.5362, lat: 25.0316),
+              initCenter: mapCenter,
               initZoom: mapPresentation.zoom,
               initPitch: mapPresentation.pitch,
               initBearing: mapPresentation.bearing,
@@ -827,6 +842,11 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
             onChanged: (mode) => setState(() => _mapMode = mode),
           ),
         ),
+        Positioned(
+          right: 14,
+          top: 118 + safeTop,
+          child: _ExplorationQuickRail(onNavigate: widget.onNavigate),
+        ),
         if (_mapMode == ExplorationMapMode.adventure)
           const Positioned(left: 14, top: 184, child: _AdventureMapHint()),
         if (controller.latestLatitude == null)
@@ -842,11 +862,11 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
             ),
           ),
         DraggableScrollableSheet(
-          initialChildSize: 0.34,
-          minChildSize: 0.22,
+          initialChildSize: 0.24,
+          minChildSize: 0.18,
           maxChildSize: 0.78,
           snap: true,
-          snapSizes: const [0.34, 0.58, 0.78],
+          snapSizes: const [0.22, 0.38, 0.78],
           builder: (context, scrollController) => _AdventureBottomSheet(
             controller: controller,
             distanceMeters: sessionDistance,
@@ -862,9 +882,6 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
             routeProgress: routeProgress,
             showRouteDetails: _showRouteDetails,
             scrollController: scrollController,
-            onStartStopPressed: controller.exploring
-                ? controller.stopExploration
-                : controller.startExploration,
             onCompleteMission: featuredMission == null
                 ? null
                 : () => _confirmCompleteRadarMission(featuredMission),
@@ -1106,7 +1123,6 @@ class _AdventureBottomSheet extends StatelessWidget {
     required this.routeProgress,
     required this.showRouteDetails,
     required this.scrollController,
-    required this.onStartStopPressed,
     required this.onCompleteMission,
     required this.onMissionSelected,
     required this.onToggleRadarMissions,
@@ -1127,7 +1143,6 @@ class _AdventureBottomSheet extends StatelessWidget {
   final double routeProgress;
   final bool showRouteDetails;
   final ScrollController scrollController;
-  final VoidCallback onStartStopPressed;
   final VoidCallback? onCompleteMission;
   final ValueChanged<RadarMissionViewState> onMissionSelected;
   final VoidCallback? onToggleRadarMissions;
@@ -1171,7 +1186,6 @@ class _AdventureBottomSheet extends StatelessWidget {
               sendingLocation: sendingLocation,
               locationStatus: locationStatus,
               mission: mission,
-              onStartStopPressed: onStartStopPressed,
               onCompleteMission: onCompleteMission,
             ),
             const SizedBox(height: 12),
@@ -1287,7 +1301,6 @@ class _ExplorationMissionDock extends StatelessWidget {
     required this.sendingLocation,
     required this.locationStatus,
     required this.mission,
-    required this.onStartStopPressed,
     required this.onCompleteMission,
   });
 
@@ -1297,7 +1310,6 @@ class _ExplorationMissionDock extends StatelessWidget {
   final bool sendingLocation;
   final String locationStatus;
   final RadarMissionViewState? mission;
-  final VoidCallback onStartStopPressed;
   final VoidCallback? onCompleteMission;
 
   @override
@@ -1362,7 +1374,7 @@ class _ExplorationMissionDock extends StatelessWidget {
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        view?.stateLabel ?? (exploring ? '探索中' : '未開始'),
+                        view?.stateLabel ?? (exploring ? '探索中' : '定位中'),
                         style: TextStyle(
                           color: accent,
                           fontSize: 11,
@@ -1384,7 +1396,7 @@ class _ExplorationMissionDock extends StatelessWidget {
                   view == null
                       ? hasSession
                             ? '伺服器計算距離 · $locationStatus'
-                            : '按下開始後，附近任務光點會被偵測。'
+                            : '地圖會自動偵測附近任務光點。'
                       : '${view.mission.title} · ${view.helperText}',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -1397,30 +1409,113 @@ class _ExplorationMissionDock extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 10),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (canComplete) ...[
-                FilledButton(
-                  onPressed: onCompleteMission,
-                  child: Text(view!.primaryActionLabel),
-                ),
-                const SizedBox(height: 7),
-              ],
-              FilledButton.icon(
-                onPressed: onStartStopPressed,
-                icon: Icon(
-                  exploring ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                ),
-                label: Text(exploring ? '停止' : '開始'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: exploring ? forestDark : forest,
-                ),
-              ),
-            ],
-          ),
+          if (canComplete) ...[
+            const SizedBox(width: 10),
+            FilledButton(
+              onPressed: onCompleteMission,
+              child: Text(view!.primaryActionLabel),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+class _ExplorationQuickRail extends StatelessWidget {
+  const _ExplorationQuickRail({required this.onNavigate});
+
+  final ValueChanged<int> onNavigate;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: forestDark.withValues(alpha: 0.88),
+      elevation: 8,
+      shadowColor: Colors.black45,
+      borderRadius: BorderRadius.circular(24),
+      child: Padding(
+        padding: const EdgeInsets.all(6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _LeafMenuButton(
+              icon: Icons.home_rounded,
+              label: '今天',
+              onTap: () => onNavigate(0),
+            ),
+            _LeafMenuButton(
+              icon: Icons.checklist_rounded,
+              label: '任務',
+              onTap: () => onNavigate(1),
+            ),
+            _LeafMenuButton(
+              highlighted: true,
+              icon: Icons.explore_rounded,
+              label: '探索中',
+              onTap: () {},
+            ),
+            _LeafMenuButton(
+              icon: Icons.family_restroom_rounded,
+              label: '家人',
+              onTap: () => onNavigate(3),
+            ),
+            _LeafMenuButton(
+              icon: Icons.public_rounded,
+              label: '公益',
+              onTap: () => onNavigate(4),
+            ),
+            _LeafMenuButton(
+              icon: Icons.hub_rounded,
+              label: '互動樹',
+              onTap: () => onNavigate(5),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LeafMenuButton extends StatelessWidget {
+  const _LeafMenuButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.highlighted = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: label,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: onTap,
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: highlighted
+                  ? lime.withValues(alpha: 0.92)
+                  : Colors.white.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: highlighted
+                    ? Colors.white.withValues(alpha: 0.5)
+                    : Colors.white.withValues(alpha: 0.1),
+              ),
+            ),
+            child: Icon(icon, color: highlighted ? forestDark : lime, size: 22),
+          ),
+        ),
       ),
     );
   }
