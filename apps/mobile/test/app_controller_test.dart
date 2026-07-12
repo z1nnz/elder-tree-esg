@@ -262,7 +262,7 @@ void main() {
         waitingLocation.adventureState,
         AdventureMissionState.waitingForLocation,
       );
-      expect(waitingLocation.primaryActionLabel, '先開始探索');
+      expect(waitingLocation.primaryActionLabel, '正在找位置');
     },
   );
 

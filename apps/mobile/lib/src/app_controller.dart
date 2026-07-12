@@ -59,7 +59,7 @@ class AppController extends ChangeNotifier {
   double? latestLongitude;
   double? latestAccuracyMeters;
   DateTime? latestLocationAt;
-  String explorationLocationStatus = '尚未開始探索';
+  String explorationLocationStatus = '準備定位';
   int? lastGrowthAwardPoints;
   String? lastGrowthAwardTitle;
   bool _sendingLocation = false;
@@ -469,9 +469,6 @@ class AppController extends ChangeNotifier {
       final route = exploration.routes.isEmpty
           ? null
           : exploration.routes.first;
-      if (route == null && radar.missions.isEmpty) {
-        throw const FormatException('目前沒有已發布的探索路線或雷達任務');
-      }
       await _ensureLocationPermission();
       ExplorationSessionModel? session;
       if (route != null) {
@@ -489,8 +486,10 @@ class AppController extends ChangeNotifier {
       lastGrowthAwardPoints = null;
       lastGrowthAwardTitle = null;
       notice = route == null
-          ? '任務雷達已開始；只會把候選座標送到後端驗證接取範圍。'
-          : '探索已開始；精確座標只暫存最新一點，結束後立即清除。';
+          ? radar.missions.isEmpty
+                ? '已定位到你的位置；目前附近還沒有開放任務，地圖會持續準備好。'
+                : '任務雷達已啟動；只會把候選座標送到後端驗證接取範圍。'
+          : '探索模式已啟動；精確座標只暫存最新一點，結束後立即清除。';
       notifyListeners();
       _locationSubscription =
           Geolocator.getPositionStream(
@@ -510,7 +509,10 @@ class AppController extends ChangeNotifier {
           );
     } catch (error) {
       exploring = false;
-      notice = _friendlyActionError(error, fallback: '暫時無法開始探索，請確認定位與網路後再試一次。');
+      notice = _friendlyActionError(
+        error,
+        fallback: '暫時無法進入探索模式，請確認定位與網路後再試一次。',
+      );
       notifyListeners();
     }
   }
@@ -526,7 +528,7 @@ class AppController extends ChangeNotifier {
       explorationLocationStatus = '等待定位';
       notice = _friendlyActionError(
         error,
-        fallback: '目前還抓不到位置；你仍可以先查看附近任務，開始探索後會再嘗試定位。',
+        fallback: '目前還抓不到位置；你仍可以先查看附近任務，App 會再嘗試定位。',
       );
       notifyListeners();
     }
@@ -932,7 +934,7 @@ class RadarMissionViewState {
     AdventureMissionState.insideRadius => '正在解鎖',
     AdventureMissionState.near => '再靠近一點',
     AdventureMissionState.far => '往任務光點走',
-    AdventureMissionState.waitingForLocation => '先開始探索',
+    AdventureMissionState.waitingForLocation => '正在找位置',
     AdventureMissionState.completed => '生命樹已成長',
     AdventureMissionState.expired => '任務已結束',
     AdventureMissionState.upcoming => '稍後開放',
@@ -946,7 +948,7 @@ class RadarMissionViewState {
     AdventureMissionState.insideRadius => '你已經進入半徑，App 會向後端確認。',
     AdventureMissionState.near => '任務就在附近，靠近光點即可接取。',
     AdventureMissionState.far => '城市裡有一個小任務正在等你。',
-    AdventureMissionState.waitingForLocation => '按下開始探索後，才會使用前景定位。',
+    AdventureMissionState.waitingForLocation => '地圖正在尋找你的目前位置。',
     AdventureMissionState.completed => '這次完成已經被記錄，重送不會重複加分。',
     AdventureMissionState.expired => '這個任務已結束，可以看看其他光點。',
     AdventureMissionState.upcoming => '這個任務還沒開始。',
