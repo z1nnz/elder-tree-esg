@@ -313,7 +313,10 @@ export function OperationsDashboard() {
           {view === "overview" ? (
             <Overview
               snapshot={snapshot}
+              photoAiStatus={photoAiStatus}
               reviews={reviews}
+              routes={routes}
+              radarMissions={radarMissions}
               devices={devices}
               onNavigate={setView}
             />
@@ -368,15 +371,30 @@ export function OperationsDashboard() {
 
 function Overview({
   snapshot,
+  photoAiStatus,
   reviews,
+  routes,
+  radarMissions,
   devices,
   onNavigate,
 }: {
   snapshot: DashboardSnapshot;
+  photoAiStatus: PhotoAiOperationalStatus | null;
   reviews: ReviewItem[];
+  routes: ExplorationRouteSummary[];
+  radarMissions: RadarMissionSummary[];
   devices: DeviceView[];
   onNavigate: (view: View) => void;
 }) {
+  const publishedRadarCount = radarMissions.filter(
+    (mission) => mission.publicationStatus === "PUBLISHED",
+  ).length;
+  const publishedRouteCount = routes.filter(
+    (route) => route.status === "PUBLISHED",
+  ).length;
+  const photoAiReady =
+    photoAiStatus?.photoEvidence.enabled === true &&
+    photoAiStatus.geminiPhotoVerification.enabled === true;
   const metrics = [
     {
       label: "參與者",
@@ -400,10 +418,10 @@ function Overview({
       tone: "coral",
     },
     {
-      label: "在線裝置",
-      value: snapshot.connectedDeviceCount,
-      hint: "互動樹",
-      icon: Cpu,
+      label: "公開雷達",
+      value: publishedRadarCount,
+      hint: `${publishedRouteCount} 條路線`,
+      icon: MapPinned,
       tone: "blue",
     },
   ];
@@ -493,6 +511,14 @@ function Overview({
       action: "裝置狀態",
       view: "devices" as View,
     },
+    {
+      label: "LINE 輔助入口",
+      value: "MVP",
+      detail: "提醒 / 求助 / 覆核通知",
+      icon: Activity,
+      action: "查看任務",
+      view: "exploration" as View,
+    },
   ];
 
   return (
@@ -540,6 +566,24 @@ function Overview({
             </button>
           ))}
         </div>
+      </section>
+
+      <section className="ops-command-strip" aria-label="營運狀態列">
+        <article>
+          <span>APP ADVENTURE V2</span>
+          <strong>{publishedRadarCount} 個雷達任務已發布</strong>
+          <small>探索頁以定位、半徑與任務 sheet 為主，不再依賴全域底部 nav。</small>
+        </article>
+        <article>
+          <span>PHOTO AI</span>
+          <strong>{photoAiReady ? "照片驗證可用" : "需要環境檢查"}</strong>
+          <small>一般任務可 PHOTO_AI；雷達任務仍維持 SELF_CHECK / TIMER。</small>
+        </article>
+        <article>
+          <span>LINE COMPANION</span>
+          <strong>輔助入口保留</strong>
+          <small>LINE 用於提醒、求助與通知，不取代 App 地圖探索。</small>
+        </article>
       </section>
 
       <section className="metric-grid" aria-label="關鍵數據">

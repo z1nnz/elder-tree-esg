@@ -879,11 +879,11 @@ function TaipeiDistrictPlate({
   activeDistrict: string | null;
   setActiveDistrict: (name: string | null) => void;
 }) {
-	  const shape = useMemo(() => shapeFromPoints(district.points), [district.points]);
-	  const topShape = useMemo(() => shapeFromPoints(district.points), [district.points]);
-	  const group = useRef<Group>(null);
-	  const mission = getTaipeiDistrictMission(district.name);
-	  const isActive = activeDistrict === district.name;
+  const shape = useMemo(() => shapeFromPoints(district.points), [district.points]);
+  const topShape = useMemo(() => shapeFromPoints(district.points), [district.points]);
+  const group = useRef<Group>(null);
+  const mission = getTaipeiDistrictMission(district.name);
+  const isActive = activeDistrict === district.name;
 
   useFrame(() => {
     if (!group.current) return;
@@ -903,15 +903,11 @@ function TaipeiDistrictPlate({
   };
 
   return (
-    <group
-      ref={group}
-      onPointerOver={handlePointerOver}
-      onPointerOut={handlePointerOut}
-      onClick={handlePointerOver}
-    >
+    <group ref={group}>
       {[0, 1, 2].map((layer) => (
         <mesh
           key={`${district.name}-strata-${layer}`}
+          raycast={decorativeRaycast}
           rotation={[-Math.PI / 2, 0, 0]}
           position={[0, -district.height - layer * 0.052, 0]}
           scale={[1 + layer * 0.01, 1 + layer * 0.01, 1]}
@@ -936,7 +932,13 @@ function TaipeiDistrictPlate({
           />
         </mesh>
       ))}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -district.height, 0]} castShadow receiveShadow>
+      <mesh
+        raycast={decorativeRaycast}
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, -district.height, 0]}
+        castShadow
+        receiveShadow
+      >
         <extrudeGeometry
           args={[
             shape,
@@ -955,26 +957,54 @@ function TaipeiDistrictPlate({
           metalness={0.02}
         />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02 + index * 0.002, 0]}>
+      <mesh
+        raycast={decorativeRaycast}
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, 0.02 + index * 0.002, 0]}
+      >
         <shapeGeometry args={[topShape]} />
         <meshStandardMaterial
-	          color={isActive ? "#dffc78" : district.color}
-	          roughness={0.72}
-	          metalness={0.03}
-	          emissive={isActive ? mission?.heat ?? "#ffb020" : "#244d35"}
-	          emissiveIntensity={isActive ? 0.18 : 0.045}
-	        />
-	      </mesh>
+          color={isActive ? "#dffc78" : district.color}
+          roughness={0.72}
+          metalness={0.03}
+          emissive={isActive ? mission?.heat ?? "#ffb020" : "#244d35"}
+          emissiveIntensity={isActive ? 0.18 : 0.045}
+        />
+      </mesh>
+      <mesh
+        name={`${district.name}-interaction-hit-layer`}
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, 0.082 + index * 0.002, 0]}
+        onPointerOver={handlePointerOver}
+        onPointerOut={handlePointerOut}
+        onClick={handlePointerOver}
+        renderOrder={20}
+      >
+        <shapeGeometry args={[topShape]} />
+        <meshBasicMaterial
+          transparent
+          opacity={0}
+          depthWrite={false}
+          color="#ffffff"
+          side={DoubleSide}
+        />
+      </mesh>
       <mesh
         raycast={decorativeRaycast}
         position={[district.center[0], 0.09, district.center[1]]}
         rotation={[-Math.PI / 2, 0, 0]}
       >
-	        <circleGeometry args={[isActive ? 0.26 : 0.16, 48]} />
-	        <meshBasicMaterial color={mission?.heat ?? "#ffb020"} transparent opacity={isActive ? 0.28 : 0.08} blending={AdditiveBlending} depthWrite={false} />
-	      </mesh>
-	    </group>
-	  );
+        <circleGeometry args={[isActive ? 0.26 : 0.16, 48]} />
+        <meshBasicMaterial
+          color={mission?.heat ?? "#ffb020"}
+          transparent
+          opacity={isActive ? 0.28 : 0.08}
+          blending={AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+    </group>
+  );
 }
 
 function FlightLine({

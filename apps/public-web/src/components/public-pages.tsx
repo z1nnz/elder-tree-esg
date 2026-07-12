@@ -414,14 +414,20 @@ function CinematicStoryExperience() {
     <section className="v2-story" aria-label="綠伴產品主流程">
       <div className="v2-story-sticky">
         <div className="v2-story-copy" data-v2-reveal>
-          <span>SCROLL EXPERIENCE</span>
-          <h2>把一次出門，變成會被城市回應的旅程。</h2>
+          <span>ADVENTURE V2</span>
+          <h2>地圖不是背景，它會在你靠近時回應。</h2>
           <p>
-            這不是把任務塞進清單，而是讓地圖、距離、完成回饋與陪伴提醒變成一段能被感覺到的流程。
+            App 進入探索後直接定位。任務點、距離、半徑與完成回饋都在同一張地圖上發生。
           </p>
         </div>
         <div className="v2-story-stage" data-v2-reveal>
           <div className="v2-radar-surface">
+            <img
+              aria-hidden="true"
+              className="v2-generated-radar"
+              src="/images/generated/radar-texture.svg"
+              alt=""
+            />
             <span className="v2-route-line" />
             {storySteps.map((step, index) => (
               <button
@@ -436,8 +442,8 @@ function CinematicStoryExperience() {
             ))}
             <div className="v2-phone-orbit">
               <span>綠伴 Elder Tree</span>
-              <strong>今日陪伴</strong>
-              <small>最近任務 · 大安森林公園 · +12</small>
+              <strong>探索地圖</strong>
+              <small>玩家位置 · 任務半徑 · 生命樹回饋</small>
             </div>
             <div className="v2-tree-pulse">
               <Trees size={24} />
@@ -469,6 +475,16 @@ function NatureTechIndex() {
           樹不是裝飾。它把任務、照片驗證、陪伴邊界與公益回流，整理成使用者能看懂的成長狀態。
         </p>
       </div>
+      <div className="v2-nature-visual" data-v2-reveal aria-hidden="true">
+        <img src="/images/generated/leaf-signal.svg" alt="" />
+        <div>
+          <span>SELF CHECK</span>
+          <span>TIMER</span>
+          <span>PHOTO AI</span>
+          <span>FAMILY REVIEW</span>
+          <span>TREE GROWTH</span>
+        </div>
+      </div>
       <div className="v2-system-grid">
         {natureSystems.map(({ icon: Icon, title, label, body }) => (
           <article data-v2-reveal key={title}>
@@ -488,19 +504,19 @@ function ProductExperienceLab() {
     <section className="v2-product-lab section-shell">
       <div className="v2-section-kicker" data-v2-reveal>
         <span>APP V2</span>
-        <h2>長者看到的是下一步，不是技術系統。</h2>
-        <p>功能仍然完整，但介面只問一件事：現在要不要做一個很小的行動？</p>
+        <h2>長者看到的是地圖、下一步和一個大按鈕。</h2>
+        <p>功能仍然完整，但介面只問一件事：附近有什麼可以做？完成後樹長出了什麼？</p>
       </div>
       <div className="v2-product-grid">
         <div className="v2-app-frame" data-v2-reveal>
           <div className="v2-app-status">
-            <span>今日陪伴</span>
+            <span>探索 HUD</span>
             <b>生命樹 128</b>
           </div>
           <div className="v2-app-tree">
-            <Trees size={44} />
-            <strong>下一個任務</strong>
-            <p>喝水確認 · 100m 內 · +6</p>
+            <img src="/images/generated/leaf-signal.svg" alt="" />
+            <strong>附近任務亮起</strong>
+            <p>大安森林公園 · 90m 內 · +12</p>
           </div>
           <div className="v2-app-card is-primary">
             <Radar size={20} />

@@ -1,0 +1,21 @@
+<svg width="1200" height="800" viewBox="0 0 1200 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" stroke="#D9FF9A" stroke-opacity="0.07" stroke-width="1"/>
+    </pattern>
+    <radialGradient id="pulse" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(596 412) rotate(90) scale(260 420)">
+      <stop stop-color="#CFF86E" stop-opacity="0.22"/>
+      <stop offset="0.55" stop-color="#6BE4C3" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#06241F" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#grid)"/>
+  <ellipse cx="596" cy="412" rx="420" ry="260" fill="url(#pulse)"/>
+  <path d="M180 568C310 472 432 444 584 426C760 404 880 332 1020 224" stroke="#D9FF9A" stroke-opacity="0.16" stroke-width="3" stroke-linecap="round"/>
+  <path d="M196 582C328 520 488 518 642 488C774 462 860 392 1010 358" stroke="#79F6D2" stroke-opacity="0.1" stroke-width="2" stroke-linecap="round" stroke-dasharray="8 18"/>
+  <g opacity="0.18">
+    <circle cx="316" cy="512" r="54" stroke="#CFF86E"/>
+    <circle cx="598" cy="420" r="82" stroke="#CFF86E"/>
+    <circle cx="882" cy="330" r="62" stroke="#79F6D2"/>
+  </g>
+</svg>

@@ -136,6 +136,12 @@ export function SkyWorldArtHero() {
           alt="天空島中央有巨大世界樹，周圍漂浮著島嶼、雲海、瀑布與海洋。"
         />
         <div className="sky-video-vignette" aria-hidden="true" />
+        <img
+          aria-hidden="true"
+          className="sky-generated-overlay"
+          src="/images/generated/world-tree-overlay.svg"
+          alt=""
+        />
         <div className="sky-video-particles" aria-hidden="true">
           {Array.from({ length: 18 }, (_, index) => (
             <i key={index} />
@@ -196,6 +202,7 @@ export function SkyWorldArtHero() {
         <div className="sky-video-intro" aria-label="綠伴公開前台入口">
           <span>綠伴 Elder Tree · 城市探索 × 陪伴網絡 × 生命樹</span>
           <strong>追逐一個更願意生活的自己。</strong>
+          <p>滑下去，先把文字收起來。世界樹周圍的五個島嶼會變成可以探索的入口。</p>
           <div>
             <Link href="/product">開始了解</Link>
             <Link href="/partners">成為陪伴者</Link>
