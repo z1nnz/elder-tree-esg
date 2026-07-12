@@ -468,8 +468,80 @@ function Overview({
     { scope: overviewRef },
   );
 
+  const validationItems = [
+    {
+      label: "App 實機驗收",
+      value: `${Math.max(snapshot.completedTaskCount, 0)}`,
+      detail: "任務完成紀錄",
+      icon: BadgeCheck,
+      action: "查看流程",
+      view: "exploration" as View,
+    },
+    {
+      label: "PHOTO AI",
+      value: `${reviews.length}`,
+      detail: "待家人覆核",
+      icon: FileCheck2,
+      action: "前往覆核",
+      view: "reviews" as View,
+    },
+    {
+      label: "互動樹裝置",
+      value: `${devices.filter((device) => device.reportedState.online).length}`,
+      detail: "目前在線",
+      icon: Cpu,
+      action: "裝置狀態",
+      view: "devices" as View,
+    },
+  ];
+
   return (
     <div className="overview-motion-root" data-view-root ref={overviewRef}>
+      <section className="ops-hero" aria-label="App V2 營運總控台">
+        <div className="ops-hero-copy">
+          <span>GREEN COMPANION OPS</span>
+          <h2>綠伴營運總控台</h2>
+          <p>
+            把 App 驗收、城市雷達、照片 AI、家人覆核與互動樹裝置放在同一個畫面。
+            這裡只顯示真實狀態，不用假數字撐場面。
+          </p>
+          <div className="ops-hero-actions">
+            <button className="primary-button" onClick={() => onNavigate("exploration")}>
+              任務營運 <ChevronRight size={16} />
+            </button>
+            <button className="secondary-button" onClick={() => onNavigate("reviews")}>
+              照片覆核
+            </button>
+          </div>
+        </div>
+        <div className="ops-radar" aria-hidden="true">
+          <div className="ops-radar-ring ops-radar-ring-a" />
+          <div className="ops-radar-ring ops-radar-ring-b" />
+          <div className="ops-radar-ring ops-radar-ring-c" />
+          <span className="ops-pulse ops-pulse-a" />
+          <span className="ops-pulse ops-pulse-b" />
+          <span className="ops-pulse ops-pulse-c" />
+          <strong>TAIPEI QUEST LIVE</strong>
+          <small>雷達任務 · 路線任務 · 安全半徑</small>
+        </div>
+        <div className="ops-validation-grid">
+          {validationItems.map(({ label, value, detail, icon: Icon, action, view }) => (
+            <button
+              className="ops-validation-card"
+              key={label}
+              onClick={() => onNavigate(view)}
+              type="button"
+            >
+              <Icon size={20} />
+              <span>{label}</span>
+              <strong>{value}</strong>
+              <small>{detail}</small>
+              <b>{action}</b>
+            </button>
+          ))}
+        </div>
+      </section>
+
       <section className="metric-grid" aria-label="關鍵數據">
         {metrics.map(({ label, value, hint, icon: Icon, tone }) => (
           <article className="metric" key={label}>
