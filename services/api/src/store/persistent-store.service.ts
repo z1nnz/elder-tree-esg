@@ -1,5 +1,6 @@
 import type {
   AppContext,
+  AdminLineBindingSummary,
   CompanionDeviceSummary,
   DashboardSnapshot,
   DeviceDesiredState,
@@ -776,6 +777,40 @@ export class PersistentStoreService {
       throw new NotFoundException("Active LINE binding not found");
     }
     return binding;
+  }
+
+  async listAdminLineBindings(): Promise<AdminLineBindingSummary[]> {
+    const bindings = await this.prisma.lineBinding.findMany({
+      include: {
+        household: true,
+        user: true,
+        notifications: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
+        _count: {
+          select: { notifications: true },
+        },
+      },
+      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+    });
+    return bindings.map((binding) => {
+      const lastNotification = binding.notifications[0];
+      return {
+        id: binding.id,
+        householdId: binding.householdId,
+        householdName: binding.household.name,
+        userDisplayName: binding.user.displayName,
+        status: binding.status === "ACTIVE" ? "ACTIVE" : "REVOKED",
+        createdAt: binding.createdAt.toISOString(),
+        revokedAt: binding.revokedAt?.toISOString() ?? null,
+        notificationCount: binding._count.notifications,
+        lastNotificationStatus: lastNotification
+          ? (lastNotification.status as "SENT" | "FAILED" | "SKIPPED")
+          : null,
+        lastNotificationAt: lastNotification?.createdAt.toISOString() ?? null,
+      };
+    });
   }
 
   async logLineNotification(input: {

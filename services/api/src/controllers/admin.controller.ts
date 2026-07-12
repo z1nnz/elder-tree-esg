@@ -45,6 +45,11 @@ export class AdminController {
     return { data: this.store.getPhotoAiOperationalStatus() };
   }
 
+  @Get("line/bindings")
+  async lineBindings() {
+    return { data: await this.store.listAdminLineBindings() };
+  }
+
   @Post("line/test-push")
   async testLinePush(@Body() dto: LineTestPushDto) {
     const binding = await this.store.getAdminLineBinding(dto.lineBindingId);

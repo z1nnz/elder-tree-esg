@@ -2,9 +2,11 @@
 
 import { useGSAP } from "@gsap/react";
 import type {
+  AdminLineBindingSummary,
   DashboardSnapshot,
   ExplorationRouteSummary,
   ImpactBatchSummary,
+  LineNotificationStatus,
   PhotoAiOperationalStatus,
   RadarMissionSummary,
   ReviewItem,
@@ -33,6 +35,7 @@ import {
   Settings,
   ShieldCheck,
   Sprout,
+  MessageCircle,
   Trees,
   Users,
   X,
@@ -48,7 +51,13 @@ if (typeof window !== "undefined") {
   gsap.registerPlugin(useGSAP);
 }
 
-type View = "overview" | "reviews" | "exploration" | "impact" | "devices";
+type View =
+  | "overview"
+  | "reviews"
+  | "exploration"
+  | "line"
+  | "impact"
+  | "devices";
 
 interface DeviceView {
   id: string;
@@ -84,6 +93,7 @@ const navItems = [
   { id: "overview" as const, label: "營運總覽", icon: Gauge },
   { id: "reviews" as const, label: "任務覆核", icon: ClipboardCheck },
   { id: "exploration" as const, label: "城市任務", icon: MapPinned },
+  { id: "line" as const, label: "LINE 陪伴", icon: MessageCircle },
   { id: "impact" as const, label: "公益批次", icon: Trees },
   { id: "devices" as const, label: "互動樹裝置", icon: Cpu },
 ];
@@ -99,11 +109,15 @@ export function OperationsDashboard() {
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [routes, setRoutes] = useState<ExplorationRouteSummary[]>([]);
   const [radarMissions, setRadarMissions] = useState<RadarMissionSummary[]>([]);
+  const [lineBindings, setLineBindings] = useState<AdminLineBindingSummary[]>([]);
   const [batches, setBatches] = useState<ImpactBatchSummary[]>([]);
   const [devices, setDevices] = useState<DeviceView[]>([]);
   const [loading, setLoading] = useState(true);
   const [offlineDemo, setOfflineDemo] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [lineBusyId, setLineBusyId] = useState<string | null>(null);
+  const [linePushResult, setLinePushResult] =
+    useState<LineNotificationStatus | null>(null);
   const [batchDialog, setBatchDialog] = useState(false);
 
   const load = useCallback(async () => {
@@ -115,6 +129,7 @@ export function OperationsDashboard() {
         nextReviews,
         nextRoutes,
         nextRadarMissions,
+        nextLineBindings,
         nextBatches,
         nextDevices,
       ] = await Promise.all([
@@ -123,6 +138,7 @@ export function OperationsDashboard() {
         api.reviews(),
         api.explorationRoutes(),
         api.radarMissions(),
+        api.lineBindings(),
         api.impactBatches(),
         api.devices(),
       ]);
@@ -131,6 +147,7 @@ export function OperationsDashboard() {
       setReviews(nextReviews);
       setRoutes(nextRoutes);
       setRadarMissions(nextRadarMissions);
+      setLineBindings(nextLineBindings);
       setBatches(nextBatches);
       setDevices(nextDevices);
       setOfflineDemo(false);
@@ -236,6 +253,14 @@ export function OperationsDashboard() {
               <span>{label}</span>
               {id === "reviews" && reviews.length > 0 ? (
                 <b>{reviews.length}</b>
+              ) : id === "line" && lineBindings.length > 0 ? (
+                <b>
+                  {
+                    lineBindings.filter(
+                      (binding) => binding.status === "ACTIVE",
+                    ).length
+                  }
+                </b>
               ) : null}
             </button>
           ))}
@@ -317,6 +342,7 @@ export function OperationsDashboard() {
               reviews={reviews}
               routes={routes}
               radarMissions={radarMissions}
+              lineBindings={lineBindings}
               devices={devices}
               onNavigate={setView}
             />
@@ -332,6 +358,23 @@ export function OperationsDashboard() {
                 onMissionsChange={setRadarMissions}
               />
             </div>
+          ) : null}
+          {view === "line" ? (
+            <LineOps
+              bindings={lineBindings}
+              busyId={lineBusyId}
+              lastResult={linePushResult}
+              onTestPush={async (bindingId) => {
+                setLineBusyId(bindingId);
+                try {
+                  const result = await api.testLinePush(bindingId);
+                  setLinePushResult(result);
+                  setLineBindings(await api.lineBindings());
+                } finally {
+                  setLineBusyId(null);
+                }
+              }}
+            />
           ) : null}
           {view === "impact" ? (
             <Impact
@@ -375,6 +418,7 @@ function Overview({
   reviews,
   routes,
   radarMissions,
+  lineBindings,
   devices,
   onNavigate,
 }: {
@@ -383,6 +427,7 @@ function Overview({
   reviews: ReviewItem[];
   routes: ExplorationRouteSummary[];
   radarMissions: RadarMissionSummary[];
+  lineBindings: AdminLineBindingSummary[];
   devices: DeviceView[];
   onNavigate: (view: View) => void;
 }) {
@@ -395,6 +440,9 @@ function Overview({
   const photoAiReady =
     photoAiStatus?.photoEvidence.enabled === true &&
     photoAiStatus.geminiPhotoVerification.enabled === true;
+  const activeLineCount = lineBindings.filter(
+    (binding) => binding.status === "ACTIVE",
+  ).length;
   const metrics = [
     {
       label: "參與者",
@@ -513,11 +561,11 @@ function Overview({
     },
     {
       label: "LINE 輔助入口",
-      value: "MVP",
-      detail: "提醒 / 求助 / 覆核通知",
+      value: `${activeLineCount}`,
+      detail: "目前啟用綁定",
       icon: Activity,
-      action: "查看任務",
-      view: "exploration" as View,
+      action: "查看 LINE",
+      view: "line" as View,
     },
   ];
 
@@ -581,7 +629,7 @@ function Overview({
         </article>
         <article>
           <span>LINE COMPANION</span>
-          <strong>輔助入口保留</strong>
+          <strong>{activeLineCount} 個 LINE 綁定</strong>
           <small>LINE 用於提醒、求助與通知，不取代 App 地圖探索。</small>
         </article>
       </section>
@@ -780,6 +828,112 @@ function Reviews({
   );
 }
 
+function LineOps({
+  bindings,
+  busyId,
+  lastResult,
+  onTestPush,
+}: {
+  bindings: AdminLineBindingSummary[];
+  busyId: string | null;
+  lastResult: LineNotificationStatus | null;
+  onTestPush: (bindingId: string) => Promise<void>;
+}) {
+  const activeBindings = bindings.filter((binding) => binding.status === "ACTIVE");
+  const revokedBindings = bindings.filter(
+    (binding) => binding.status === "REVOKED",
+  );
+
+  return (
+    <section className="workspace line-ops" data-view-root>
+      <div className="workspace-heading">
+        <div>
+          <h2>LINE 陪伴入口</h2>
+          <p>
+            LINE 是提醒、求助與覆核通知入口；地圖探索、照片驗證與生命樹成長仍以 App 為準。
+          </p>
+        </div>
+        <span className="queue-count">{activeBindings.length} 個啟用綁定</span>
+      </div>
+
+      <div className="line-ops-grid">
+        <article className="line-command-panel">
+          <span>LINE BOT MVP</span>
+          <h3>讓提醒靠近，但不繞過 App 規則。</h3>
+          <p>
+            快速回覆可以說「我完成了」「晚點提醒我」「我需要幫忙」；
+            但完成任務仍需要回 App，避免重複加分或跳過照片 AI。
+          </p>
+          <div className="line-command-metrics">
+            <div>
+              <strong>{activeBindings.length}</strong>
+              <small>啟用綁定</small>
+            </div>
+            <div>
+              <strong>{bindings.reduce((sum, item) => sum + item.notificationCount, 0)}</strong>
+              <small>通知紀錄</small>
+            </div>
+            <div>
+              <strong>{revokedBindings.length}</strong>
+              <small>已解除</small>
+            </div>
+          </div>
+          {lastResult ? (
+            <p className={`line-result ${lastResult.status.toLowerCase()}`}>
+              最近測試推播：{lastResult.status}
+              {lastResult.error ? ` · ${lastResult.error}` : ""}
+            </p>
+          ) : null}
+        </article>
+
+        <div className="line-binding-list">
+          {bindings.length ? (
+            bindings.map((binding) => (
+              <article className="line-binding-card" key={binding.id}>
+                <div>
+                  <span className={binding.status === "ACTIVE" ? "online-pill" : "offline-pill"}>
+                    {binding.status === "ACTIVE" ? "啟用" : "已解除"}
+                  </span>
+                  <h3>{binding.userDisplayName}</h3>
+                  <p>{binding.householdName}</p>
+                </div>
+                <dl>
+                  <div>
+                    <dt>通知紀錄</dt>
+                    <dd>{binding.notificationCount}</dd>
+                  </div>
+                  <div>
+                    <dt>最近狀態</dt>
+                    <dd>{binding.lastNotificationStatus ?? "尚未推播"}</dd>
+                  </div>
+                  <div>
+                    <dt>建立日期</dt>
+                    <dd>{formatDate(binding.createdAt)}</dd>
+                  </div>
+                </dl>
+                <button
+                  className="primary-button"
+                  disabled={binding.status !== "ACTIVE" || busyId === binding.id}
+                  onClick={() => void onTestPush(binding.id)}
+                >
+                  {busyId === binding.id ? (
+                    <LoaderCircle size={16} className="spin" />
+                  ) : (
+                    <Bell size={16} />
+                  )}
+                  測試推播
+                </button>
+              </article>
+            ))
+          ) : (
+            <EmptyState text="目前沒有 LINE 綁定。請先在 App 家人頁產生綁定碼。" />
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Impact({
   batches,
   onCreate,
@@ -849,6 +1003,13 @@ function Impact({
       </div>
     </section>
   );
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("zh-TW", {
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(value));
 }
 
 function Devices({ devices }: { devices: DeviceView[] }) {

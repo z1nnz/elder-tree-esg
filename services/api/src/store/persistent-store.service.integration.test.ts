@@ -178,6 +178,16 @@ describeWithDatabase("PersistentStoreService", () => {
       error: "LINE_CHANNEL_ACCESS_TOKEN is not configured",
     });
     expect(log.status).toBe("SKIPPED");
+
+    const adminBindings = await store.listAdminLineBindings();
+    const adminBinding = adminBindings.find((item) => item.id === binding.id);
+    expect(adminBinding).toMatchObject({
+      id: binding.id,
+      householdId: context.activeHouseholdId,
+      status: "REVOKED",
+      notificationCount: 1,
+      lastNotificationStatus: "SKIPPED",
+    });
   });
 
   it(

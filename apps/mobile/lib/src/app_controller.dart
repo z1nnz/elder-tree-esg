@@ -488,8 +488,8 @@ class AppController extends ChangeNotifier {
       notice = route == null
           ? radar.missions.isEmpty
                 ? '已定位到你的位置；目前附近還沒有開放任務，地圖會持續準備好。'
-                : '任務雷達已啟動；只會把候選座標送到後端驗證接取範圍。'
-          : '探索模式已啟動；精確座標只暫存最新一點，結束後立即清除。';
+                : '地圖正在更新附近任務；只會把候選座標送到後端驗證接取範圍。'
+          : '地圖正在記錄這趟散步；精確座標只暫存最新一點，結束後立即清除。';
       notifyListeners();
       _locationSubscription =
           Geolocator.getPositionStream(
@@ -538,7 +538,7 @@ class AppController extends ChangeNotifier {
     exploring = false;
     await _locationSubscription?.cancel();
     _locationSubscription = null;
-    explorationLocationStatus = '探索已停止';
+    explorationLocationStatus = '已離開探索頁';
     final sessionId = exploration.activeSession?.id;
     if (!offlineDemo && sessionId != null) {
       try {
@@ -552,7 +552,7 @@ class AppController extends ChangeNotifier {
         return;
       }
     }
-    notice = '探索已結束，已停止上傳定位；地圖仍會保留目前位置方便你確認方向。';
+    notice = '已離開探索頁，定位上傳已停止；地圖仍會保留目前位置方便你確認方向。';
     notifyListeners();
   }
 
