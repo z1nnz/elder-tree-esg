@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
 import {
   Float,
@@ -686,20 +686,7 @@ const heatSpots: HeatSpot[] = taipeiHeatSpots.map((spot) => ({
   color: getTaipeiDistrictMission(spot.district)?.heat ?? "#ffb020",
 }));
 
-const districtScreenHotspots = [
-  { name: "北投區", left: 72, top: 32, width: 19, height: 18 },
-  { name: "士林區", left: 55, top: 29, width: 20, height: 18 },
-  { name: "內湖區", left: 68, top: 49, width: 20, height: 15 },
-  { name: "中山區", left: 49, top: 48, width: 13, height: 13 },
-  { name: "大同區", left: 39, top: 48, width: 12, height: 12 },
-  { name: "松山區", left: 60, top: 55, width: 13, height: 12 },
-  { name: "南港區", left: 76, top: 57, width: 17, height: 14 },
-  { name: "中正區", left: 43, top: 60, width: 13, height: 12 },
-  { name: "信義區", left: 56, top: 64, width: 14, height: 12 },
-  { name: "萬華區", left: 30, top: 58, width: 13, height: 14 },
-  { name: "大安區", left: 45, top: 68, width: 18, height: 13 },
-  { name: "文山區", left: 15, top: 58, width: 22, height: 20 },
-] satisfies Array<{ name: TaipeiDistrictBoundary["name"]; left: number; top: number; width: number; height: number }>;
+const decorativeRaycast = () => undefined;
 
 function terrainHeight(x: number, y: number) {
   const northWestHills = Math.exp(-((x + 1.55) ** 2 / 0.82 + (y + 1.38) ** 2 / 0.72)) * 0.72;
@@ -852,24 +839,24 @@ function HeatBloom({
   });
 
   return (
-    <group ref={pulse} position={position}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+    <group ref={pulse} position={position} raycast={decorativeRaycast}>
+      <mesh raycast={decorativeRaycast} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[0.26 * scale, 64]} />
         <meshBasicMaterial color="#15d5c8" transparent opacity={dimmed ? 0.035 : 0.14} side={DoubleSide} depthWrite={false} />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]}>
+      <mesh raycast={decorativeRaycast} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]}>
         <circleGeometry args={[0.16 * scale, 64]} />
         <meshBasicMaterial color="#ffe45e" transparent opacity={dimmed ? 0.07 : 0.28} side={DoubleSide} depthWrite={false} />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.024, 0]}>
+      <mesh raycast={decorativeRaycast} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.024, 0]}>
         <circleGeometry args={[0.08 * scale, 64]} />
         <meshBasicMaterial color={color} transparent opacity={dimmed ? 0.16 : 0.68} side={DoubleSide} depthWrite={false} />
       </mesh>
-      <mesh position={[0, 0.32, 0]}>
+      <mesh raycast={decorativeRaycast} position={[0, 0.32, 0]}>
         <cylinderGeometry args={[0.012, 0.012, 0.5, 10]} />
         <meshBasicMaterial color="#fff0a3" transparent opacity={dimmed ? 0.06 : 0.38} blending={AdditiveBlending} depthWrite={false} />
       </mesh>
-      <mesh position={[0, 0.58, 0]}>
+      <mesh raycast={decorativeRaycast} position={[0, 0.58, 0]}>
         <sphereGeometry args={[0.04, 14, 10]} />
         <meshBasicMaterial color="#fff7ad" transparent opacity={dimmed ? 0.12 : 0.72} blending={AdditiveBlending} depthWrite={false} />
       </mesh>
@@ -975,6 +962,7 @@ function TaipeiDistrictPlate({
 	        />
 	      </mesh>
       <mesh
+        raycast={decorativeRaycast}
         position={[district.center[0], 0.09, district.center[1]]}
         rotation={[-Math.PI / 2, 0, 0]}
       >
@@ -1015,13 +1003,13 @@ function FlightLine({
 
   return (
     <>
-      <mesh>
+      <mesh raycast={decorativeRaycast}>
         <tubeGeometry args={[curve, 40, 0.008, 5, false]} />
         <meshBasicMaterial color="#fff2a6" transparent opacity={0.28} blending={AdditiveBlending} />
       </mesh>
       <Trail width={0.08} length={5} color={new Color("#fff0a3")} attenuation={(t) => t * t}>
         <group ref={follower} position={curve.getPoint(0)}>
-          <mesh>
+          <mesh raycast={decorativeRaycast}>
             <sphereGeometry args={[0.035, 12, 8]} />
             <meshBasicMaterial color="#fff8b8" transparent opacity={0.86} blending={AdditiveBlending} />
           </mesh>
@@ -1109,32 +1097,6 @@ export function RadarMap3D({
           minPolarAngle={MathUtils.degToRad(48)}
         />
       </Canvas>
-	      <div className="district-screen-hotspots" aria-label="台北行政區互動熱區">
-	        {districtScreenHotspots.map((hotspot) => {
-	          const mission = getTaipeiDistrictMission(hotspot.name);
-	          return (
-	            <button
-	              aria-label={`${hotspot.name}：${mission?.title ?? "任務顯示"}`}
-	              className="district-screen-hotspot"
-	              key={hotspot.name}
-              onBlur={() => setActiveDistrict(null)}
-              onFocus={() => setActiveDistrict(hotspot.name)}
-              onClick={() => setActiveDistrict(hotspot.name)}
-              onMouseEnter={() => setActiveDistrict(hotspot.name)}
-              onMouseLeave={() => setActiveDistrict(null)}
-              onPointerEnter={() => setActiveDistrict(hotspot.name)}
-              onPointerLeave={() => setActiveDistrict(null)}
-              style={{
-                "--district-left": `${hotspot.left}%`,
-                "--district-top": `${hotspot.top}%`,
-                "--district-width": `${hotspot.width}%`,
-                "--district-height": `${hotspot.height}%`,
-              } as CSSProperties}
-	              type="button"
-	            />
-	          );
-	        })}
-	      </div>
 	    </div>
 	  );
 }

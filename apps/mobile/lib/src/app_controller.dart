@@ -128,32 +128,41 @@ class AppController extends ChangeNotifier {
     notice = null;
     notifyListeners();
     try {
-      final results = await Future.wait([
-        _api.getHomeSummary(),
-        _api.getContext(),
-        _api.getTasks(),
-        _api.getTree(),
-        _api.getExplorationState(),
-        _api.getRadarState(),
+      final results = await Future.wait<Object?>([
+        _safeRefresh('home', _api.getHomeSummary()),
+        _safeRefresh('context', _api.getContext()),
+        _safeRefresh('tasks', _api.getTasks()),
+        _safeRefresh('tree', _api.getTree()),
+        _safeRefresh('exploration', _api.getExplorationState()),
+        _safeRefresh('radar', _api.getRadarState()),
       ]);
-      home = results[0] as HomeSummaryModel;
-      context = results[1] as AppContextModel;
-      tasks = results[2] as List<DailyTask>;
-      tree = results[3] as TreeSummary;
-      exploration = results[4] as ExplorationStateModel;
-      radar = results[5] as RadarStateModel;
+      final homeResult = results[0] as HomeSummaryModel?;
+      final contextResult = results[1] as AppContextModel?;
+      final tasksResult = results[2] as List<DailyTask>?;
+      final treeResult = results[3] as TreeSummary?;
+      final explorationResult = results[4] as ExplorationStateModel?;
+      final radarResult = results[5] as RadarStateModel?;
+      final hasCoreUpdate = results.any((result) => result != null);
+      if (!hasCoreUpdate) {
+        throw TimeoutException('Core App data unavailable');
+      }
+      home = homeResult ?? home;
+      context = contextResult ?? context;
+      tasks = tasksResult ?? tasks;
+      tree = treeResult ?? tree;
+      exploration = explorationResult ?? exploration;
+      radar = radarResult ?? radar;
       offlineDemo = false;
       loading = false;
       notifyListeners();
 
       final optionalResults = await Future.wait<Object?>([
-        _optionalRefresh('messages', _api.getMessages()),
-        _optionalRefresh('devices', _api.getDevices()),
-        _optionalRefresh('reviews', _api.getFamilyReviews()),
-        _optionalRefresh('impact', _api.getImpactSummary()),
+        _safeRefresh('messages', _api.getMessages()),
+        _safeRefresh('devices', _api.getDevices()),
+        _safeRefresh('reviews', _api.getFamilyReviews()),
+        _safeRefresh('impact', _api.getImpactSummary()),
       ]);
-      messages =
-          optionalResults[0] as List<FamilyMessageModel>? ?? messages;
+      messages = optionalResults[0] as List<FamilyMessageModel>? ?? messages;
       devices = optionalResults[1] as List<CompanionDevice>? ?? devices;
       reviews = optionalResults[2] as List<FamilyReviewModel>? ?? reviews;
       impact = optionalResults[3] as ImpactSummaryModel? ?? impact;
@@ -171,12 +180,12 @@ class AppController extends ChangeNotifier {
     }
   }
 
-  Future<T?> _optionalRefresh<T>(String label, Future<T> request) async {
+  Future<T?> _safeRefresh<T>(String label, Future<T> request) async {
     try {
       return await request;
     } catch (error) {
       if (kDebugMode) {
-        debugPrint('[DEBUG-app-refresh:$label] optional failed: $error');
+        debugPrint('[DEBUG-app-refresh:$label] failed: $error');
       }
       return null;
     }

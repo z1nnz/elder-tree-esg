@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:elder_tree_mobile/src/api_client.dart';
 import 'package:elder_tree_mobile/src/app_controller.dart';
 import 'package:elder_tree_mobile/src/models.dart';
@@ -9,10 +11,20 @@ class UnavailableApiClient extends ApiClient {
   Future<HomeSummaryModel> getHomeSummary() => Future.error('offline');
 
   @override
+  Future<AppContextModel> getContext() => Future.error('offline');
+
+  @override
   Future<List<DailyTask>> getTasks() => Future.error('offline');
 
   @override
   Future<TreeSummary> getTree() => Future.error('offline');
+
+  @override
+  Future<ExplorationStateModel> getExplorationState() =>
+      Future.error('offline');
+
+  @override
+  Future<RadarStateModel> getRadarState() => Future.error('offline');
 
   @override
   Future<List<FamilyMessageModel>> getMessages() => Future.error('offline');
@@ -23,6 +35,106 @@ class UnavailableApiClient extends ApiClient {
   @override
   Future<DailyTask> completeTask(String taskId) => Future.error('offline');
 }
+
+class PartiallyUnavailableApiClient extends ApiClient {
+  @override
+  Future<HomeSummaryModel> getHomeSummary() async => HomeSummaryModel(
+    generatedAt: DateTime.parse('2026-07-12T00:00:00.000Z'),
+    displayName: '千咚咚',
+    activeHouseholdName: '林家',
+    tree: _syncedTree,
+    nextAction: const HomeNextActionModel(
+      kind: HomeNextActionKind.completeTask,
+      title: '喝一口水',
+      description: '先完成一件小事。',
+      ctaLabel: '我完成了',
+      taskId: 'task-water',
+    ),
+    taskCards: const [],
+    pendingReviewCount: 0,
+    messageCount: 0,
+    capabilities: const HomeCapabilitiesModel(
+      photoEvidenceEnabled: true,
+      geminiPhotoVerificationEnabled: true,
+    ),
+    companionSprite: const CompanionSpriteStateModel(
+      mood: CompanionSpriteMood.ready,
+      label: '今天也慢慢來',
+      energyPoints: 320,
+    ),
+    alerts: const [],
+  );
+
+  @override
+  Future<AppContextModel> getContext() async => const AppContextModel(
+    displayName: '千咚咚',
+    activeHouseholdId: 'household-1',
+    households: [
+      HouseholdSummaryModel(
+        id: 'household-1',
+        name: '林家',
+        relationship: 'SELF',
+      ),
+    ],
+    photoEvidenceEnabled: true,
+    geminiPhotoVerificationEnabled: true,
+  );
+
+  @override
+  Future<List<DailyTask>> getTasks() async => const [
+    DailyTask(
+      id: 'task-water',
+      title: '喝一口水',
+      description: '補充水分。',
+      verificationMode: VerificationMode.selfCheck,
+      growthPoints: 6,
+      status: TaskStatus.available,
+    ),
+  ];
+
+  @override
+  Future<TreeSummary> getTree() async => _syncedTree;
+
+  @override
+  Future<ExplorationStateModel> getExplorationState() async =>
+      const ExplorationStateModel(
+        totalDistanceMeters: 0,
+        coarseCell: null,
+        activeSession: null,
+        routes: [],
+      );
+
+  @override
+  Future<RadarStateModel> getRadarState() =>
+      Future.error(TimeoutException('radar timeout'));
+
+  @override
+  Future<List<FamilyMessageModel>> getMessages() async => const [];
+
+  @override
+  Future<List<CompanionDevice>> getDevices() async => const [];
+
+  @override
+  Future<List<FamilyReviewModel>> getFamilyReviews() async => const [];
+
+  @override
+  Future<ImpactSummaryModel> getImpactSummary() async =>
+      const ImpactSummaryModel(
+        householdName: '林家',
+        treeStage: 'SPROUT',
+        growthPoints: 320,
+        nextStageAt: 500,
+        contributedPoints: 0,
+      );
+}
+
+const _syncedTree = TreeSummary(
+  name: '我們家的陪伴樹',
+  householdName: '林家',
+  stage: 'SPROUT',
+  growthPoints: 320,
+  nextStageAt: 500,
+);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -52,6 +164,28 @@ void main() {
     expect(controller.tree.growthPoints, before);
     controller.dispose();
   });
+
+  test(
+    'keeps the App visible when one core refresh endpoint times out',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final controller = AppController(
+        api: PartiallyUnavailableApiClient(),
+        allowOfflineDemo: false,
+      );
+
+      await controller.initialize();
+
+      expect(controller.offlineDemo, isFalse);
+      expect(controller.notice, isNull);
+      expect(controller.context?.displayName, '千咚咚');
+      expect(controller.tasks.single.id, 'task-water');
+      expect(controller.tree.growthPoints, 320);
+      expect(controller.exploration.totalDistanceMeters, 0);
+      expect(controller.radar.missions, isEmpty);
+      controller.dispose();
+    },
+  );
 
   test('sorts radar missions by playable exploration state', () {
     final controller = AppController(allowOfflineDemo: false);
