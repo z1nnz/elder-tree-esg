@@ -208,6 +208,31 @@ export interface HomeSummary {
   alerts: HomeAlert[];
 }
 
+export interface LineBindingSummary {
+  id: string;
+  householdId: string;
+  householdName: string;
+  status: "ACTIVE" | "REVOKED";
+  createdAt: string;
+  revokedAt: string | null;
+}
+
+export interface LineBindingCodeResult {
+  code: string;
+  expiresAt: string;
+  qrPayload: string;
+  instructions: string;
+}
+
+export interface LineNotificationStatus {
+  id: string;
+  target: string;
+  type: string;
+  status: "SENT" | "FAILED" | "SKIPPED";
+  error: string | null;
+  createdAt: string;
+}
+
 export interface PhotoAiOperationalStatus {
   photoEvidence: {
     enabled: boolean;

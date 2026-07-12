@@ -526,6 +526,57 @@ class HouseholdInviteModel {
       );
 }
 
+class LineBindingCodeModel {
+  const LineBindingCodeModel({
+    required this.code,
+    required this.expiresAt,
+    required this.qrPayload,
+    required this.instructions,
+  });
+
+  final String code;
+  final DateTime expiresAt;
+  final String qrPayload;
+  final String instructions;
+
+  factory LineBindingCodeModel.fromJson(Map<String, dynamic> json) =>
+      LineBindingCodeModel(
+        code: json['code'] as String,
+        expiresAt: DateTime.parse(json['expiresAt'] as String),
+        qrPayload: json['qrPayload'] as String? ?? '',
+        instructions: json['instructions'] as String,
+      );
+}
+
+class LineBindingModel {
+  const LineBindingModel({
+    required this.id,
+    required this.householdName,
+    required this.status,
+    required this.createdAt,
+    this.revokedAt,
+  });
+
+  final String id;
+  final String householdName;
+  final String status;
+  final DateTime createdAt;
+  final DateTime? revokedAt;
+
+  bool get active => status == 'ACTIVE';
+
+  factory LineBindingModel.fromJson(Map<String, dynamic> json) =>
+      LineBindingModel(
+        id: json['id'] as String,
+        householdName: json['householdName'] as String,
+        status: json['status'] as String,
+        createdAt: DateTime.parse(json['createdAt'] as String),
+        revokedAt: json['revokedAt'] == null
+            ? null
+            : DateTime.parse(json['revokedAt'] as String),
+      );
+}
+
 class EvidenceUploadModel {
   const EvidenceUploadModel({
     required this.id,

@@ -48,6 +48,8 @@ class AppController extends ChangeNotifier {
   List<FamilyMessageModel> messages = _fallbackMessages;
   List<CompanionDevice> devices = _fallbackDevices;
   List<FamilyReviewModel> reviews = [];
+  List<LineBindingModel> lineBindings = [];
+  LineBindingCodeModel? latestLineBindingCode;
   ImpactSummaryModel impact = _emptyImpact;
   ExplorationStateModel exploration = _emptyExploration;
   RadarStateModel radar = _emptyRadar;
@@ -161,11 +163,14 @@ class AppController extends ChangeNotifier {
         _safeRefresh('devices', _api.getDevices()),
         _safeRefresh('reviews', _api.getFamilyReviews()),
         _safeRefresh('impact', _api.getImpactSummary()),
+        _safeRefresh('lineBindings', _api.getLineBindings()),
       ]);
       messages = optionalResults[0] as List<FamilyMessageModel>? ?? messages;
       devices = optionalResults[1] as List<CompanionDevice>? ?? devices;
       reviews = optionalResults[2] as List<FamilyReviewModel>? ?? reviews;
       impact = optionalResults[3] as ImpactSummaryModel? ?? impact;
+      lineBindings =
+          optionalResults[4] as List<LineBindingModel>? ?? lineBindings;
     } catch (error) {
       if (kDebugMode) {
         debugPrint('[DEBUG-app-refresh] failed: $error');
@@ -238,6 +243,38 @@ class AppController extends ChangeNotifier {
       notice = _friendlyActionError(error, fallback: '暫時無法加入家庭，請確認邀請碼後再試一次。');
       notifyListeners();
     }
+  }
+
+  Future<LineBindingCodeModel?> createLineBindingCode() async {
+    try {
+      latestLineBindingCode = await _api.createLineBindingCode();
+      notice = 'LINE 綁定碼已建立，請在 10 分鐘內輸入官方帳號。';
+      notifyListeners();
+      return latestLineBindingCode;
+    } catch (error) {
+      notice = _friendlyActionError(error, fallback: 'LINE 綁定碼暫時無法建立，請稍後再試一次。');
+      notifyListeners();
+      return null;
+    }
+  }
+
+  Future<void> refreshLineBindings() async {
+    try {
+      lineBindings = await _api.getLineBindings();
+    } catch (error) {
+      notice = _friendlyActionError(error, fallback: 'LINE 綁定狀態暫時無法更新。');
+    }
+    notifyListeners();
+  }
+
+  Future<void> revokeLineBinding(LineBindingModel binding) async {
+    try {
+      lineBindings = await _api.revokeLineBinding(binding.id);
+      notice = '已解除 LINE 陪伴入口。';
+    } catch (error) {
+      notice = _friendlyActionError(error, fallback: 'LINE 綁定暫時無法解除，請稍後再試一次。');
+    }
+    notifyListeners();
   }
 
   Future<void> toggleElderMode(bool value) async {
@@ -435,18 +472,7 @@ class AppController extends ChangeNotifier {
       if (route == null && radar.missions.isEmpty) {
         throw const FormatException('目前沒有已發布的探索路線或雷達任務');
       }
-      if (!await Geolocator.isLocationServiceEnabled()) {
-        throw const FormatException('請先開啟定位服務');
-      }
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        explorationLocationStatus = '定位權限未開啟';
-        throw const FormatException('未取得定位權限');
-      }
+      await _ensureLocationPermission();
       ExplorationSessionModel? session;
       if (route != null) {
         session =
@@ -459,6 +485,7 @@ class AppController extends ChangeNotifier {
       }
       exploring = true;
       explorationLocationStatus = '等待第一個定位點';
+      await _captureCurrentLocationPreview(notify: false);
       lastGrowthAwardPoints = null;
       lastGrowthAwardTitle = null;
       notice = route == null
@@ -488,14 +515,27 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  Future<void> prepareExplorationPreview() async {
+    if (exploring || latestLatitude != null || latestLongitude != null) return;
+    try {
+      explorationLocationStatus = '正在尋找你的位置';
+      notifyListeners();
+      await _ensureLocationPermission();
+      await _captureCurrentLocationPreview();
+    } catch (error) {
+      explorationLocationStatus = '等待定位';
+      notice = _friendlyActionError(
+        error,
+        fallback: '目前還抓不到位置；你仍可以先查看附近任務，開始探索後會再嘗試定位。',
+      );
+      notifyListeners();
+    }
+  }
+
   Future<void> stopExploration() async {
     exploring = false;
     await _locationSubscription?.cancel();
     _locationSubscription = null;
-    latestLatitude = null;
-    latestLongitude = null;
-    latestAccuracyMeters = null;
-    latestLocationAt = null;
     explorationLocationStatus = '探索已停止';
     final sessionId = exploration.activeSession?.id;
     if (!offlineDemo && sessionId != null) {
@@ -510,7 +550,7 @@ class AppController extends ChangeNotifier {
         return;
       }
     }
-    notice = '探索已結束，最新精確座標已清除。';
+    notice = '探索已結束，已停止上傳定位；地圖仍會保留目前位置方便你確認方向。';
     notifyListeners();
   }
 
@@ -751,6 +791,32 @@ class AppController extends ChangeNotifier {
       mission.latitude,
       mission.longitude,
     ).round();
+  }
+
+  Future<void> _ensureLocationPermission() async {
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      throw const FormatException('請先開啟定位服務');
+    }
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      explorationLocationStatus = '定位權限未開啟';
+      throw const FormatException('未取得定位權限');
+    }
+  }
+
+  Future<void> _captureCurrentLocationPreview({bool notify = true}) async {
+    final position = await Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+    );
+    _updateLatestPosition(position);
+    explorationLocationStatus = position.accuracy > 50
+        ? '目前定位約 ${position.accuracy.round()} 公尺'
+        : '目前位置已顯示';
+    if (notify) notifyListeners();
   }
 
   void _updateLatestPosition(Position position) {

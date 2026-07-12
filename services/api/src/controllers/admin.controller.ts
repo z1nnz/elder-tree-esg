@@ -14,6 +14,7 @@ import {
   CreateExplorationQuestDto,
   CreateExplorationRouteDto,
   CreateRadarMissionDto,
+  LineTestPushDto,
   ReorderExplorationQuestsDto,
   UpdateRadarMissionDto,
   UpdateExplorationQuestDto,
@@ -21,6 +22,7 @@ import {
 } from "../dto/api.dto";
 import type { AuthenticatedRequest } from "../security/api-auth.guard";
 import { PlatformAdminGuard } from "../security/platform-admin.guard";
+import { LineMessagingService } from "../line/line-messaging.service";
 import { PersistentStoreService } from "../store/persistent-store.service";
 
 @ApiTags("administration")
@@ -28,7 +30,10 @@ import { PersistentStoreService } from "../store/persistent-store.service";
 @UseGuards(PlatformAdminGuard)
 @Controller("admin")
 export class AdminController {
-  constructor(private readonly store: PersistentStoreService) {}
+  constructor(
+    private readonly store: PersistentStoreService,
+    private readonly line: LineMessagingService,
+  ) {}
 
   @Get("dashboard")
   async dashboard() {
@@ -38,6 +43,24 @@ export class AdminController {
   @Get("photo-ai/status")
   photoAiStatus() {
     return { data: this.store.getPhotoAiOperationalStatus() };
+  }
+
+  @Post("line/test-push")
+  async testLinePush(@Body() dto: LineTestPushDto) {
+    const binding = await this.store.getAdminLineBinding(dto.lineBindingId);
+    const result = await this.line.push(
+      binding.lineUserId,
+      dto.message ?? "綠伴測試推播：LINE 陪伴入口已連線。",
+    );
+    return {
+      data: await this.store.logLineNotification({
+        lineBindingId: binding.id,
+        target: binding.lineUserId,
+        type: "ADMIN_TEST_PUSH",
+        status: result.status,
+        error: result.error,
+      }),
+    };
   }
 
   @Get("reviews")

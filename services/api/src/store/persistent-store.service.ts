@@ -19,6 +19,9 @@ import type {
   HomeTaskCard,
   HouseholdInviteSummary,
   ImpactSummary,
+  LineBindingCodeResult,
+  LineBindingSummary,
+  LineNotificationStatus,
   RadarMissionInput,
   RadarMissionSummary,
   RadarMissionStatus,
@@ -366,6 +369,10 @@ function inviteHash(code: string): string {
   return createHash("sha256").update(code.trim().toUpperCase()).digest("hex");
 }
 
+function lineBindingCodeHash(code: string): string {
+  return createHash("sha256").update(code.trim().toUpperCase()).digest("hex");
+}
+
 function distanceBetweenMeters(
   first: { latitude: number; longitude: number },
   second: { latitude: number; longitude: number },
@@ -639,6 +646,162 @@ export class PersistentStoreService {
       data: { activeHouseholdId: householdId },
     });
     return this.getContext(firebaseUid);
+  }
+
+  async createLineBindingCode(
+    firebaseUid: string,
+  ): Promise<LineBindingCodeResult> {
+    const active = await this.getActiveUser(firebaseUid);
+    const code = randomBytes(5)
+      .toString("base64url")
+      .replace(/[-_]/g, "")
+      .slice(0, 8)
+      .toUpperCase()
+      .padEnd(8, "L");
+    const expiresAt = new Date(this.clock.now().getTime() + 10 * 60 * 1000);
+    await this.prisma.lineBindingCode.create({
+      data: {
+        codeHash: lineBindingCodeHash(code),
+        userId: active.id,
+        householdId: active.activeHouseholdId,
+        expiresAt,
+      },
+    });
+    return {
+      code,
+      expiresAt: expiresAt.toISOString(),
+      qrPayload: `eldertree://line-bind?code=${code}`,
+      instructions: "請在綠伴 LINE 官方帳號輸入此 8 碼綁定碼；10 分鐘內有效且只能使用一次。",
+    };
+  }
+
+  async listLineBindings(firebaseUid: string): Promise<LineBindingSummary[]> {
+    const active = await this.getActiveUser(firebaseUid);
+    const bindings = await this.prisma.lineBinding.findMany({
+      where: { userId: active.id, householdId: active.activeHouseholdId },
+      include: { household: true },
+      orderBy: { createdAt: "desc" },
+    });
+    return bindings.map((binding) => ({
+      id: binding.id,
+      householdId: binding.householdId,
+      householdName: binding.household.name,
+      status: binding.status === "ACTIVE" ? "ACTIVE" : "REVOKED",
+      createdAt: binding.createdAt.toISOString(),
+      revokedAt: binding.revokedAt?.toISOString() ?? null,
+    }));
+  }
+
+  async revokeLineBinding(
+    firebaseUid: string,
+    bindingId: string,
+  ): Promise<LineBindingSummary[]> {
+    const active = await this.getActiveUser(firebaseUid);
+    await this.prisma.lineBinding.updateMany({
+      where: {
+        id: bindingId,
+        userId: active.id,
+        householdId: active.activeHouseholdId,
+        status: "ACTIVE",
+      },
+      data: { status: "REVOKED", revokedAt: this.clock.now() },
+    });
+    return this.listLineBindings(firebaseUid);
+  }
+
+  async bindLineUserWithCode(
+    code: string,
+    lineUserId: string,
+  ): Promise<LineBindingSummary> {
+    const normalizedCode = code.trim().toUpperCase();
+    const codeHash = lineBindingCodeHash(normalizedCode);
+    const now = this.clock.now();
+    const binding = await this.prisma.$transaction(async (transaction) => {
+      const bindingCode = await transaction.lineBindingCode.findUnique({
+        where: { codeHash },
+        include: { household: true },
+      });
+      if (!bindingCode) throw new NotFoundException("LINE binding code not found");
+      if (bindingCode.usedAt || bindingCode.expiresAt.getTime() <= now.getTime()) {
+        throw new ConflictException("LINE binding code is expired or already used");
+      }
+      const consumed = await transaction.lineBindingCode.updateMany({
+        where: {
+          id: bindingCode.id,
+          usedAt: null,
+          expiresAt: { gt: now },
+        },
+        data: { usedAt: now, lineUserId },
+      });
+      if (consumed.count !== 1) {
+        throw new ConflictException("LINE binding code is expired or already used");
+      }
+      return transaction.lineBinding.upsert({
+        where: {
+          lineUserId_householdId: {
+            lineUserId,
+            householdId: bindingCode.householdId,
+          },
+        },
+        update: {
+          userId: bindingCode.userId,
+          status: "ACTIVE",
+          revokedAt: null,
+        },
+        create: {
+          lineUserId,
+          userId: bindingCode.userId,
+          householdId: bindingCode.householdId,
+          status: "ACTIVE",
+        },
+        include: { household: true },
+      });
+    });
+    return {
+      id: binding.id,
+      householdId: binding.householdId,
+      householdName: binding.household.name,
+      status: binding.status === "ACTIVE" ? "ACTIVE" : "REVOKED",
+      createdAt: binding.createdAt.toISOString(),
+      revokedAt: binding.revokedAt?.toISOString() ?? null,
+    };
+  }
+
+  async getAdminLineBinding(bindingId: string) {
+    const binding = await this.prisma.lineBinding.findUnique({
+      where: { id: bindingId },
+      include: { household: true, user: true },
+    });
+    if (!binding || binding.status !== "ACTIVE") {
+      throw new NotFoundException("Active LINE binding not found");
+    }
+    return binding;
+  }
+
+  async logLineNotification(input: {
+    lineBindingId?: string;
+    target: string;
+    type: string;
+    status: "SENT" | "FAILED" | "SKIPPED";
+    error?: string | null;
+  }): Promise<LineNotificationStatus> {
+    const log = await this.prisma.lineNotificationLog.create({
+      data: {
+        lineBindingId: input.lineBindingId,
+        target: input.target,
+        type: input.type,
+        status: input.status,
+        error: input.error ?? null,
+      },
+    });
+    return {
+      id: log.id,
+      target: log.target,
+      type: log.type,
+      status: log.status as "SENT" | "FAILED" | "SKIPPED",
+      error: log.error,
+      createdAt: log.createdAt.toISOString(),
+    };
   }
 
   async listTasks(firebaseUid: string): Promise<TaskSummary[]> {

@@ -67,6 +67,22 @@ class ApiClient {
     );
   }
 
+  Future<LineBindingCodeModel> createLineBindingCode() async {
+    return LineBindingCodeModel.fromJson(
+      await _post('/me/line-bindings', const {}),
+    );
+  }
+
+  Future<List<LineBindingModel>> getLineBindings() async {
+    final data = await _getList('/me/line-bindings');
+    return data.map(LineBindingModel.fromJson).toList();
+  }
+
+  Future<List<LineBindingModel>> revokeLineBinding(String id) async {
+    final data = await _deleteList('/me/line-bindings/$id');
+    return data.map(LineBindingModel.fromJson).toList();
+  }
+
   Future<AppContextModel> joinHousehold(
     String code,
     String relationship,
@@ -253,6 +269,13 @@ class ApiClient {
   Future<List<Map<String, dynamic>>> _getList(String path) async {
     final response = await _client
         .get(Uri.parse('$baseUrl$path'), headers: await _headers)
+        .timeout(const Duration(seconds: 5));
+    return (_decode(response) as List).cast<Map<String, dynamic>>();
+  }
+
+  Future<List<Map<String, dynamic>>> _deleteList(String path) async {
+    final response = await _client
+        .delete(Uri.parse('$baseUrl$path'), headers: await _headers)
         .timeout(const Duration(seconds: 5));
     return (_decode(response) as List).cast<Map<String, dynamic>>();
   }

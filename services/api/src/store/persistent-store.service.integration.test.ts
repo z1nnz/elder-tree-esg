@@ -18,6 +18,7 @@ describeWithDatabase("PersistentStoreService", () => {
   const createdRouteIds = new Set<string>();
   const createdRadarMissionIds = new Set<string>();
   const createdDeviceIds = new Set<string>();
+  const createdLineTargets = new Set<string>();
   let prisma: PrismaService;
   let store: PersistentStoreService;
 
@@ -36,6 +37,9 @@ describeWithDatabase("PersistentStoreService", () => {
     );
     await prisma.device.deleteMany({
       where: { id: { in: [...createdDeviceIds] } },
+    });
+    await prisma.lineNotificationLog.deleteMany({
+      where: { target: { in: [...createdLineTargets] } },
     });
     await prisma.user.deleteMany({
       where: { firebaseUid: { in: [...createdFirebaseUids] } },
@@ -140,6 +144,41 @@ describeWithDatabase("PersistentStoreService", () => {
     },
     120_000,
   );
+
+  it("creates single-use LINE binding codes and revokes active bindings", async () => {
+    const lineUid = `integration-line-${randomUUID()}`;
+    const lineUserId = `U${randomUUID().replace(/-/g, "")}`;
+    createdFirebaseUids.add(lineUid);
+    createdLineTargets.add(lineUserId);
+
+    const context = await store.getContext(lineUid);
+    const code = await store.createLineBindingCode(lineUid);
+    expect(code.code).toHaveLength(8);
+
+    const binding = await store.bindLineUserWithCode(code.code, lineUserId);
+    expect(binding.householdId).toBe(context.activeHouseholdId);
+    expect(binding.status).toBe("ACTIVE");
+
+    await expect(
+      store.bindLineUserWithCode(code.code, `${lineUserId}-again`),
+    ).rejects.toMatchObject({ status: 409 });
+
+    const bindings = await store.listLineBindings(lineUid);
+    expect(bindings).toHaveLength(1);
+    expect(bindings[0].id).toBe(binding.id);
+
+    const revoked = await store.revokeLineBinding(lineUid, binding.id);
+    expect(revoked[0]?.status).toBe("REVOKED");
+
+    const log = await store.logLineNotification({
+      lineBindingId: binding.id,
+      target: lineUserId,
+      type: "ADMIN_TEST_PUSH",
+      status: "SKIPPED",
+      error: "LINE_CHANNEL_ACCESS_TOKEN is not configured",
+    });
+    expect(log.status).toBe("SKIPPED");
+  });
 
   it(
     "requires the configured timer duration before awarding growth",
