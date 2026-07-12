@@ -109,18 +109,6 @@ function usePublicAnimations(dependencies: unknown[] = []) {
             return;
           }
 
-          const intro = gsap.timeline({
-            defaults: { duration: 0.8, ease: "power3.out" },
-          });
-          intro
-            .from(".hero-copy > *", { y: 34, autoAlpha: 0, stagger: 0.1 })
-            .from(".hero-visual", { scale: 0.94, autoAlpha: 0 }, "<0.2")
-            .from(
-              ".world-tree-node, .feature-pill",
-              { scale: 0.72, autoAlpha: 0, stagger: 0.08 },
-              "<0.2",
-            );
-
           ScrollTrigger.batch("[data-reveal], [data-v2-reveal]", {
             start: "top 86%",
             once: true,
