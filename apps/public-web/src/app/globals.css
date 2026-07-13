@@ -5000,7 +5000,8 @@ body:has(.sky-cinematic-hero) .header-cta {
 }
 
 .sky-cinematic-hero .sky-video-poster {
-  opacity: 0;
+  z-index: 0;
+  opacity: 1;
 }
 
 .sky-cinematic-hero .sky-video-vignette {
@@ -6003,8 +6004,14 @@ body:has(.sky-cinematic-hero) .header-cta {
 }
 
 .v2-radar-surface > *:not(.v2-generated-radar) {
-  position: relative;
   z-index: 1;
+}
+
+.v2-route-line,
+.v2-route-node,
+.v2-phone-orbit,
+.v2-tree-pulse {
+  position: absolute;
 }
 
 .v2-nature-visual {
@@ -6260,7 +6267,7 @@ main {
 .sky-cinematic-hero .sky-video-intro strong {
   max-width: min(760px, 86vw);
   margin-top: 24px;
-  font-size: clamp(42px, 4.5vw, 72px);
+  font-size: clamp(36px, 3.9vw, 64px);
   line-height: 1.2;
   letter-spacing: -0.01em;
 }
@@ -6270,58 +6277,72 @@ main {
 }
 
 .sky-cinematic-hero.is-explore-mode .sky-video-hotspots {
+  opacity: 1;
   pointer-events: auto;
 }
 
 .v2-story {
-  min-height: 220svh;
+  min-height: 210svh;
   overflow: hidden;
 }
 
 .v2-story-sticky {
-  width: min(1240px, calc(100% - 56px));
-  grid-template-columns: minmax(0, 0.56fr) minmax(0, 1fr);
-  gap: clamp(24px, 3.5vw, 54px);
-  padding: 104px 0 64px;
-  overflow: visible;
+  box-sizing: border-box;
+  width: min(1320px, calc(100vw - 72px));
+  height: 100svh;
+  min-height: 760px;
+  grid-template-columns: minmax(260px, 0.42fr) minmax(0, 1fr);
+  gap: clamp(28px, 4vw, 64px);
+  align-items: center;
+  padding: clamp(96px, 10svh, 124px) 0 clamp(28px, 5svh, 52px);
+  overflow: hidden;
 }
 
 .v2-story-copy {
   min-width: 0;
-  max-width: 440px;
+  max-width: 410px;
 }
 
 .v2-story-copy h2 {
-  max-width: 430px;
-  font-size: clamp(38px, 3.8vw, 62px);
+  max-width: 400px;
+  font-size: clamp(30px, 3.05vw, 52px);
   line-height: 1.14;
   letter-spacing: -0.012em;
 }
 
 .v2-story-copy p {
-  max-width: 390px;
-  font-size: clamp(15px, 1.1vw, 18px);
+  max-width: 380px;
+  font-size: clamp(14px, 1vw, 17px);
 }
 
 .v2-story-stage {
   min-width: 0;
+  align-self: stretch;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 16px;
+  padding-top: 4px;
 }
 
 .v2-radar-surface {
-  min-height: clamp(500px, 54svh, 620px);
+  min-height: 0;
+  height: 100%;
+  max-height: 520px;
 }
 
 .v2-story-steps {
   grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .v2-story-steps article {
   min-width: 0;
-  padding: 15px;
+  min-height: 124px;
+  padding: 14px;
 }
 
 .v2-story-steps strong {
-  font-size: clamp(18px, 1.45vw, 21px);
+  font-size: clamp(16px, 1.25vw, 20px);
 }
 
 @media (max-width: 1180px) {
