@@ -8,6 +8,7 @@ import type {
   ExplorationRouteInput,
   ExplorationRouteSummary,
   ImpactBatchSummary,
+  LineOperationalStatus,
   PhotoAiOperationalStatus,
   ReviewItem,
   LineNotificationStatus,
@@ -43,6 +44,7 @@ export const api = {
     request<PhotoAiOperationalStatus>("/admin/photo-ai/status"),
   lineBindings: () =>
     request<AdminLineBindingSummary[]>("/admin/line/bindings"),
+  lineStatus: () => request<LineOperationalStatus>("/admin/line/status"),
   testLinePush: (lineBindingId: string, message?: string) =>
     request<LineNotificationStatus>("/admin/line/test-push", {
       method: "POST",

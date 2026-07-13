@@ -50,6 +50,11 @@ export class AdminController {
     return { data: await this.store.listAdminLineBindings() };
   }
 
+  @Get("line/status")
+  async lineStatus() {
+    return { data: await this.store.getLineOperationalStatus() };
+  }
+
   @Post("line/test-push")
   async testLinePush(@Body() dto: LineTestPushDto) {
     const binding = await this.store.getAdminLineBinding(dto.lineBindingId);

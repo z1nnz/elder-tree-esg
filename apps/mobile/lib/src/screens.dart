@@ -2853,6 +2853,9 @@ class _LineCompanionCard extends StatelessWidget {
     final activeBindings = controller.lineBindings
         .where((binding) => binding.active)
         .toList();
+    final code = controller.latestLineBindingCode;
+    final codeStillValid =
+        code != null && code.expiresAt.isAfter(DateTime.now());
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -2889,25 +2892,21 @@ class _LineCompanionCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             if (activeBindings.isEmpty)
-              const Text('尚未綁定 LINE。產生 8 碼綁定碼後，到綠伴 LINE 官方帳號輸入即可。')
+              const _InfoPill(
+                icon: Icons.info_outline_rounded,
+                label: '尚未綁定 LINE。產生 8 碼綁定碼後，到綠伴 LINE 官方帳號輸入即可。',
+              )
             else
               ...activeBindings.map(
-                (binding) => ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(
-                    Icons.check_circle_rounded,
-                    color: forest,
-                  ),
-                  title: Text(binding.householdName),
-                  subtitle: Text(
-                    '已綁定 · ${binding.createdAt.month}/${binding.createdAt.day}',
-                  ),
-                  trailing: TextButton(
-                    onPressed: () => controller.revokeLineBinding(binding),
-                    child: const Text('解除'),
-                  ),
+                (binding) => _LineBindingTile(
+                  binding: binding,
+                  onRevoke: () => controller.revokeLineBinding(binding),
                 ),
               ),
+            if (codeStillValid) ...[
+              const SizedBox(height: 12),
+              _LineBindingCodePanel(code: code),
+            ],
             const SizedBox(height: 12),
             FilledButton.icon(
               onPressed: () async {
@@ -2920,15 +2919,7 @@ class _LineCompanionCard extends StatelessWidget {
                       content: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          SelectableText(
-                            code.code,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 30,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 4,
-                            ),
-                          ),
+                          _LineBindingCodePanel(code: code),
                           const SizedBox(height: 10),
                           Text(code.instructions),
                           if (code.qrPayload.isNotEmpty) ...[
@@ -2959,6 +2950,114 @@ class _LineCompanionCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _LineBindingTile extends StatelessWidget {
+  const _LineBindingTile({required this.binding, required this.onRevoke});
+
+  final LineBindingModel binding;
+  final VoidCallback onRevoke;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4FAEA),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFD6E9B5)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.check_circle_rounded, color: forest),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  binding.householdName,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '已綁定 · ${binding.createdAt.month}/${binding.createdAt.day}，會收到提醒與待覆核通知',
+                  style: const TextStyle(
+                    color: Color(0xFF657168),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton(onPressed: onRevoke, child: const Text('解除')),
+        ],
+      ),
+    );
+  }
+}
+
+class _LineBindingCodePanel extends StatelessWidget {
+  const _LineBindingCodePanel({required this.code});
+
+  final LineBindingCodeModel code;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFECF8D4), Color(0xFFFFFFFF)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFCAE698)),
+      ),
+      child: Column(
+        children: [
+          const Text(
+            '在 LINE 官方帳號輸入這 8 碼',
+            style: TextStyle(
+              color: forest,
+              fontWeight: FontWeight.w900,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SelectableText(
+            code.code,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 34,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 5,
+              color: forestDark,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '有效到 ${_formatLineExpiry(code.expiresAt)} · 單次使用',
+            style: const TextStyle(
+              color: Color(0xFF657168),
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _formatLineExpiry(DateTime value) {
+  final local = value.toLocal();
+  String two(int number) => number.toString().padLeft(2, '0');
+  return '${two(local.hour)}:${two(local.minute)}';
 }
 
 class ImpactScreen extends StatelessWidget {

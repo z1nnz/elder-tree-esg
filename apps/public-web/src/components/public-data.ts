@@ -78,7 +78,7 @@ export const productFlow = [
     icon: MapPinned,
     step: "02",
     title: "走進城市",
-    body: "打開探索頁才開始定位。路線是一段旅程，雷達是路上的小事件。",
+    body: "打開探索頁就能看見目前位置。靠近任務會自動解鎖，完成後才會讓生命樹成長。",
   },
   {
     icon: Radar,
@@ -102,7 +102,7 @@ export const productFlow = [
     icon: Users,
     step: "06",
     title: "讓陪伴靠近",
-    body: "家人、志工或合作單位只看必要摘要。你的私人位置，不會被拿來展示。",
+    body: "家人、志工或合作單位只看必要摘要；LINE 只負責提醒、求助與覆核通知，不取代 App。",
   },
 ];
 
@@ -114,8 +114,8 @@ export const productHighlights = [
   },
   {
     icon: Camera,
-    title: "低壓任務",
-    body: "先從補水、觀察花草、安靜聆聽開始。照片任務等服務完整後再開放。",
+    title: "照片 AI 驗證",
+    body: "花草與補水任務可以用 App 拍照驗證；不確定時交給家人覆核，不讓系統硬判。",
   },
   {
     icon: Trees,
