@@ -1033,9 +1033,9 @@ function TechSection() {
   );
 }
 
-function ActionSection() {
+function ActionSection({ tone = "light" }: { tone?: "light" | "dark" }) {
   return (
-    <section className="action section-shell">
+    <section className={`action section-shell action-${tone}`}>
       <div className="action-copy" data-reveal>
         <p className="eyebrow">兩個入口，同一棵樹</p>
         <h2>想先自己開始，或想一起接住城市，都可以。</h2>
@@ -1128,9 +1128,9 @@ function ExploreHero({ publicRadar }: { publicRadar: RadarState | null }) {
           <p className="eyebrow">
             <Radar size={16} /> 城市探索
           </p>
-          <h1>讓城市像溫柔的冒險地圖。</h1>
+          <h1>台北任務區，會跟著你的靠近亮起。</h1>
           <p>
-            台北行政區化成可以互動的任務板塊。滑到哪一區，右側顯示台就更新該區任務。
+            行政區化成可以互動的任務板塊。地圖只負責高亮，任務內容集中在右側顯示台。
           </p>
         </div>
         <div className="explore-hero-board" data-reveal>
@@ -1199,7 +1199,7 @@ export function HomePage() {
         <ProductExperienceLab />
         <RadarShowcase publicRadar={publicRadar} />
         <RouteJourneyShowcase routeData={routeData} />
-        <ActionSection />
+        <ActionSection tone="light" />
       </main>
     </PublicShell>
   );
@@ -1223,7 +1223,7 @@ export function ProductPage() {
         <NatureTechIndex />
         <ProductFlow />
         <TechSection />
-        <ActionSection />
+        <ActionSection tone="dark" />
       </main>
     </PublicShell>
   );
@@ -1239,9 +1239,8 @@ export function ExplorePage() {
     <PublicShell>
       <main ref={root}>
         <ExploreHero publicRadar={publicRadar} />
-        <RadarShowcase publicRadar={publicRadar} />
         <RouteJourneyShowcase routeData={routeData} />
-        <ActionSection />
+        <ActionSection tone="light" />
       </main>
     </PublicShell>
   );
@@ -1266,7 +1265,7 @@ export function PartnersPage() {
         <section className="paths section-shell">
           <ParticipationCards />
         </section>
-        <ActionSection />
+        <ActionSection tone="light" />
       </main>
     </PublicShell>
   );
@@ -1303,7 +1302,7 @@ export function ImpactPage() {
             ))}
           </div>
         </section>
-        <ActionSection />
+        <ActionSection tone="light" />
       </main>
     </PublicShell>
   );
