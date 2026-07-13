@@ -1,4 +1,5 @@
 import type {
+  AdminLineBindingSummary,
   ApiEnvelope,
   DashboardSnapshot,
   ExplorationQuestInput,
@@ -9,6 +10,7 @@ import type {
   ImpactBatchSummary,
   PhotoAiOperationalStatus,
   ReviewItem,
+  LineNotificationStatus,
 } from "@elder-tree/contracts";
 
 const API_URL =
@@ -39,6 +41,13 @@ export const api = {
   dashboard: () => request<DashboardSnapshot>("/admin/dashboard"),
   photoAiStatus: () =>
     request<PhotoAiOperationalStatus>("/admin/photo-ai/status"),
+  lineBindings: () =>
+    request<AdminLineBindingSummary[]>("/admin/line/bindings"),
+  testLinePush: (lineBindingId: string, message?: string) =>
+    request<LineNotificationStatus>("/admin/line/test-push", {
+      method: "POST",
+      body: JSON.stringify({ lineBindingId, message }),
+    }),
   reviews: () => request<ReviewItem[]>("/admin/reviews"),
   radarMissions: () =>
     request<RadarMissionSummary[]>("/admin/exploration/radar-missions"),

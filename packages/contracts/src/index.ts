@@ -217,6 +217,13 @@ export interface LineBindingSummary {
   revokedAt: string | null;
 }
 
+export interface AdminLineBindingSummary extends LineBindingSummary {
+  userDisplayName: string;
+  notificationCount: number;
+  lastNotificationStatus: "SENT" | "FAILED" | "SKIPPED" | null;
+  lastNotificationAt: string | null;
+}
+
 export interface LineBindingCodeResult {
   code: string;
   expiresAt: string;

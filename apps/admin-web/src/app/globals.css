@@ -2322,3 +2322,212 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+.line-ops {
+  overflow: hidden;
+  border-color: rgba(199, 235, 99, 0.18);
+  background:
+    radial-gradient(circle at 88% 8%, rgba(199, 235, 99, 0.16), transparent 34%),
+    radial-gradient(circle at 8% 92%, rgba(93, 198, 145, 0.12), transparent 34%),
+    rgba(11, 36, 26, 0.7);
+}
+
+.line-ops .workspace-heading {
+  border-bottom-color: rgba(230, 255, 210, 0.12);
+}
+
+.line-ops .workspace-heading h2 {
+  color: #f5fff8;
+}
+
+.line-ops .workspace-heading p {
+  color: rgba(226, 242, 233, 0.72);
+}
+
+.line-ops-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.25fr);
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.line-command-panel,
+.line-binding-card {
+  border: 1px solid rgba(230, 255, 210, 0.14);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.035)),
+    rgba(12, 42, 30, 0.72);
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(18px);
+}
+
+.line-command-panel {
+  position: sticky;
+  top: 116px;
+  align-self: start;
+  min-height: 430px;
+  border-radius: 26px;
+  padding: 26px;
+}
+
+.line-command-panel > span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border-radius: 999px;
+  background: rgba(199, 235, 99, 0.12);
+  color: var(--lime);
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.16em;
+}
+
+.line-command-panel h3 {
+  max-width: 420px;
+  margin: 22px 0 10px;
+  color: #f8fff9;
+  font-size: clamp(26px, 3vw, 44px);
+  line-height: 1.02;
+}
+
+.line-command-panel p {
+  margin: 0;
+  color: rgba(226, 242, 233, 0.7);
+  line-height: 1.85;
+}
+
+.line-command-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 28px;
+}
+
+.line-command-metrics div {
+  min-height: 88px;
+  border: 1px solid rgba(230, 255, 210, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.055);
+  padding: 14px;
+}
+
+.line-command-metrics strong,
+.line-command-metrics small {
+  display: block;
+}
+
+.line-command-metrics strong {
+  color: #f8fff9;
+  font-size: 26px;
+}
+
+.line-command-metrics small {
+  margin-top: 6px;
+  color: rgba(226, 242, 233, 0.62);
+  font-weight: 800;
+}
+
+.line-result {
+  margin-top: 24px !important;
+  border-radius: 18px;
+  padding: 13px 14px;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.line-result.sent {
+  background: rgba(199, 235, 99, 0.16);
+  color: #ecffd4;
+}
+
+.line-result.failed,
+.line-result.skipped {
+  background: rgba(239, 117, 95, 0.14);
+  color: #ffe2dc;
+}
+
+.line-binding-list {
+  display: grid;
+  gap: 12px;
+}
+
+.line-binding-card {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.85fr) minmax(260px, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  border-radius: 24px;
+  padding: 18px;
+}
+
+.line-binding-card h3 {
+  margin: 12px 0 4px;
+  color: #f8fff9;
+  font-size: 20px;
+}
+
+.line-binding-card p {
+  margin: 0;
+  color: rgba(226, 242, 233, 0.64);
+  font-weight: 800;
+}
+
+.line-binding-card dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.line-binding-card dl div {
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.055);
+  padding: 10px 12px;
+}
+
+.line-binding-card dt,
+.line-binding-card dd {
+  margin: 0;
+}
+
+.line-binding-card dt {
+  color: rgba(226, 242, 233, 0.58);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.line-binding-card dd {
+  overflow: hidden;
+  margin-top: 4px;
+  color: #f8fff9;
+  font-size: 13px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.line-binding-card .primary-button {
+  min-width: 116px;
+}
+
+@media (max-width: 1120px) {
+  .line-ops-grid,
+  .line-binding-card {
+    grid-template-columns: 1fr;
+  }
+
+  .line-command-panel {
+    position: static;
+    min-height: auto;
+  }
+}
+
+@media (max-width: 680px) {
+  .line-command-metrics,
+  .line-binding-card dl {
+    grid-template-columns: 1fr;
+  }
+}
