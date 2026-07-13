@@ -29,5 +29,8 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "@netlify/plugin-nextjs": "^5.15.12"
   }
 }
