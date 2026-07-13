@@ -7,6 +7,7 @@ import type {
   ExplorationRouteSummary,
   ImpactBatchSummary,
   LineNotificationStatus,
+  LineOperationalStatus,
   PhotoAiOperationalStatus,
   RadarMissionSummary,
   ReviewItem,
@@ -110,6 +111,9 @@ export function OperationsDashboard() {
   const [routes, setRoutes] = useState<ExplorationRouteSummary[]>([]);
   const [radarMissions, setRadarMissions] = useState<RadarMissionSummary[]>([]);
   const [lineBindings, setLineBindings] = useState<AdminLineBindingSummary[]>([]);
+  const [lineStatus, setLineStatus] = useState<LineOperationalStatus | null>(
+    null,
+  );
   const [batches, setBatches] = useState<ImpactBatchSummary[]>([]);
   const [devices, setDevices] = useState<DeviceView[]>([]);
   const [loading, setLoading] = useState(true);
@@ -130,6 +134,7 @@ export function OperationsDashboard() {
         nextRoutes,
         nextRadarMissions,
         nextLineBindings,
+        nextLineStatus,
         nextBatches,
         nextDevices,
       ] = await Promise.all([
@@ -139,6 +144,7 @@ export function OperationsDashboard() {
         api.explorationRoutes(),
         api.radarMissions(),
         api.lineBindings(),
+        api.lineStatus(),
         api.impactBatches(),
         api.devices(),
       ]);
@@ -148,6 +154,7 @@ export function OperationsDashboard() {
       setRoutes(nextRoutes);
       setRadarMissions(nextRadarMissions);
       setLineBindings(nextLineBindings);
+      setLineStatus(nextLineStatus);
       setBatches(nextBatches);
       setDevices(nextDevices);
       setOfflineDemo(false);
@@ -362,6 +369,7 @@ export function OperationsDashboard() {
           {view === "line" ? (
             <LineOps
               bindings={lineBindings}
+              status={lineStatus}
               busyId={lineBusyId}
               lastResult={linePushResult}
               onTestPush={async (bindingId) => {
@@ -830,11 +838,13 @@ function Reviews({
 
 function LineOps({
   bindings,
+  status,
   busyId,
   lastResult,
   onTestPush,
 }: {
   bindings: AdminLineBindingSummary[];
+  status: LineOperationalStatus | null;
   busyId: string | null;
   lastResult: LineNotificationStatus | null;
   onTestPush: (bindingId: string) => Promise<void>;
@@ -876,6 +886,26 @@ function LineOps({
             <div>
               <strong>{revokedBindings.length}</strong>
               <small>已解除</small>
+            </div>
+          </div>
+          <div className="line-command-metrics line-config-metrics">
+            <div>
+              <strong>
+                {status?.channelSecretConfigured ? "configured" : "missing"}
+              </strong>
+              <small>Channel secret</small>
+            </div>
+            <div>
+              <strong>
+                {status?.channelAccessTokenConfigured
+                  ? "configured"
+                  : "missing"}
+              </strong>
+              <small>Access token</small>
+            </div>
+            <div>
+              <strong>{status?.lastNotificationStatus ?? "none"}</strong>
+              <small>最近推播</small>
             </div>
           </div>
           {lastResult ? (

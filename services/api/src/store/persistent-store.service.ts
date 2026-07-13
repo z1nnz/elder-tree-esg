@@ -23,6 +23,7 @@ import type {
   LineBindingCodeResult,
   LineBindingSummary,
   LineNotificationStatus,
+  LineOperationalStatus,
   RadarMissionInput,
   RadarMissionSummary,
   RadarMissionStatus,
@@ -58,6 +59,7 @@ import { latLngToCell } from "h3-js";
 import { PrismaService } from "../database/prisma.service";
 import { EvidenceStorageService } from "../evidence/evidence-storage.service";
 import { PhotoVerifierService } from "../evidence/photo-verifier.service";
+import { LineMessagingService } from "../line/line-messaging.service";
 import { ClockService } from "../time/clock.service";
 import { nextStageAt, stageForPoints } from "./tree-growth";
 
@@ -284,8 +286,8 @@ function selectHomeNextAction(input: {
     return {
       kind: "START_EXPLORATION",
       title: input.featuredRadarMission.title,
-      description: "附近有一個城市任務，走近後就能接取。",
-      ctaLabel: "開始探索",
+      description: "附近有一個城市任務，打開地圖就會看到自己的位置。",
+      ctaLabel: "前往地圖",
       taskId: null,
       radarMissionId: input.featuredRadarMission.id,
     };
@@ -405,6 +407,8 @@ export class PersistentStoreService {
       new EvidenceStorageService(),
     private readonly photoVerifier: PhotoVerifierService =
       new PhotoVerifierService(),
+    private readonly lineMessaging: LineMessagingService =
+      new LineMessagingService(),
   ) {}
 
   async getContext(firebaseUid: string): Promise<AppContext> {
@@ -837,6 +841,49 @@ export class PersistentStoreService {
       error: log.error,
       createdAt: log.createdAt.toISOString(),
     };
+  }
+
+  private async pushLineNotificationToHousehold(input: {
+    householdId: string;
+    excludeUserId?: string;
+    type: string;
+    message: string;
+    quickReplies?: string[];
+  }): Promise<void> {
+    const bindings = await this.prisma.lineBinding.findMany({
+      where: {
+        householdId: input.householdId,
+        status: "ACTIVE",
+        ...(input.excludeUserId
+          ? { userId: { not: input.excludeUserId } }
+          : {}),
+      },
+      orderBy: { createdAt: "asc" },
+    });
+    for (const binding of bindings) {
+      try {
+        const result = await this.lineMessaging.push(
+          binding.lineUserId,
+          input.message,
+          input.quickReplies,
+        );
+        await this.logLineNotification({
+          lineBindingId: binding.id,
+          target: binding.lineUserId,
+          type: input.type,
+          status: result.status,
+          error: result.error,
+        });
+      } catch (error) {
+        await this.logLineNotification({
+          lineBindingId: binding.id,
+          target: binding.lineUserId,
+          type: input.type,
+          status: "FAILED",
+          error: error instanceof Error ? error.message : "LINE push failed",
+        }).catch(() => undefined);
+      }
+    }
   }
 
   async listTasks(firebaseUid: string): Promise<TaskSummary[]> {
@@ -1327,6 +1374,17 @@ export class PersistentStoreService {
     );
     if (transactionResult.terminal) {
       await this.evidenceStorage.deleteObject(evidence.storagePath);
+    } else if (
+      transactionResult.created &&
+      transactionResult.result.decision === PrismaVerificationDecision.REVIEW
+    ) {
+      await this.pushLineNotificationToHousehold({
+        householdId: active.activeHouseholdId,
+        excludeUserId: active.id,
+        type: "PHOTO_REVIEW_REQUEST",
+        message: `綠伴提醒：「${evidence.assignment.task.title}」照片需要家人覆核。請回 App 查看。`,
+        quickReplies: ["打開 App", "晚點提醒我"],
+      });
     }
     return transactionResult.result;
   }
@@ -1523,13 +1581,24 @@ export class PersistentStoreService {
       },
       include: { author: true },
     });
-    return {
+    const result = {
       id: message.id,
       authorName: message.author.displayName,
       body: message.body,
       createdAt: message.createdAt.toISOString(),
       deliveredToDeviceAt: null,
     };
+    await this.pushLineNotificationToHousehold({
+      householdId: active.activeHouseholdId,
+      excludeUserId: active.id,
+      type: "FAMILY_MESSAGE",
+      message: `綠伴家庭訊息：${message.author.displayName} 留了一段話：「${message.body.slice(
+        0,
+        48,
+      )}${message.body.length > 48 ? "…" : ""}」`,
+      quickReplies: ["打開 App", "晚點提醒我", "我需要幫忙"],
+    });
+    return result;
   }
 
   async getImpactSummary(firebaseUid: string): Promise<ImpactSummary> {
@@ -1623,6 +1692,32 @@ export class PersistentStoreService {
 
   getPhotoAiOperationalStatus() {
     return photoAiOperationalStatus();
+  }
+
+  async getLineOperationalStatus(): Promise<LineOperationalStatus> {
+    const [activeBindingCount, revokedBindingCount, notificationCount, latest] =
+      await Promise.all([
+        this.prisma.lineBinding.count({ where: { status: "ACTIVE" } }),
+        this.prisma.lineBinding.count({ where: { status: "REVOKED" } }),
+        this.prisma.lineNotificationLog.count(),
+        this.prisma.lineNotificationLog.findFirst({
+          orderBy: { createdAt: "desc" },
+        }),
+      ]);
+    return {
+      channelSecretConfigured: Boolean(process.env.LINE_CHANNEL_SECRET),
+      channelAccessTokenConfigured: Boolean(
+        process.env.LINE_CHANNEL_ACCESS_TOKEN,
+      ),
+      activeBindingCount,
+      revokedBindingCount,
+      notificationCount,
+      lastNotificationStatus: latest
+        ? (latest.status as "SENT" | "FAILED" | "SKIPPED")
+        : null,
+      lastNotificationAt: latest?.createdAt.toISOString() ?? null,
+      updatedAt: this.clock.now().toISOString(),
+    };
   }
 
   async listAdminReviews(): Promise<ReviewItem[]> {

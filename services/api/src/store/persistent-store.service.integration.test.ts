@@ -190,6 +190,53 @@ describeWithDatabase("PersistentStoreService", () => {
     });
   });
 
+  it("logs LINE notifications for family messages without notifying the author", async () => {
+    const previousLineAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+    delete process.env.LINE_CHANNEL_ACCESS_TOKEN;
+    const authorUid = `integration-line-message-author-${randomUUID()}`;
+    const receiverUid = `integration-line-message-receiver-${randomUUID()}`;
+    const receiverLineUserId = `U${randomUUID().replace(/-/g, "")}`;
+    const authorLineUserId = `U${randomUUID().replace(/-/g, "")}`;
+    createdFirebaseUids.add(authorUid);
+    createdFirebaseUids.add(receiverUid);
+    createdLineTargets.add(receiverLineUserId);
+    createdLineTargets.add(authorLineUserId);
+    try {
+      const authorContext = await store.getContext(authorUid);
+      const invite = await store.createHouseholdInvite(authorUid);
+      await store.joinHousehold(receiverUid, invite.code, "家人");
+
+      const receiverCode = await store.createLineBindingCode(receiverUid);
+      await store.bindLineUserWithCode(receiverCode.code, receiverLineUserId);
+      const authorCode = await store.createLineBindingCode(authorUid);
+      await store.bindLineUserWithCode(authorCode.code, authorLineUserId);
+
+      await store.createMessage(authorUid, "今天晚點一起看看生命樹。");
+
+      const receiverLogs = await prisma.lineNotificationLog.findMany({
+        where: { target: receiverLineUserId, type: "FAMILY_MESSAGE" },
+      });
+      const authorLogs = await prisma.lineNotificationLog.findMany({
+        where: { target: authorLineUserId, type: "FAMILY_MESSAGE" },
+      });
+      expect(receiverLogs).toHaveLength(1);
+      expect(receiverLogs[0]?.status).toBe("SKIPPED");
+      expect(authorLogs).toHaveLength(0);
+      expect((await store.listMessages(receiverUid))[0]?.body).toBe(
+        "今天晚點一起看看生命樹。",
+      );
+      expect(authorContext.activeHouseholdId).toBe(
+        (await store.getContext(receiverUid)).activeHouseholdId,
+      );
+    } finally {
+      if (previousLineAccessToken === undefined) {
+        delete process.env.LINE_CHANNEL_ACCESS_TOKEN;
+      } else {
+        process.env.LINE_CHANNEL_ACCESS_TOKEN = previousLineAccessToken;
+      }
+    }
+  });
+
   it(
     "requires the configured timer duration before awarding growth",
     async () => {
@@ -882,12 +929,18 @@ describeWithDatabase("PersistentStoreService", () => {
         process.env.PHOTO_EVIDENCE_ENABLED;
       const previousPhotoVerificationEnabled =
         process.env.PHOTO_VERIFICATION_ENABLED;
+      const previousLineAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
       process.env.PHOTO_EVIDENCE_ENABLED = "true";
       process.env.PHOTO_VERIFICATION_ENABLED = "true";
+      delete process.env.LINE_CHANNEL_ACCESS_TOKEN;
       const submitterUid = `integration-photo-${randomUUID()}`;
       const reviewerUid = `integration-reviewer-${randomUUID()}`;
+      const submitterLineUserId = `U${randomUUID().replace(/-/g, "")}`;
+      const reviewerLineUserId = `U${randomUUID().replace(/-/g, "")}`;
       createdFirebaseUids.add(submitterUid);
       createdFirebaseUids.add(reviewerUid);
+      createdLineTargets.add(submitterLineUserId);
+      createdLineTargets.add(reviewerLineUserId);
       const deletedPaths: string[] = [];
       const fakeStorage = {
         assertUploaded: async () => undefined,
@@ -917,6 +970,18 @@ describeWithDatabase("PersistentStoreService", () => {
       const submitterContext = await photoStore.getContext(submitterUid);
       const invite = await photoStore.createHouseholdInvite(submitterUid);
       await photoStore.joinHousehold(reviewerUid, invite.code, "志願陪伴者");
+      const submitterLineCode =
+        await photoStore.createLineBindingCode(submitterUid);
+      await photoStore.bindLineUserWithCode(
+        submitterLineCode.code,
+        submitterLineUserId,
+      );
+      const reviewerLineCode =
+        await photoStore.createLineBindingCode(reviewerUid);
+      await photoStore.bindLineUserWithCode(
+        reviewerLineCode.code,
+        reviewerLineUserId,
+      );
 
       const photoTask = (await photoStore.listTasks(submitterUid)).find(
         (task) => task.verificationMode === "PHOTO_AI",
@@ -939,6 +1004,15 @@ describeWithDatabase("PersistentStoreService", () => {
       expect(await photoStore.listFamilyReviews(submitterUid)).toEqual([]);
       const reviewerQueue = await photoStore.listFamilyReviews(reviewerUid);
       expect(reviewerQueue).toHaveLength(1);
+      const reviewerNotifications = await prisma.lineNotificationLog.findMany({
+        where: { target: reviewerLineUserId, type: "PHOTO_REVIEW_REQUEST" },
+      });
+      const submitterNotifications = await prisma.lineNotificationLog.findMany({
+        where: { target: submitterLineUserId, type: "PHOTO_REVIEW_REQUEST" },
+      });
+      expect(reviewerNotifications).toHaveLength(1);
+      expect(reviewerNotifications[0]?.status).toBe("SKIPPED");
+      expect(submitterNotifications).toHaveLength(0);
 
       await photoStore.decideFamilyReview(
         reviewerUid,
@@ -968,6 +1042,11 @@ describeWithDatabase("PersistentStoreService", () => {
       } else {
         process.env.PHOTO_VERIFICATION_ENABLED =
           previousPhotoVerificationEnabled;
+      }
+      if (previousLineAccessToken === undefined) {
+        delete process.env.LINE_CHANNEL_ACCESS_TOKEN;
+      } else {
+        process.env.LINE_CHANNEL_ACCESS_TOKEN = previousLineAccessToken;
       }
     },
     60_000,

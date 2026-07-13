@@ -240,6 +240,17 @@ export interface LineNotificationStatus {
   createdAt: string;
 }
 
+export interface LineOperationalStatus {
+  channelSecretConfigured: boolean;
+  channelAccessTokenConfigured: boolean;
+  activeBindingCount: number;
+  revokedBindingCount: number;
+  notificationCount: number;
+  lastNotificationStatus: "SENT" | "FAILED" | "SKIPPED" | null;
+  lastNotificationAt: string | null;
+  updatedAt: string;
+}
+
 export interface PhotoAiOperationalStatus {
   photoEvidence: {
     enabled: boolean;
