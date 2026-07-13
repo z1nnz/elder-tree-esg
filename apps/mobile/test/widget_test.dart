@@ -36,14 +36,14 @@ class FakeAuthService implements AuthService {
 
 void main() {
   testWidgets('shows the companion tree home experience', (tester) async {
-    await tester.pumpWidget(ElderTreeApp(authService: FakeAuthService()));
+    await tester.pumpWidget(
+      ElderTreeApp(authService: FakeAuthService(), initialShellIndex: 0),
+    );
     await tester.pump(const Duration(milliseconds: 100));
 
-    expect(find.text('綠伴'), findsOneWidget);
-    expect(find.text('今天'), findsOneWidget);
-    expect(find.text('任務'), findsOneWidget);
-    expect(find.text('家人'), findsOneWidget);
-    expect(find.text('公益'), findsOneWidget);
-    expect(find.text('互動樹'), findsOneWidget);
+    expect(find.text('綠伴'), findsWidgets);
+    expect(find.text('今日陪伴'), findsOneWidget);
+    expect(find.text('任務卡堆疊'), findsOneWidget);
+    expect(find.text('家人的陪伴'), findsOneWidget);
   });
 }

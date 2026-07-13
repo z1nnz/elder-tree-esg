@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:maplibre/maplibre.dart';
 
@@ -659,11 +662,13 @@ class ExplorationScreen extends StatefulWidget {
   const ExplorationScreen({
     required this.controller,
     required this.onNavigate,
+    required this.onOpenSettings,
     super.key,
   });
 
   final AppController controller;
   final ValueChanged<int> onNavigate;
+  final VoidCallback onOpenSettings;
 
   static const mapStyleUrl = String.fromEnvironment(
     'MAP_STYLE_URL',
@@ -678,7 +683,9 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
   ExplorationMapMode _mapMode = ExplorationMapMode.adventure;
   bool _showAllRadarMissions = false;
   bool _showRouteDetails = false;
+  bool _treeMenuExpanded = false;
   String? _selectedRadarMissionId;
+  MapController? _mapController;
 
   AppController get controller => widget.controller;
 
@@ -733,6 +740,7 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
             lat: controller.latestLatitude!,
           )
         : const Geographic(lon: 121.5362, lat: 25.0316);
+    final mapBounds = _explorationBoundsFor(mapCenter);
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -752,12 +760,22 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
             key: ValueKey(
               '$_mapMode-${hasCurrentLocation ? "located" : "city"}',
             ),
+            gestureRecognizers: {
+              Factory<OneSequenceGestureRecognizer>(
+                () => EagerGestureRecognizer(),
+              ),
+            },
+            onMapCreated: (mapController) => _mapController = mapController,
             options: MapOptions(
               initStyle: mapPresentation.style,
               initCenter: mapCenter,
               initZoom: mapPresentation.zoom,
               initPitch: mapPresentation.pitch,
               initBearing: mapPresentation.bearing,
+              minZoom: 13,
+              maxZoom: 18,
+              maxBounds: mapBounds,
+              gestures: const MapGestures.all(rotate: false, pitch: false),
               maxPitch: 60,
             ),
             layers: const [],
@@ -787,9 +805,7 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
                       alignment: Alignment.bottomCenter,
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
-                        onTap: () => setState(
-                          () => _selectedRadarMissionId = view.mission.id,
-                        ),
+                        onTap: () => _selectRadarMission(view),
                         child: _RadarBeacon(
                           view: view,
                           featured:
@@ -805,7 +821,7 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
                         lon: controller.latestLongitude!,
                         lat: controller.latestLatitude!,
                       ),
-                      size: const Size(72, 86),
+                      size: const Size(78, 108),
                       alignment: Alignment.bottomCenter,
                       child: const _ExplorerAvatar(),
                     ),
@@ -842,11 +858,6 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
             onChanged: (mode) => setState(() => _mapMode = mode),
           ),
         ),
-        Positioned(
-          right: 14,
-          top: 118 + safeTop,
-          child: _ExplorationQuickRail(onNavigate: widget.onNavigate),
-        ),
         if (_mapMode == ExplorationMapMode.adventure)
           const Positioned(left: 14, top: 184, child: _AdventureMapHint()),
         if (controller.latestLatitude == null)
@@ -861,13 +872,10 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
               points: controller.lastGrowthAwardPoints!,
             ),
           ),
-        DraggableScrollableSheet(
-          initialChildSize: 0.24,
-          minChildSize: 0.18,
-          maxChildSize: 0.78,
-          snap: true,
-          snapSizes: const [0.22, 0.38, 0.78],
-          builder: (context, scrollController) => _AdventureBottomSheet(
+        Positioned(
+          right: 14,
+          bottom: 108 + MediaQuery.paddingOf(context).bottom,
+          child: _NearbyMissionRadarPanel(
             controller: controller,
             distanceMeters: sessionDistance,
             exploring: controller.exploring,
@@ -881,23 +889,69 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
             route: route,
             routeProgress: routeProgress,
             showRouteDetails: _showRouteDetails,
-            scrollController: scrollController,
             onCompleteMission: featuredMission == null
                 ? null
                 : () => _confirmCompleteRadarMission(featuredMission),
-            onMissionSelected: (view) =>
-                setState(() => _selectedRadarMissionId = view.mission.id),
-            onToggleRadarMissions: radarMissionViews.length <= 3
-                ? null
-                : () => setState(
-                    () => _showAllRadarMissions = !_showAllRadarMissions,
-                  ),
+            onMissionSelected: _selectRadarMission,
+            onToggleRadarMissions: () =>
+                setState(() => _showAllRadarMissions = !_showAllRadarMissions),
             onToggleRouteDetails: route == null
                 ? null
                 : () => setState(() => _showRouteDetails = !_showRouteDetails),
           ),
         ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 18 + MediaQuery.paddingOf(context).bottom,
+          child: _TreeMapMenu(
+            expanded: _treeMenuExpanded,
+            onToggle: () =>
+                setState(() => _treeMenuExpanded = !_treeMenuExpanded),
+            onNavigate: (index) {
+              setState(() => _treeMenuExpanded = false);
+              widget.onNavigate(index);
+            },
+            onOpenSettings: () {
+              setState(() => _treeMenuExpanded = false);
+              widget.onOpenSettings();
+            },
+          ),
+        ),
       ],
+    );
+  }
+
+  void _selectRadarMission(RadarMissionViewState view) {
+    setState(() {
+      _selectedRadarMissionId = view.mission.id;
+      _showAllRadarMissions = true;
+    });
+    unawaited(
+      _mapController?.animateCamera(
+        center: Geographic(
+          lon: view.mission.longitude,
+          lat: view.mission.latitude,
+        ),
+        zoom: 16.4,
+        pitch: _mapMode == ExplorationMapMode.adventure ? 48 : 0,
+        bearing: _mapMode == ExplorationMapMode.adventure ? -18 : 0,
+        nativeDuration: const Duration(milliseconds: 650),
+        webMaxDuration: const Duration(milliseconds: 650),
+      ),
+    );
+  }
+
+  LngLatBounds _explorationBoundsFor(Geographic center) {
+    const radiusKm = 3.2;
+    final latitudeDelta = radiusKm / 111.0;
+    final longitudeDelta =
+        radiusKm / (111.0 * math.cos(center.lat * math.pi / 180)).abs();
+    return LngLatBounds(
+      longitudeWest: center.lon - longitudeDelta,
+      longitudeEast: center.lon + longitudeDelta,
+      latitudeSouth: center.lat - latitudeDelta,
+      latitudeNorth: center.lat + latitudeDelta,
     );
   }
 
@@ -1107,8 +1161,8 @@ class _HudMetric extends StatelessWidget {
   }
 }
 
-class _AdventureBottomSheet extends StatelessWidget {
-  const _AdventureBottomSheet({
+class _NearbyMissionRadarPanel extends StatelessWidget {
+  const _NearbyMissionRadarPanel({
     required this.controller,
     required this.distanceMeters,
     required this.exploring,
@@ -1122,7 +1176,6 @@ class _AdventureBottomSheet extends StatelessWidget {
     required this.route,
     required this.routeProgress,
     required this.showRouteDetails,
-    required this.scrollController,
     required this.onCompleteMission,
     required this.onMissionSelected,
     required this.onToggleRadarMissions,
@@ -1142,7 +1195,6 @@ class _AdventureBottomSheet extends StatelessWidget {
   final ExplorationRouteModel? route;
   final double routeProgress;
   final bool showRouteDetails;
-  final ScrollController scrollController;
   final VoidCallback? onCompleteMission;
   final ValueChanged<RadarMissionViewState> onMissionSelected;
   final VoidCallback? onToggleRadarMissions;
@@ -1150,122 +1202,232 @@ class _AdventureBottomSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
+    final expanded = showAllRadarMissions;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+      width: expanded ? 346 : 124,
+      constraints: BoxConstraints(
+        maxHeight: expanded ? MediaQuery.sizeOf(context).height * 0.58 : 112,
+      ),
       decoration: BoxDecoration(
-        color: canvas,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        color: expanded ? canvas.withValues(alpha: 0.96) : forestDark,
+        borderRadius: BorderRadius.circular(expanded ? 28 : 32),
+        border: Border.all(
+          color: expanded
+              ? forest.withValues(alpha: 0.14)
+              : Colors.white.withValues(alpha: 0.16),
+        ),
         boxShadow: [
           BoxShadow(
-            color: forestDark.withValues(alpha: 0.22),
-            blurRadius: 28,
-            offset: const Offset(0, -12),
+            color: forestDark.withValues(alpha: 0.26),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
-      child: SafeArea(
-        top: false,
-        child: ListView(
-          controller: scrollController,
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
-          children: [
-            Center(
-              child: Container(
-                width: 48,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: forestDark.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            _ExplorationMissionDock(
-              distanceMeters: distanceMeters,
-              exploring: exploring,
-              hasSession: hasSession,
-              sendingLocation: sendingLocation,
-              locationStatus: locationStatus,
-              mission: mission,
-              onCompleteMission: onCompleteMission,
-            ),
-            const SizedBox(height: 12),
-            const _NoticeBand(
-              icon: Icons.shield_outlined,
-              text: '進入探索頁就會顯示目前位置。靠近任務會自動解鎖；完成後生命樹才會成長。',
-            ),
-            const SizedBox(height: 16),
-            _SectionTitle(
-              title: '任務雷達',
-              subtitle: '點任務卡或地圖光點，底部任務會同步切換',
-              action: onToggleRadarMissions == null
-                  ? null
-                  : TextButton(
-                      onPressed: onToggleRadarMissions,
-                      child: Text(showAllRadarMissions ? '收起' : '全部'),
+      child: expanded
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(28),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: forestDark,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Icon(Icons.radar_rounded, color: lime),
+                        ),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '附近任務雷達',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              Text(
+                                '點任務會聚焦到地圖',
+                                style: TextStyle(
+                                  color: Color(0xFF6B756F),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: onToggleRadarMissions,
+                          tooltip: '收合附近任務',
+                          icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                        ),
+                      ],
                     ),
-            ),
-            const SizedBox(height: 10),
-            if (radarMissionViews.isEmpty)
-              const _EmptyBlock(
-                icon: Icons.radar_rounded,
-                title: '目前沒有雷達任務',
-                text: '營運單位發布城市任務後，會在地圖上出現任務光點。',
-              )
-            else
-              ...radarMissionViews.map(
-                (view) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onTap: () => onMissionSelected(view),
-                    child: _RadarMissionCard(
-                      view: view,
-                      controller: controller,
+                    const SizedBox(height: 12),
+                    _ExplorationMissionDock(
+                      distanceMeters: distanceMeters,
+                      exploring: exploring,
+                      hasSession: hasSession,
+                      sendingLocation: sendingLocation,
+                      locationStatus: locationStatus,
+                      mission: mission,
+                      onCompleteMission: onCompleteMission,
                     ),
-                  ),
-                ),
-              ),
-            if (!showAllRadarMissions && totalRadarMissionCount > 3) ...[
-              const SizedBox(height: 2),
-              Text(
-                '還有 ${totalRadarMissionCount - 3} 個任務，展開後可查看完整清單。',
-                style: const TextStyle(
-                  color: Color(0xFF69736D),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-            const SizedBox(height: 16),
-            _SectionTitle(
-              title: '路線旅程',
-              subtitle: '地標與距離任務先收在這裡，主畫面保持乾淨',
-              action: onToggleRouteDetails == null
-                  ? null
-                  : TextButton(
-                      onPressed: onToggleRouteDetails,
-                      child: Text(showRouteDetails ? '收起' : '展開'),
+                    const SizedBox(height: 12),
+                    _SectionTitle(
+                      title: '可以靠近的任務',
+                      subtitle: '靠近只是解鎖，完成才會讓生命樹成長',
+                      action: onToggleRadarMissions == null
+                          ? null
+                          : TextButton(
+                              onPressed: onToggleRadarMissions,
+                              child: Text(showAllRadarMissions ? '收起' : '全部'),
+                            ),
                     ),
-            ),
-            const SizedBox(height: 10),
-            if (route == null)
-              const _EmptyBlock(
-                icon: Icons.map_outlined,
-                title: '附近還沒有探索點',
-                text: '營運單位建立地標後會出現在這裡；雷達任務仍可照常解鎖。',
-              )
-            else if (!showRouteDetails)
-              _RouteSummaryCard(route: route!, progress: routeProgress)
-            else
-              ...route!.quests.map(
-                (quest) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _QuestEventCard(quest: quest),
+                    const SizedBox(height: 10),
+                    if (radarMissionViews.isEmpty)
+                      const _EmptyBlock(
+                        icon: Icons.radar_rounded,
+                        title: '目前沒有雷達任務',
+                        text: '營運單位發布城市任務後，會在地圖上出現任務光點。',
+                      )
+                    else
+                      ...radarMissionViews.map(
+                        (view) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onTap: () => onMissionSelected(view),
+                            child: _RadarMissionCard(
+                              view: view,
+                              controller: controller,
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (!showAllRadarMissions &&
+                        totalRadarMissionCount > 3) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        '還有 ${totalRadarMissionCount - 3} 個任務，展開後可查看完整清單。',
+                        style: const TextStyle(
+                          color: Color(0xFF69736D),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                    if (route != null) ...[
+                      const SizedBox(height: 16),
+                      _SectionTitle(
+                        title: '固定路線',
+                        subtitle: '完整旅程先收在任務雷達裡',
+                        action: onToggleRouteDetails == null
+                            ? null
+                            : TextButton(
+                                onPressed: onToggleRouteDetails,
+                                child: Text(showRouteDetails ? '收起' : '展開'),
+                              ),
+                      ),
+                      const SizedBox(height: 10),
+                      if (!showRouteDetails)
+                        _RouteSummaryCard(
+                          route: route!,
+                          progress: routeProgress,
+                        )
+                      else
+                        ...route!.quests.map(
+                          (quest) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _QuestEventCard(quest: quest),
+                          ),
+                        ),
+                    ],
+                  ],
                 ),
               ),
-          ],
-        ),
-      ),
+            )
+          : InkWell(
+              borderRadius: BorderRadius.circular(32),
+              onTap: onToggleRadarMissions,
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: lime,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: lime.withValues(alpha: 0.38),
+                                blurRadius: 20,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.radar_rounded,
+                            color: forestDark,
+                          ),
+                        ),
+                        if (totalRadarMissionCount > 0)
+                          Positioned(
+                            right: -4,
+                            top: -4,
+                            child: Container(
+                              width: 24,
+                              height: 24,
+                              alignment: Alignment.center,
+                              decoration: const BoxDecoration(
+                                color: warmYellow,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Text(
+                                '$totalRadarMissionCount',
+                                style: const TextStyle(
+                                  color: ink,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      mission?.distanceLabel ?? '附近',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
     );
   }
 }
@@ -1422,54 +1584,87 @@ class _ExplorationMissionDock extends StatelessWidget {
   }
 }
 
-class _ExplorationQuickRail extends StatelessWidget {
-  const _ExplorationQuickRail({required this.onNavigate});
+class _TreeMapMenu extends StatelessWidget {
+  const _TreeMapMenu({
+    required this.expanded,
+    required this.onToggle,
+    required this.onNavigate,
+    required this.onOpenSettings,
+  });
 
+  final bool expanded;
+  final VoidCallback onToggle;
   final ValueChanged<int> onNavigate;
+  final VoidCallback onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: forestDark.withValues(alpha: 0.88),
-      elevation: 8,
-      shadowColor: Colors.black45,
-      borderRadius: BorderRadius.circular(24),
-      child: Padding(
-        padding: const EdgeInsets.all(6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+    final leaves = [
+      _TreeMenuAction(
+        icon: Icons.home_rounded,
+        label: '今日',
+        alignment: const Alignment(-0.86, -0.44),
+        onTap: () => onNavigate(0),
+      ),
+      _TreeMenuAction(
+        icon: Icons.checklist_rounded,
+        label: '任務',
+        alignment: const Alignment(-0.48, -0.92),
+        onTap: () => onNavigate(1),
+      ),
+      _TreeMenuAction(
+        icon: Icons.park_rounded,
+        label: '生命樹',
+        alignment: const Alignment(0, -1.08),
+        onTap: () => onNavigate(5),
+      ),
+      _TreeMenuAction(
+        icon: Icons.family_restroom_rounded,
+        label: '家人',
+        alignment: const Alignment(0.48, -0.92),
+        onTap: () => onNavigate(3),
+      ),
+      _TreeMenuAction(
+        icon: Icons.public_rounded,
+        label: '公益',
+        alignment: const Alignment(0.86, -0.44),
+        onTap: () => onNavigate(4),
+      ),
+      _TreeMenuAction(
+        icon: Icons.settings_rounded,
+        label: '設定',
+        alignment: const Alignment(0.86, -1.32),
+        onTap: onOpenSettings,
+      ),
+    ];
+    return IgnorePointer(
+      ignoring: false,
+      child: SizedBox(
+        height: expanded ? 176 : 82,
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.bottomCenter,
           children: [
-            _LeafMenuButton(
-              icon: Icons.home_rounded,
-              label: '今天',
-              onTap: () => onNavigate(0),
+            if (expanded)
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: onToggle,
+                ),
+              ),
+            ...leaves.map(
+              (action) => AnimatedAlign(
+                duration: const Duration(milliseconds: 260),
+                curve: Curves.easeOutBack,
+                alignment: expanded ? action.alignment : Alignment.bottomCenter,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 180),
+                  opacity: expanded ? 1 : 0,
+                  child: _TreeMenuLeaf(action: action),
+                ),
+              ),
             ),
-            _LeafMenuButton(
-              icon: Icons.checklist_rounded,
-              label: '任務',
-              onTap: () => onNavigate(1),
-            ),
-            _LeafMenuButton(
-              highlighted: true,
-              icon: Icons.explore_rounded,
-              label: '地圖',
-              onTap: () {},
-            ),
-            _LeafMenuButton(
-              icon: Icons.family_restroom_rounded,
-              label: '家人',
-              onTap: () => onNavigate(3),
-            ),
-            _LeafMenuButton(
-              icon: Icons.public_rounded,
-              label: '公益',
-              onTap: () => onNavigate(4),
-            ),
-            _LeafMenuButton(
-              icon: Icons.hub_rounded,
-              label: '互動樹',
-              onTap: () => onNavigate(5),
-            ),
+            _TreeCoreButton(expanded: expanded, onTap: onToggle),
           ],
         ),
       ),
@@ -1477,43 +1672,116 @@ class _ExplorationQuickRail extends StatelessWidget {
   }
 }
 
-class _LeafMenuButton extends StatelessWidget {
-  const _LeafMenuButton({
+class _TreeMenuAction {
+  const _TreeMenuAction({
     required this.icon,
     required this.label,
+    required this.alignment,
     required this.onTap,
-    this.highlighted = false,
   });
 
   final IconData icon;
   final String label;
+  final Alignment alignment;
   final VoidCallback onTap;
-  final bool highlighted;
+}
+
+class _TreeCoreButton extends StatelessWidget {
+  const _TreeCoreButton({required this.expanded, required this.onTap});
+
+  final bool expanded;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: label,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
+    return Semantics(
+      button: true,
+      label: expanded ? '收合功能選單' : '開啟功能選單',
+      child: Material(
+        color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(18),
+          customBorder: const CircleBorder(),
           onTap: onTap,
-          child: Container(
-            width: 44,
-            height: 44,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            width: 72,
+            height: 72,
             decoration: BoxDecoration(
-              color: highlighted
-                  ? lime.withValues(alpha: 0.92)
-                  : Colors.white.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: highlighted
-                    ? Colors.white.withValues(alpha: 0.5)
-                    : Colors.white.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                colors: [Color(0xFFCAF261), Color(0xFF77D29B)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
+              border: Border.all(color: Colors.white, width: 4),
+              boxShadow: [
+                BoxShadow(
+                  color: forestDark.withValues(alpha: 0.34),
+                  blurRadius: 22,
+                  offset: const Offset(0, 10),
+                ),
+                BoxShadow(
+                  color: lime.withValues(alpha: expanded ? 0.52 : 0.28),
+                  blurRadius: expanded ? 34 : 18,
+                  spreadRadius: expanded ? 4 : 1,
+                ),
+              ],
             ),
-            child: Icon(icon, color: highlighted ? forestDark : lime, size: 22),
+            child: Icon(
+              expanded ? Icons.close_rounded : Icons.spa_rounded,
+              color: forestDark,
+              size: 34,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TreeMenuLeaf extends StatelessWidget {
+  const _TreeMenuLeaf({required this.action});
+
+  final _TreeMenuAction action;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap: action.onTap,
+        child: Container(
+          width: 76,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.94),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: forest.withValues(alpha: 0.16)),
+            boxShadow: [
+              BoxShadow(
+                color: forestDark.withValues(alpha: 0.16),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(action.icon, color: forest, size: 22),
+              const SizedBox(height: 3),
+              Text(
+                action.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: forestDark,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -3136,6 +3404,386 @@ class ImpactScreen extends StatelessWidget {
     );
   }
 }
+
+enum TreeGrowthStage {
+  seed,
+  sprout,
+  seedling,
+  youngTree,
+  matureTree,
+  elderTree,
+}
+
+class TreeGrowthScreen extends StatelessWidget {
+  const TreeGrowthScreen({required this.controller, super.key});
+
+  final AppController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final tree = controller.tree;
+    final stage = _treeGrowthStageFor(tree.growthPoints);
+    final nextStage = _nextTreeGrowthStage(stage);
+    final progress = _treeStageProgress(tree.growthPoints, stage);
+    final completedTasks = controller.tasks
+        .where((task) => task.status == TaskStatus.completed)
+        .take(5)
+        .toList();
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
+      children: [
+        const _PageHeading(
+          title: '生命樹',
+          subtitle: '你和家人完成的每件小事，都會讓這棵樹慢慢進入下一個階段。',
+        ),
+        const SizedBox(height: 14),
+        _TreeGrowthHero(tree: tree, stage: stage, progress: progress),
+        const SizedBox(height: 14),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '下一階段',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 8),
+                if (nextStage == null)
+                  const Text('這棵生命樹已經長成大樹。接下來的成長會留下家庭共同照顧的紀錄。')
+                else
+                  Text(
+                    '再 ${(_treeStageMinPoints(nextStage) - tree.growthPoints).clamp(0, 99999)} 點，進入「${_treeGrowthStageLabel(nextStage)}」。',
+                  ),
+                const SizedBox(height: 12),
+                LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 10,
+                  color: forest,
+                  borderRadius: BorderRadius.circular(999),
+                  backgroundColor: const Color(0xFFE3EBDD),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        const _SectionTitle(title: '最近讓樹長大的任務', subtitle: '只顯示真實任務狀態，不在本機假加分'),
+        const SizedBox(height: 10),
+        if (completedTasks.isEmpty)
+          const _EmptyBlock(
+            icon: Icons.eco_outlined,
+            title: '還沒有完成紀錄',
+            text: '完成 SELF_CHECK、TIMER 或照片驗證任務後，這裡會出現最近的新葉。',
+          )
+        else
+          ...completedTasks.map(
+            (task) => Card(
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: _taskColor(
+                    task.verificationMode,
+                  ).withValues(alpha: 0.9),
+                  foregroundColor: forestDark,
+                  child: Icon(_taskIcon(task.verificationMode)),
+                ),
+                title: Text(
+                  task.title,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                subtitle: Text(task.description),
+                trailing: Text(
+                  '+${task.growthPoints}',
+                  style: const TextStyle(
+                    color: forest,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        const SizedBox(height: 14),
+        Card(
+          color: const Color(0xFFF7FAF0),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                const Icon(Icons.groups_rounded, color: forest),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '${tree.householdName}目前共同累積 ${tree.growthPoints} 點成長值。',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TreeGrowthHero extends StatelessWidget {
+  const _TreeGrowthHero({
+    required this.tree,
+    required this.stage,
+    required this.progress,
+  });
+
+  final TreeSummary tree;
+  final TreeGrowthStage stage;
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(32),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0E3B2B), Color(0xFF35704F)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: forestDark.withValues(alpha: 0.24),
+            blurRadius: 24,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      tree.name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _treeGrowthStageLabel(stage),
+                      style: const TextStyle(
+                        color: lime,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _treeGrowthStageDescription(stage),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.74),
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
+              _TreeStageVisual(stage: stage),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 11,
+                  color: lime,
+                  borderRadius: BorderRadius.circular(999),
+                  backgroundColor: Colors.white.withValues(alpha: 0.18),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                '${tree.growthPoints} 點',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TreeStageVisual extends StatelessWidget {
+  const _TreeStageVisual({required this.stage});
+
+  final TreeGrowthStage stage;
+
+  @override
+  Widget build(BuildContext context) {
+    final scale = switch (stage) {
+      TreeGrowthStage.seed => 0.44,
+      TreeGrowthStage.sprout => 0.56,
+      TreeGrowthStage.seedling => 0.68,
+      TreeGrowthStage.youngTree => 0.82,
+      TreeGrowthStage.matureTree => 0.94,
+      TreeGrowthStage.elderTree => 1.05,
+    };
+    return SizedBox(
+      width: 116,
+      height: 130,
+      child: Stack(
+        alignment: Alignment.bottomCenter,
+        children: [
+          Container(
+            width: 96,
+            height: 24,
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+          if (stage == TreeGrowthStage.seed)
+            Positioned(
+              bottom: 20,
+              child: Container(
+                width: 46,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: warmYellow,
+                  borderRadius: BorderRadius.circular(26),
+                ),
+                child: const Icon(Icons.grain_rounded, color: forestDark),
+              ),
+            )
+          else ...[
+            Positioned(
+              bottom: 24,
+              child: Transform.scale(
+                scale: scale,
+                alignment: Alignment.bottomCenter,
+                child: Container(
+                  width: 20,
+                  height: 76,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6F4A2E),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 72,
+              child: Transform.scale(
+                scale: scale,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      width: 76,
+                      height: 62,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF8ED96E),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    Positioned(
+                      left: 8,
+                      child: Container(
+                        width: 44,
+                        height: 40,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF5FAE58),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      right: 4,
+                      bottom: 6,
+                      child: Container(
+                        width: 38,
+                        height: 36,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFC9F26A),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+TreeGrowthStage _treeGrowthStageFor(int growthPoints) {
+  if (growthPoints >= 1200) return TreeGrowthStage.elderTree;
+  if (growthPoints >= 700) return TreeGrowthStage.matureTree;
+  if (growthPoints >= 350) return TreeGrowthStage.youngTree;
+  if (growthPoints >= 150) return TreeGrowthStage.seedling;
+  if (growthPoints >= 50) return TreeGrowthStage.sprout;
+  return TreeGrowthStage.seed;
+}
+
+TreeGrowthStage? _nextTreeGrowthStage(TreeGrowthStage stage) => switch (stage) {
+  TreeGrowthStage.seed => TreeGrowthStage.sprout,
+  TreeGrowthStage.sprout => TreeGrowthStage.seedling,
+  TreeGrowthStage.seedling => TreeGrowthStage.youngTree,
+  TreeGrowthStage.youngTree => TreeGrowthStage.matureTree,
+  TreeGrowthStage.matureTree => TreeGrowthStage.elderTree,
+  TreeGrowthStage.elderTree => null,
+};
+
+int _treeStageMinPoints(TreeGrowthStage stage) => switch (stage) {
+  TreeGrowthStage.seed => 0,
+  TreeGrowthStage.sprout => 50,
+  TreeGrowthStage.seedling => 150,
+  TreeGrowthStage.youngTree => 350,
+  TreeGrowthStage.matureTree => 700,
+  TreeGrowthStage.elderTree => 1200,
+};
+
+double _treeStageProgress(int growthPoints, TreeGrowthStage stage) {
+  final next = _nextTreeGrowthStage(stage);
+  if (next == null) return 1;
+  final currentMin = _treeStageMinPoints(stage);
+  final nextMin = _treeStageMinPoints(next);
+  return ((growthPoints - currentMin) / (nextMin - currentMin)).clamp(0, 1);
+}
+
+String _treeGrowthStageLabel(TreeGrowthStage stage) => switch (stage) {
+  TreeGrowthStage.seed => '種子',
+  TreeGrowthStage.sprout => '發芽',
+  TreeGrowthStage.seedling => '幼苗',
+  TreeGrowthStage.youngTree => '小樹',
+  TreeGrowthStage.matureTree => '成樹',
+  TreeGrowthStage.elderTree => '大樹',
+};
+
+String _treeGrowthStageDescription(TreeGrowthStage stage) => switch (stage) {
+  TreeGrowthStage.seed => '剛開始也很好。先讓今天有一個願意出門或照顧自己的理由。',
+  TreeGrowthStage.sprout => '第一片新葉出現了，表示日常裡已經開始累積穩定的小行動。',
+  TreeGrowthStage.seedling => '幼苗需要規律照顧，任務、散步與照片驗證都會留下成長紀錄。',
+  TreeGrowthStage.youngTree => '小樹開始有形狀，家人的訊息與任務完成會一起讓它長大。',
+  TreeGrowthStage.matureTree => '成樹代表這個家庭已累積一段可被看見的照顧路徑。',
+  TreeGrowthStage.elderTree => '大樹會保存每次被照顧的紀錄，也能成為未來公益批次的基礎。',
+};
 
 class DeviceScreen extends StatelessWidget {
   const DeviceScreen({required this.controller, super.key});
