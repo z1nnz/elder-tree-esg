@@ -4969,7 +4969,7 @@ body:has(.sky-cinematic-hero) .header-cta {
 }
 
 .sky-cinematic-hero {
-  min-height: 230svh;
+  min-height: 260svh;
   overflow: visible;
   background: #06110f;
 }
@@ -5023,15 +5023,14 @@ body:has(.sky-cinematic-hero) .header-cta {
 .sky-cinematic-hero .sky-video-hotspot-glow {
   left: 50%;
   top: 54%;
-  width: 24px;
-  height: 24px;
+  width: 18px;
+  height: 18px;
   border-radius: 999px;
   background:
-    radial-gradient(circle, rgba(255, 255, 239, 0.96) 0 18%, rgba(226, 255, 178, 0.52) 19% 36%, transparent 62%),
-    radial-gradient(circle, rgba(93, 255, 220, 0.22), transparent 72%);
+    radial-gradient(circle, rgba(255, 255, 239, 0.94) 0 28%, rgba(226, 255, 178, 0.44) 29% 48%, transparent 72%);
   box-shadow:
-    0 0 28px rgba(235, 255, 203, 0.42),
-    0 0 70px rgba(123, 255, 222, 0.18);
+    0 0 24px rgba(235, 255, 203, 0.42),
+    0 0 52px rgba(123, 255, 222, 0.16);
   opacity: 0;
   transform: translate(-50%, -50%) scale(0.76);
 }
@@ -5149,6 +5148,10 @@ body:has(.sky-cinematic-hero) .header-cta {
 }
 
 .sky-cinematic-hero .sky-video-intro strong {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  column-gap: 0.18em;
   max-width: none;
   margin-top: 22px;
   color: rgba(250, 249, 239, 0.96);
@@ -5158,12 +5161,17 @@ body:has(.sky-cinematic-hero) .header-cta {
   line-height: 1.15;
   letter-spacing: 0.03em;
   overflow-wrap: normal;
-  text-wrap: nowrap;
-  white-space: nowrap;
+  text-wrap: balance;
+  white-space: normal;
   word-break: keep-all;
   text-shadow:
     0 2px 28px rgba(0, 0, 0, 0.62),
     0 0 60px rgba(230, 255, 206, 0.16);
+}
+
+.sky-cinematic-hero .sky-video-intro strong span {
+  display: inline-block;
+  white-space: nowrap;
 }
 
 .sky-cinematic-hero .sky-video-intro div {
@@ -5937,18 +5945,16 @@ body:has(.sky-cinematic-hero) .header-cta {
   object-fit: cover;
   pointer-events: none;
   mix-blend-mode: screen;
-  opacity: 0.54;
+  opacity: 0.28;
   transform: translateZ(0);
 }
 
 .sky-cinematic-hero .sky-video-intro {
   max-width: min(980px, calc(100vw - 42px));
-  padding: clamp(20px, 3vw, 34px);
-  border-color: rgba(235, 255, 219, 0.22);
-  background:
-    radial-gradient(circle at 50% 0%, rgba(220, 255, 157, 0.16), transparent 40%),
-    linear-gradient(180deg, rgba(3, 17, 16, 0.36), rgba(3, 15, 14, 0.62));
-  backdrop-filter: blur(14px);
+  padding: clamp(14px, 2vw, 24px);
+  border-color: transparent;
+  background: transparent;
+  backdrop-filter: none;
 }
 
 .sky-cinematic-hero .sky-video-intro p {
@@ -5966,7 +5972,7 @@ body:has(.sky-cinematic-hero) .header-cta {
 
 .sky-cinematic-hero .sky-video-hotspot-glow {
   background:
-    radial-gradient(circle, rgba(226, 255, 173, 0.92) 0 10%, rgba(226, 255, 173, 0.22) 24%, transparent 46%);
+    radial-gradient(circle, rgba(226, 255, 173, 0.9) 0 24%, rgba(226, 255, 173, 0.18) 25% 54%, transparent 70%);
   box-shadow:
     0 0 26px rgba(218, 255, 155, 0.32),
     0 0 70px rgba(103, 241, 211, 0.18);

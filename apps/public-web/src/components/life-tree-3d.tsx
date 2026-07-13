@@ -958,9 +958,12 @@ function TaipeiDistrictPlate({
         />
       </mesh>
       <mesh
-        raycast={decorativeRaycast}
         rotation={[-Math.PI / 2, 0, 0]}
         position={[0, 0.02 + index * 0.002, 0]}
+        onClick={handlePointerOver}
+        onPointerMove={handlePointerOver}
+        onPointerOut={handlePointerOut}
+        onPointerOver={handlePointerOver}
       >
         <shapeGeometry args={[topShape]} />
         <meshStandardMaterial
@@ -969,24 +972,6 @@ function TaipeiDistrictPlate({
           metalness={0.03}
           emissive={isActive ? mission?.heat ?? "#ffb020" : "#244d35"}
           emissiveIntensity={isActive ? 0.18 : 0.045}
-        />
-      </mesh>
-      <mesh
-        name={`${district.name}-interaction-hit-layer`}
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, 0.082 + index * 0.002, 0]}
-        onPointerOver={handlePointerOver}
-        onPointerOut={handlePointerOut}
-        onClick={handlePointerOver}
-        renderOrder={20}
-      >
-        <shapeGeometry args={[topShape]} />
-        <meshBasicMaterial
-          transparent
-          opacity={0}
-          depthWrite={false}
-          color="#ffffff"
-          side={DoubleSide}
         />
       </mesh>
       <mesh
