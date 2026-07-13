@@ -997,7 +997,7 @@ class _AdventureMapHud extends StatelessWidget {
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Text(
-                          active ? '探索中' : '溫柔冒險',
+                          active ? '地圖定位中' : '溫柔冒險',
                           style: const TextStyle(
                             color: lime,
                             fontSize: 12,
@@ -1191,7 +1191,7 @@ class _AdventureBottomSheet extends StatelessWidget {
             const SizedBox(height: 12),
             const _NoticeBand(
               icon: Icons.shield_outlined,
-              text: '只在探索頁開啟定位。進入範圍只解鎖；完成任務才讓生命樹成長。',
+              text: '進入探索頁就會顯示目前位置。靠近任務會自動解鎖；完成後生命樹才會成長。',
             ),
             const SizedBox(height: 16),
             _SectionTitle(
@@ -1374,7 +1374,7 @@ class _ExplorationMissionDock extends StatelessWidget {
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        view?.stateLabel ?? (exploring ? '探索中' : '定位中'),
+                        view?.stateLabel ?? (exploring ? '地圖定位中' : '定位中'),
                         style: TextStyle(
                           color: accent,
                           fontSize: 11,
@@ -1395,8 +1395,8 @@ class _ExplorationMissionDock extends StatelessWidget {
                 Text(
                   view == null
                       ? hasSession
-                            ? '伺服器計算距離 · $locationStatus'
-                            : '地圖會自動偵測附近任務光點。'
+                            ? '正在比對附近任務 · $locationStatus'
+                            : '地圖會自動顯示目前位置，靠近光點就能接取任務。'
                       : '${view.mission.title} · ${view.helperText}',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -1452,7 +1452,7 @@ class _ExplorationQuickRail extends StatelessWidget {
             _LeafMenuButton(
               highlighted: true,
               icon: Icons.explore_rounded,
-              label: '探索中',
+              label: '地圖',
               onTap: () {},
             ),
             _LeafMenuButton(
