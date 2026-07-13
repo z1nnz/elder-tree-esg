@@ -9,24 +9,74 @@ class RootShell extends StatefulWidget {
     required this.controller,
     required this.accountEmail,
     required this.onSignOut,
+    this.initialIndex = 2,
     super.key,
   });
   final AppController controller;
   final String accountEmail;
   final Future<void> Function() onSignOut;
+  final int initialIndex;
 
   @override
   State<RootShell> createState() => _RootShellState();
 }
 
 class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
-  int index = 0;
+  late int index = widget.initialIndex;
 
   void _selectIndex(int value) {
     if (index == 2 && value != 2 && widget.controller.exploring) {
       widget.controller.stopExploration();
     }
+    if (value == 2 && index != 2) {
+      widget.controller.startExploration();
+    }
     setState(() => index = value);
+  }
+
+  Future<void> _showSettingsSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 4, 18, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.text_fields_rounded),
+                title: const Text('長者友善模式'),
+                subtitle: const Text('放大文字、保留單一主要操作。'),
+                trailing: Switch(
+                  value: widget.controller.elderMode,
+                  onChanged: (value) {
+                    widget.controller.toggleElderMode(value);
+                    setState(() {});
+                  },
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.refresh_rounded),
+                title: const Text('重新整理資料'),
+                onTap: () {
+                  Navigator.pop(context);
+                  widget.controller.refresh();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.logout_rounded),
+                title: Text('登出 ${widget.accountEmail}'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await widget.onSignOut();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -37,7 +87,10 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed && widget.controller.exploring) {
+    if (state == AppLifecycleState.resumed && index == 2) {
+      widget.controller.startExploration();
+    } else if (state != AppLifecycleState.resumed &&
+        widget.controller.exploring) {
       widget.controller.pauseExplorationTracking();
     }
   }
@@ -61,10 +114,11 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       ExplorationScreen(
         controller: widget.controller,
         onNavigate: _selectIndex,
+        onOpenSettings: _showSettingsSheet,
       ),
       FamilyScreen(controller: widget.controller),
       ImpactScreen(controller: widget.controller),
-      DeviceScreen(controller: widget.controller),
+      TreeGrowthScreen(controller: widget.controller),
     ];
     final immersiveExploration = index == 2;
     return Scaffold(
@@ -74,6 +128,11 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
           : AppBar(
               backgroundColor: Colors.white,
               surfaceTintColor: Colors.white,
+              leading: IconButton(
+                onPressed: () => _selectIndex(2),
+                tooltip: '回到探索地圖',
+                icon: const Icon(Icons.explore_rounded),
+              ),
               titleSpacing: 18,
               title: Row(
                 children: [
@@ -204,44 +263,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
             ),
         ],
       ),
-      bottomNavigationBar: immersiveExploration
-          ? null
-          : NavigationBar(
-              selectedIndex: index,
-              onDestinationSelected: _selectIndex,
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.home_outlined),
-                  selectedIcon: Icon(Icons.home_rounded),
-                  label: '今天',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.checklist_outlined),
-                  selectedIcon: Icon(Icons.checklist_rounded),
-                  label: '任務',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.explore_outlined),
-                  selectedIcon: Icon(Icons.explore_rounded),
-                  label: '探索',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.family_restroom_outlined),
-                  selectedIcon: Icon(Icons.family_restroom_rounded),
-                  label: '家人',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.public_outlined),
-                  selectedIcon: Icon(Icons.public_rounded),
-                  label: '公益',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.hub_outlined),
-                  selectedIcon: Icon(Icons.hub_rounded),
-                  label: '互動樹',
-                ),
-              ],
-            ),
+      bottomNavigationBar: null,
     );
   }
 }

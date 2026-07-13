@@ -64,6 +64,9 @@ class AppController extends ChangeNotifier {
   String? lastGrowthAwardTitle;
   bool _sendingLocation = false;
 
+  static const double _debugFallbackLatitude = 25.0316;
+  static const double _debugFallbackLongitude = 121.5362;
+
   bool get sendingLocation => _sendingLocation;
 
   List<RadarMissionViewState> get radarMissionViews {
@@ -508,6 +511,13 @@ class AppController extends ChangeNotifier {
             },
           );
     } catch (error) {
+      if (_applyDebugSimulatorLocationFallback()) {
+        exploring = true;
+        lastGrowthAwardPoints = null;
+        lastGrowthAwardTitle = null;
+        notifyListeners();
+        return;
+      }
       exploring = false;
       notice = _friendlyActionError(
         error,
@@ -525,6 +535,7 @@ class AppController extends ChangeNotifier {
       await _ensureLocationPermission();
       await _captureCurrentLocationPreview();
     } catch (error) {
+      if (_applyDebugSimulatorLocationFallback()) return;
       explorationLocationStatus = '等待定位';
       notice = _friendlyActionError(
         error,
@@ -826,6 +837,19 @@ class AppController extends ChangeNotifier {
     latestLongitude = position.longitude;
     latestAccuracyMeters = position.accuracy;
     latestLocationAt = position.timestamp;
+  }
+
+  bool _applyDebugSimulatorLocationFallback() {
+    if (!kDebugMode || defaultTargetPlatform != TargetPlatform.iOS) {
+      return false;
+    }
+    latestLatitude = _debugFallbackLatitude;
+    latestLongitude = _debugFallbackLongitude;
+    latestAccuracyMeters = 25;
+    latestLocationAt = DateTime.now();
+    explorationLocationStatus = '模擬器定位：大安森林公園';
+    notice = 'iOS 模擬器尚未設定定位，已用大安森林公園作為開發預覽位置；實機仍會使用系統定位。';
+    return true;
   }
 
   @override
