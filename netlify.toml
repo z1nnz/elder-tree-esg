@@ -1,0 +1,9 @@
+[build]
+command = "npm run build -w @elder-tree/contracts && npm run build -w @elder-tree/public-web"
+publish = "apps/public-web/.next"
+
+[build.environment]
+NODE_VERSION = "20"
+
+[[plugins]]
+package = "@netlify/plugin-nextjs"
