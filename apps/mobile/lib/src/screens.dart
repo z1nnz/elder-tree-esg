@@ -14,6 +14,12 @@ import 'theme.dart';
 
 ui.ImageFilter get uiBlur => ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18);
 
+const double _nearbyDockCollapsedWidth = 104;
+const double _nearbyDockCollapsedHeight = 96;
+const double _missionCueDockClearance = 118;
+const double _missionCueBottom = 128;
+const double _missionSheetBottom = 118;
+
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
     required this.controller,
@@ -878,14 +884,11 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
         if (!_treeMenuOpen &&
             !_nearbyPanelOpen &&
             selectedMissionForSheet != null &&
-            _selectedRadarMissionId != null)
+            !_missionSheetOpen)
           Positioned(
             left: 14,
-            right: 14,
-            bottom:
-                (_missionSheetOpen ? 314 : 132) +
-                safeBottom +
-                (_treeMenuOpen ? 42 : 0),
+            right: _missionCueDockClearance,
+            bottom: _missionCueBottom + safeBottom,
             child: _MissionNavigationCueCard(
               view: selectedMissionForSheet,
               screenBearingRadians: selectedMissionScreenBearing,
@@ -899,10 +902,11 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
           Positioned(
             left: 14,
             right: 14,
-            bottom: 118 + safeBottom,
+            bottom: _missionSheetBottom + safeBottom,
             child: _MissionDetailPanel(
               view: selectedMissionForSheet,
               onClose: () => setState(() => _missionSheetOpen = false),
+              onFocus: () => _focusRadarMission(selectedMissionForSheet),
               onComplete: selectedMissionForSheet.mission.isCompleted
                   ? null
                   : () => _confirmCompleteRadarMission(selectedMissionForSheet),
@@ -925,13 +929,7 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
                     missions: radarMissionViews,
                     selectedMissionId: _selectedRadarMissionId,
                     expanded: _nearbyPanelOpen,
-                    onToggle: () => setState(() {
-                      _nearbyPanelOpen = !_nearbyPanelOpen;
-                      if (_nearbyPanelOpen) {
-                        _treeMenuOpen = false;
-                        _missionSheetOpen = false;
-                      }
-                    }),
+                    onToggle: _toggleNearbyPanel,
                     onSelect: _selectRadarMission,
                   ),
                 ),
@@ -945,10 +943,7 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
           child: Center(
             child: _TreeCoreMenu(
               expanded: _treeMenuOpen,
-              onToggle: () => setState(() {
-                _treeMenuOpen = !_treeMenuOpen;
-                if (_treeMenuOpen) _nearbyPanelOpen = false;
-              }),
+              onToggle: _toggleTreeMenu,
               onNavigate: (index) {
                 setState(() => _treeMenuOpen = false);
                 widget.onNavigate(index);
@@ -969,6 +964,26 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
       _treeMenuOpen = false;
     });
     unawaited(_focusRadarMission(view));
+  }
+
+  void _toggleNearbyPanel() {
+    setState(() {
+      _nearbyPanelOpen = !_nearbyPanelOpen;
+      if (_nearbyPanelOpen) {
+        _treeMenuOpen = false;
+        _missionSheetOpen = false;
+      }
+    });
+  }
+
+  void _toggleTreeMenu() {
+    setState(() {
+      _treeMenuOpen = !_treeMenuOpen;
+      if (_treeMenuOpen) {
+        _nearbyPanelOpen = false;
+        _missionSheetOpen = false;
+      }
+    });
   }
 
   Future<void> _focusRadarMission(RadarMissionViewState view) async {
@@ -1333,8 +1348,10 @@ class _NearbyMissionDock extends StatelessWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 240),
       curve: Curves.easeOutCubic,
-      width: expanded ? expandedWidth : 88,
-      constraints: BoxConstraints(maxHeight: expanded ? 388 : 88),
+      width: expanded ? expandedWidth : _nearbyDockCollapsedWidth,
+      constraints: BoxConstraints(
+        maxHeight: expanded ? 414 : _nearbyDockCollapsedHeight,
+      ),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: expanded
@@ -1403,6 +1420,42 @@ class _NearbyMissionDock extends StatelessWidget {
                           ),
                         ],
                       ),
+                      if (nearest != null) ...[
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(11),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: lime.withValues(alpha: 0.22),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.navigation_rounded,
+                                color: lime,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  '最近：${nearest.mission.title} · ${nearest.distanceLabel}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 9),
+                      ],
                       const SizedBox(height: 8),
                       if (missions.isEmpty)
                         Text(
@@ -1466,6 +1519,8 @@ class _NearbyMissionDock extends StatelessWidget {
                       const SizedBox(height: 5),
                       Text(
                         actionable > 0 ? '$actionable 可接' : '附近',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: forestDark,
                           fontWeight: FontWeight.w900,
@@ -1475,6 +1530,8 @@ class _NearbyMissionDock extends StatelessWidget {
                       if (nearest != null)
                         Text(
                           nearest.distanceLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: forestDark.withValues(alpha: 0.62),
                             fontSize: 11,
@@ -1673,11 +1730,13 @@ class _MissionDetailPanel extends StatefulWidget {
   const _MissionDetailPanel({
     required this.view,
     required this.onClose,
+    required this.onFocus,
     required this.onComplete,
   });
 
   final RadarMissionViewState view;
   final VoidCallback onClose;
+  final VoidCallback onFocus;
   final VoidCallback? onComplete;
 
   @override
@@ -1799,6 +1858,38 @@ class _MissionDetailPanelState extends State<_MissionDetailPanel> {
             ),
           ),
           const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: widget.onFocus,
+                  icon: const Icon(Icons.near_me_rounded),
+                  label: const Text('導航到任務點'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 11,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: accent.withValues(alpha: 0.2)),
+                ),
+                child: Text(
+                  widget.view.stateLabel,
+                  style: TextStyle(
+                    color: accent,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
             child: mission.isCompleted
