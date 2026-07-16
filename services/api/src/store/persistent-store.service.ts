@@ -1,6 +1,7 @@
 import type {
   AppContext,
   AdminLineBindingSummary,
+  CompanionPromptSummary,
   CompanionDeviceSummary,
   DashboardSnapshot,
   DeviceDesiredState,
@@ -120,6 +121,27 @@ type RadarMissionWithProgress = Prisma.RadarMissionGetPayload<{
   include: { progress: true };
 }>;
 
+interface RadarMissionPromptSource {
+  title: string;
+  category: string;
+  tag: string;
+  growthPoints: number;
+  companionElderMessageTemplate: string | null;
+  companionReplyTemplate: string | null;
+  companionVolunteerNoteTemplate: string | null;
+  companionShareSummaryTemplate: string | null;
+}
+
+const DEFAULT_COMPANION_PROMPT_TEMPLATES = {
+  elderMessage:
+    "你完成了「{title}」，生命樹長出新葉 +{growthPoints}。今天有把自己帶回生活裡，這件事很好。",
+  companionReply:
+    "可以回覆：『看到你完成「{title}」了，今天有做一件照顧自己的事，很棒。』",
+  volunteerNote:
+    "先肯定已完成的具體行動；若要延伸，只邀請下一次一起走安全路線，不做情緒判斷。",
+  shareSummary: "完成「{title}」，生命樹長出新葉 +{growthPoints}。",
+} as const;
+
 interface GeminiPhotoTaskInput {
   imageBase64: string;
   contentType: string;
@@ -161,6 +183,17 @@ function photoCapabilityStatus() {
             : "PHOTO_VERIFIER_UNAVAILABLE",
     },
   } as const;
+}
+
+function fillPromptTemplate(
+  template: string | null | undefined,
+  fallback: string,
+  replacements: Record<string, string>,
+): string {
+  const source = template?.trim() || fallback;
+  return source.replace(/\{(title|tag|category|growthPoints)\}/g, (_, key) => {
+    return replacements[key] ?? "";
+  });
 }
 
 function photoAiOperationalStatus() {
@@ -2151,6 +2184,29 @@ export class PersistentStoreService {
     );
   }
 
+  async getRecentCompanionPrompts(
+    firebaseUid: string,
+  ): Promise<CompanionPromptSummary[]> {
+    const active = await this.getActiveUser(firebaseUid);
+    const prompts = await this.prisma.companionPrompt.findMany({
+      where: {
+        userId: active.id,
+        householdId: active.activeHouseholdId,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 12,
+    });
+    return prompts.map((prompt) => this.toCompanionPromptSummary(prompt));
+  }
+
+  async listAdminCompanionPrompts(): Promise<CompanionPromptSummary[]> {
+    const prompts = await this.prisma.companionPrompt.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 30,
+    });
+    return prompts.map((prompt) => this.toCompanionPromptSummary(prompt));
+  }
+
   async createAdminRadarMission(
     input: RadarMissionInput,
   ): Promise<RadarMissionSummary> {
@@ -2320,7 +2376,16 @@ export class PersistentStoreService {
       });
       if (!progress)
         throw new NotFoundException("Radar mission is not unlocked");
-      if (progress.completedAt) return;
+      if (progress.completedAt) {
+        await this.ensureRadarCompanionPrompt(
+          transaction,
+          progress,
+          active.id,
+          active.activeHouseholdId,
+          progress.completedAt,
+        );
+        return;
+      }
       if (progress.mission.status !== "PUBLISHED") {
         throw new BadRequestException("Radar mission is not published");
       }
@@ -2354,6 +2419,13 @@ export class PersistentStoreService {
         where: { id: progress.id },
         data: { completedAt: now },
       });
+      await this.ensureRadarCompanionPrompt(
+        transaction,
+        progress,
+        active.id,
+        active.activeHouseholdId,
+        now,
+      );
     });
     return this.getRadarState(firebaseUid);
   }
@@ -3114,6 +3186,14 @@ export class PersistentStoreService {
         input.verificationMode === "TIMER" ? input.minimumSeconds : null,
       growthPoints: input.growthPoints,
       badgeName: input.badgeName?.trim() || null,
+      companionElderMessageTemplate:
+        input.companionPromptTemplates?.elderMessage?.trim() || null,
+      companionReplyTemplate:
+        input.companionPromptTemplates?.companionReply?.trim() || null,
+      companionVolunteerNoteTemplate:
+        input.companionPromptTemplates?.volunteerNote?.trim() || null,
+      companionShareSummaryTemplate:
+        input.companionPromptTemplates?.shareSummary?.trim() || null,
     };
   }
 
@@ -3155,6 +3235,103 @@ export class PersistentStoreService {
       status,
       unlockedAt: progress?.unlockedAt.toISOString() ?? null,
       completedAt: progress?.completedAt?.toISOString() ?? null,
+      companionPromptTemplates: {
+        elderMessage: mission.companionElderMessageTemplate,
+        companionReply: mission.companionReplyTemplate,
+        volunteerNote: mission.companionVolunteerNoteTemplate,
+        shareSummary: mission.companionShareSummaryTemplate,
+      },
+    };
+  }
+
+  private async ensureRadarCompanionPrompt(
+    transaction: Prisma.TransactionClient,
+    progress: Prisma.RadarMissionProgressGetPayload<{
+      include: { mission: true };
+    }>,
+    userId: string,
+    householdId: string,
+    createdAt: Date,
+  ): Promise<void> {
+    const prompt = this.buildRadarCompanionPrompt(progress.mission);
+    await transaction.companionPrompt.upsert({
+      where: { radarMissionProgressId: progress.id },
+      update: { sourceTitle: progress.mission.title },
+      create: {
+        radarMissionProgressId: progress.id,
+        userId,
+        householdId,
+        sourceTitle: progress.mission.title,
+        category: progress.mission.category,
+        tag: progress.mission.tag,
+        growthPoints: progress.mission.growthPoints,
+        elderMessage: prompt.elderMessage,
+        companionReply: prompt.companionReply,
+        volunteerNote: prompt.volunteerNote,
+        shareSummary: prompt.shareSummary,
+        createdAt,
+      },
+    });
+  }
+
+  private buildRadarCompanionPrompt(mission: RadarMissionPromptSource) {
+    const replacements = {
+      title: mission.title,
+      tag: mission.tag,
+      category: mission.category,
+      growthPoints: String(mission.growthPoints),
+    };
+    return {
+      elderMessage: fillPromptTemplate(
+        mission.companionElderMessageTemplate,
+        DEFAULT_COMPANION_PROMPT_TEMPLATES.elderMessage,
+        replacements,
+      ),
+      companionReply: fillPromptTemplate(
+        mission.companionReplyTemplate,
+        DEFAULT_COMPANION_PROMPT_TEMPLATES.companionReply,
+        replacements,
+      ),
+      volunteerNote: fillPromptTemplate(
+        mission.companionVolunteerNoteTemplate,
+        DEFAULT_COMPANION_PROMPT_TEMPLATES.volunteerNote,
+        replacements,
+      ),
+      shareSummary: fillPromptTemplate(
+        mission.companionShareSummaryTemplate,
+        DEFAULT_COMPANION_PROMPT_TEMPLATES.shareSummary,
+        replacements,
+      ),
+    };
+  }
+
+  private toCompanionPromptSummary(prompt: {
+    id: string;
+    sourceType: "RADAR_MISSION";
+    householdId: string;
+    sourceTitle: string;
+    category: string;
+    tag: string;
+    growthPoints: number;
+    elderMessage: string;
+    companionReply: string;
+    volunteerNote: string;
+    shareSummary: string;
+    createdAt: Date;
+  }): CompanionPromptSummary {
+    return {
+      id: prompt.id,
+      sourceType: prompt.sourceType,
+      householdId: prompt.householdId,
+      sourceTitle: prompt.sourceTitle,
+      category: prompt.category,
+      tag: prompt.tag,
+      growthPoints: prompt.growthPoints,
+      elderMessage: prompt.elderMessage,
+      companionReply: prompt.companionReply,
+      volunteerNote: prompt.volunteerNote,
+      shareSummary: prompt.shareSummary,
+      createdAt: prompt.createdAt.toISOString(),
     };
   }
 

@@ -69,6 +69,10 @@ enum RadarMissionPublicationStatus {
   ARCHIVED
 }
 
+enum CompanionPromptSource {
+  RADAR_MISSION
+}
+
 enum TreeStage {
   SEED
   SPROUT
@@ -103,6 +107,7 @@ model User {
   locationReceipts    LocationEventReceipt[]
   questUnlocks        QuestUnlock[]
   radarMissionProgress RadarMissionProgress[]
+  companionPrompts CompanionPrompt[]
   lineBindings       LineBinding[]
   lineBindingCodes   LineBindingCode[]
   auditLogs         AuditLog[]        @relation("AuditActor")
@@ -126,6 +131,7 @@ model Household {
   locationReceipts LocationEventReceipt[]
   questUnlocks QuestUnlock[]
   radarMissionProgress RadarMissionProgress[]
+  companionPrompts CompanionPrompt[]
   lineBindings LineBinding[]
   lineBindingCodes LineBindingCode[]
   createdAt   DateTime          @default(now())
@@ -321,6 +327,10 @@ model RadarMission {
   minimumSeconds   Int?
   growthPoints     Int
   badgeName        String?
+  companionElderMessageTemplate String?
+  companionReplyTemplate String?
+  companionVolunteerNoteTemplate String?
+  companionShareSummaryTemplate String?
   status           RadarMissionPublicationStatus @default(DRAFT)
   publishedAt      DateTime?
   archivedAt       DateTime?
@@ -343,11 +353,35 @@ model RadarMissionProgress {
   mission     RadarMission @relation(fields: [missionId], references: [id], onDelete: Cascade)
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   household   Household    @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  companionPrompt CompanionPrompt?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
   @@unique([missionId, userId, householdId])
   @@index([userId, householdId, completedAt])
+}
+
+model CompanionPrompt {
+  id                     String                @id @default(uuid())
+  sourceType             CompanionPromptSource @default(RADAR_MISSION)
+  radarMissionProgressId String                @unique
+  userId                 String
+  householdId            String
+  sourceTitle            String
+  category               String
+  tag                    String
+  growthPoints           Int
+  elderMessage           String
+  companionReply         String
+  volunteerNote          String
+  shareSummary           String
+  radarMissionProgress   RadarMissionProgress  @relation(fields: [radarMissionProgressId], references: [id], onDelete: Cascade)
+  user                   User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  household              Household             @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  createdAt              DateTime              @default(now())
+
+  @@index([userId, householdId, createdAt])
+  @@index([householdId, createdAt])
 }
 
 model TaskAssignment {

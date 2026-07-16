@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { Type } from "class-transformer";
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -18,6 +19,7 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from "class-validator";
 
 export class UpdateProfileDto {
@@ -392,6 +394,32 @@ export class CompleteRadarMissionDto {
   idempotencyKey?: string;
 }
 
+export class CompanionPromptTemplatesDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(4, 240)
+  elderMessage: string | null = null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(4, 240)
+  companionReply: string | null = null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(4, 240)
+  volunteerNote: string | null = null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(4, 240)
+  shareSummary: string | null = null;
+}
+
 export class CreateRadarMissionDto {
   @ApiProperty()
   @IsString()
@@ -457,6 +485,12 @@ export class CreateRadarMissionDto {
   @IsString()
   @Length(2, 80)
   badgeName?: string;
+
+  @ApiPropertyOptional({ type: CompanionPromptTemplatesDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CompanionPromptTemplatesDto)
+  companionPromptTemplates?: CompanionPromptTemplatesDto | null;
 }
 
 export class UpdateRadarMissionDto extends CreateRadarMissionDto {}

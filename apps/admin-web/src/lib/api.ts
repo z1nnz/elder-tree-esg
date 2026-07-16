@@ -1,6 +1,7 @@
 import type {
   AdminLineBindingSummary,
   ApiEnvelope,
+  CompanionPromptSummary,
   DashboardSnapshot,
   ExplorationQuestInput,
   RadarMissionInput,
@@ -53,6 +54,8 @@ export const api = {
   reviews: () => request<ReviewItem[]>("/admin/reviews"),
   radarMissions: () =>
     request<RadarMissionSummary[]>("/admin/exploration/radar-missions"),
+  companionPrompts: () =>
+    request<CompanionPromptSummary[]>("/admin/companion-prompts/recent"),
   createRadarMission: (input: RadarMissionInput) =>
     request<RadarMissionSummary>("/admin/exploration/radar-missions", {
       method: "POST",

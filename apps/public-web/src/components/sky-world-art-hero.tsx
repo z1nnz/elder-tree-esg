@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useMemo, useRef, useState, type CSSProperties } from "react";
+import { useGSAP } from "@gsap/react";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(ScrollTrigger, useGSAP);
+}
 
 const posterImage = "/images/sky-world-tree-hero.png";
 const motionVideo = "/videos/sky-world-tree-loop-seamless.mp4";
@@ -79,36 +86,64 @@ export function SkyWorldArtHero() {
   const [activeIsland, setActiveIsland] = useState<ArtIsland["key"] | null>(null);
   const [isExploreMode, setIsExploreMode] = useState(false);
   const sectionRef = useRef<HTMLElement | null>(null);
+  const exploreModeRef = useRef(false);
   const activeData = useMemo(
     () => artIslands.find((island) => island.key === activeIsland) ?? null,
     [activeIsland],
   );
 
-  useEffect(() => {
-    let frame = 0;
+  const updateExploreMode = (nextValue: boolean) => {
+    if (exploreModeRef.current === nextValue) return;
+    exploreModeRef.current = nextValue;
+    setIsExploreMode(nextValue);
+  };
 
-    const updateExploreMode = () => {
-      if (!sectionRef.current) return;
-      const rect = sectionRef.current.getBoundingClientRect();
-      const triggerDistance = window.innerHeight * 0.36;
-      setIsExploreMode(-rect.top > triggerDistance && rect.bottom > window.innerHeight * 0.3);
-    };
+  useGSAP(
+    () => {
+      const section = sectionRef.current;
+      if (!section) return;
 
-    const onScroll = () => {
-      window.cancelAnimationFrame(frame);
-      frame = window.requestAnimationFrame(updateExploreMode);
-    };
+      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (prefersReducedMotion) {
+        updateExploreMode(true);
+        return;
+      }
 
-    updateExploreMode();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
+      const intro = section.querySelector(".sky-video-intro");
+      const hotspots = section.querySelector(".sky-video-hotspots");
+      const cue = section.querySelector(".sky-scroll-cue");
+      const media = section.querySelectorAll(".sky-video-media");
 
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-    };
-  }, []);
+      gsap.set(hotspots, { autoAlpha: 0 });
+      gsap.set(intro, { autoAlpha: 1, y: 0, scale: 1, filter: "blur(0px)" });
+      gsap.set(cue, { autoAlpha: 1, y: 0 });
+
+      const pinDistance = () => Math.max(window.innerHeight * 1.25, 820);
+      const timeline = gsap.timeline({
+        defaults: { ease: "power2.out" },
+        scrollTrigger: {
+          trigger: section,
+          start: "top top",
+          end: () => `+=${pinDistance()}`,
+          scrub: 0.85,
+          pin: true,
+          pinSpacing: true,
+          anticipatePin: 1,
+          invalidateOnRefresh: true,
+          onUpdate: (self) => updateExploreMode(self.progress >= 0.34),
+          onLeave: () => updateExploreMode(true),
+          onLeaveBack: () => updateExploreMode(false),
+        },
+      });
+
+      timeline
+        .to(intro, { autoAlpha: 0, y: -54, scale: 0.96, filter: "blur(10px)", duration: 0.36 }, 0)
+        .to(cue, { autoAlpha: 0, y: 18, duration: 0.18 }, 0)
+        .to(media, { scale: 1.035, duration: 1 }, 0)
+        .to(hotspots, { autoAlpha: 1, duration: 0.28 }, 0.32);
+    },
+    { scope: sectionRef },
+  );
 
   return (
     <section
@@ -205,7 +240,6 @@ export function SkyWorldArtHero() {
             <span>追逐一個更願意生活的</span>
             <span>自己。</span>
           </strong>
-          <p>向下滑，文字會先退開。畫面會停在世界樹，讓你探索周圍五個入口。</p>
           <div>
             <Link href="/product">開始了解</Link>
             <Link href="/partners">成為陪伴者</Link>

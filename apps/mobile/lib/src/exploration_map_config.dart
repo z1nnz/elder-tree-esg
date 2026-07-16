@@ -21,9 +21,9 @@ ExplorationMapPresentation explorationMapPresentation(
   return switch (mode) {
     ExplorationMapMode.adventure => const ExplorationMapPresentation(
       style: adventureMapStyle,
-      zoom: 15.4,
-      pitch: 52,
-      bearing: -18,
+      zoom: 15.9,
+      pitch: 58,
+      bearing: -28,
     ),
     ExplorationMapMode.street => ExplorationMapPresentation(
       style: streetStyleUrl,
@@ -49,7 +49,7 @@ const adventureMapStyle = r'''
       "id": "game-background",
       "type": "background",
       "paint": {
-        "background-color": "#8BE89A"
+        "background-color": "#9BE9CE"
       }
     },
     {
@@ -61,10 +61,10 @@ const adventureMapStyle = r'''
         "fill-color": [
           "match",
           ["get", "class"],
-          "wood", "#55D58A",
-          "grass", "#8EEF83",
-          "farmland", "#A4EF8E",
-          "#86E895"
+          "wood", "#59D994",
+          "grass", "#90EDB0",
+          "farmland", "#A8EEC0",
+          "#91E7BA"
         ],
         "fill-opacity": 0.86
       }
@@ -78,11 +78,11 @@ const adventureMapStyle = r'''
         "fill-color": [
           "match",
           ["get", "class"],
-          "residential", "#A5EEA0",
-          "commercial", "#A2E7A4",
-          "industrial", "#A8E4A8",
-          "cemetery", "#73D98A",
-          "#92EA98"
+          "residential", "#A9ECCA",
+          "commercial", "#A7E5C6",
+          "industrial", "#B0E3C4",
+          "cemetery", "#78D99F",
+          "#9DE8C0"
         ],
         "fill-opacity": 0.72
       }
@@ -93,8 +93,8 @@ const adventureMapStyle = r'''
       "source": "openmaptiles",
       "source-layer": "park",
       "paint": {
-        "fill-color": "#54DE78",
-        "fill-outline-color": "#42C76B"
+        "fill-color": "#64D98C",
+        "fill-outline-color": "#46BF82"
       }
     },
     {
@@ -103,7 +103,7 @@ const adventureMapStyle = r'''
       "source": "openmaptiles",
       "source-layer": "water",
       "paint": {
-        "fill-color": "#74DAEA"
+        "fill-color": "#69CAE6"
       }
     },
     {
@@ -112,7 +112,7 @@ const adventureMapStyle = r'''
       "source": "openmaptiles",
       "source-layer": "waterway",
       "paint": {
-        "line-color": "#65D3E6",
+        "line-color": "#55C4DE",
         "line-width": [
           "interpolate", ["linear"], ["zoom"],
           12, 1,
@@ -128,8 +128,8 @@ const adventureMapStyle = r'''
       "minzoom": 13,
       "maxzoom": 15.5,
       "paint": {
-        "fill-color": "#B9F0B2",
-        "fill-outline-color": "#89D89C",
+        "fill-color": "#A7E8C8",
+        "fill-outline-color": "#7BCAA6",
         "fill-opacity": 0.82
       }
     },
@@ -140,7 +140,7 @@ const adventureMapStyle = r'''
       "source-layer": "building",
       "minzoom": 15.5,
       "paint": {
-        "fill-extrusion-color": "#B8EFB5",
+        "fill-extrusion-color": "#AFE7C8",
         "fill-extrusion-height": [
           "coalesce",
           ["get", "render_height"],
@@ -164,7 +164,7 @@ const adventureMapStyle = r'''
         "line-join": "round"
       },
       "paint": {
-        "line-color": "#D8F3DC",
+        "line-color": "#F7E5B3",
         "line-width": [
           "interpolate", ["linear"], ["zoom"],
           12, 2.4,
@@ -186,10 +186,10 @@ const adventureMapStyle = r'''
         "line-color": [
           "match",
           ["get", "class"],
-          "path", "#4F9F8E",
-          "track", "#4F9F8E",
-          "service", "#468F82",
-          "#397F75"
+          "path", "#4D91A3",
+          "track", "#4D91A3",
+          "service", "#477F91",
+          "#367A8F"
         ],
         "line-width": [
           "interpolate", ["linear"], ["zoom"],

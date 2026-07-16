@@ -1,10 +1,11 @@
 "use client";
 
 import type {
+  CompanionPromptSummary,
   RadarMissionInput,
   RadarMissionSummary,
 } from "@elder-tree/contracts";
-import { FormEvent, useState, type CSSProperties } from "react";
+import { FormEvent, useEffect, useState, type CSSProperties } from "react";
 import { api } from "../lib/api";
 
 const now = new Date();
@@ -24,6 +25,12 @@ interface RadarDraft {
   minimumSeconds: number;
   growthPoints: number;
   badgeName: string;
+  companionPromptTemplates: {
+    elderMessage: string;
+    companionReply: string;
+    volunteerNote: string;
+    shareSummary: string;
+  };
 }
 
 const emptyRadarDraft: RadarDraft = {
@@ -40,6 +47,12 @@ const emptyRadarDraft: RadarDraft = {
   minimumSeconds: 180,
   growthPoints: 8,
   badgeName: "",
+  companionPromptTemplates: {
+    elderMessage: "",
+    companionReply: "",
+    volunteerNote: "",
+    shareSummary: "",
+  },
 };
 
 const validationTemplates = [
@@ -56,6 +69,14 @@ const validationTemplates = [
     minimumSeconds: 180,
     growthPoints: 6,
     badgeName: "城市補水者",
+    companionPromptTemplates: {
+      elderMessage: "你完成了「{title}」。有記得喝水，就是把身體放在心上。",
+      companionReply:
+        "可以回覆：『今天有記得補水，很棒。晚點出門也可以帶一瓶水。』",
+      volunteerNote:
+        "先肯定補水這個具體行動；若要延伸，只提醒下次出門帶水，不追問感受。",
+      shareSummary: "完成「{title}」，生命樹長出新葉 +{growthPoints}。",
+    },
   },
   {
     name: "二二八公園慢呼吸",
@@ -70,6 +91,14 @@ const validationTemplates = [
     minimumSeconds: 180,
     growthPoints: 10,
     badgeName: "慢呼吸同行者",
+    companionPromptTemplates: {
+      elderMessage: "你完成了「{title}」。願意慢下來，是照顧自己的開始。",
+      companionReply:
+        "可以回覆：『看到你完成三分鐘慢呼吸了，願意停一下也很不錯。』",
+      volunteerNote:
+        "先回應已完成的慢呼吸行動；若要邀約，下次可一起找安全座位練習。",
+      shareSummary: "完成「{title}」，生命樹長出新葉 +{growthPoints}。",
+    },
   },
 ];
 
@@ -84,6 +113,19 @@ export function RadarMissionEditor({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [prompts, setPrompts] = useState<CompanionPromptSummary[]>([]);
+
+  useEffect(() => {
+    void refreshPrompts();
+  }, []);
+
+  async function refreshPrompts() {
+    try {
+      setPrompts(await api.companionPrompts());
+    } catch {
+      setPrompts([]);
+    }
+  }
 
   async function refresh(updated?: RadarMissionSummary) {
     if (updated) {
@@ -115,6 +157,13 @@ export function RadarMissionEditor({
       minimumSeconds: mission.minimumSeconds ?? 180,
       growthPoints: mission.growthPoints,
       badgeName: mission.badgeName ?? "",
+      companionPromptTemplates: {
+        elderMessage: mission.companionPromptTemplates.elderMessage ?? "",
+        companionReply:
+          mission.companionPromptTemplates.companionReply ?? "",
+        volunteerNote: mission.companionPromptTemplates.volunteerNote ?? "",
+        shareSummary: mission.companionPromptTemplates.shareSummary ?? "",
+      },
     });
     setMessage(null);
   }
@@ -139,6 +188,9 @@ export function RadarMissionEditor({
           draft.verificationMode === "TIMER" ? draft.minimumSeconds : null,
         growthPoints: draft.growthPoints,
         badgeName: draft.badgeName || null,
+        companionPromptTemplates: normalizeCompanionTemplates(
+          draft.companionPromptTemplates,
+        ),
       };
       const saved = editingId
         ? await api.updateRadarMission(editingId, input)
@@ -147,6 +199,7 @@ export function RadarMissionEditor({
       setEditingId(null);
       setDraft(emptyRadarDraft);
       setMessage(editingId ? "雷達任務已更新。" : "雷達任務草稿已建立。");
+      await refreshPrompts();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "雷達任務儲存失敗");
     } finally {
@@ -216,11 +269,15 @@ export function RadarMissionEditor({
             draft.verificationMode === "TIMER" ? draft.minimumSeconds : null,
           growthPoints: draft.growthPoints,
           badgeName: draft.badgeName || null,
+          companionPromptTemplates: normalizeCompanionTemplates(
+            draft.companionPromptTemplates,
+          ),
         });
         saved.push(await api.publishRadarMission(created.id));
       }
       onMissionsChange([...saved, ...missions]);
       setMessage("已建立並發布 2 個台北實機驗收任務。");
+      await refreshPrompts();
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "測試任務建立或發布失敗",
@@ -439,6 +496,76 @@ export function RadarMissionEditor({
               placeholder="可留空"
             />
           </label>
+          <fieldset className="companion-template-fieldset">
+            <legend>陪伴回應模板</legend>
+            <small>
+              任務完成後會轉成家人、志工或社福可接續的生活片段。請寫成自然的一句回覆，不要問任務或照片裡已經看得到的資訊。可使用 {"{title}"}、{"{tag}"}、{"{growthPoints}"}。
+            </small>
+            <label>
+              長者鼓勵語
+              <textarea
+                value={draft.companionPromptTemplates.elderMessage}
+                onChange={(event) =>
+                  setDraft({
+                    ...draft,
+                    companionPromptTemplates: {
+                      ...draft.companionPromptTemplates,
+                      elderMessage: event.target.value,
+                    },
+                  })
+                }
+                placeholder="留空時使用系統預設鼓勵語"
+              />
+            </label>
+            <label>
+              家人／陪伴者回覆建議
+              <textarea
+                value={draft.companionPromptTemplates.companionReply}
+                onChange={(event) =>
+                  setDraft({
+                    ...draft,
+                    companionPromptTemplates: {
+                      ...draft.companionPromptTemplates,
+                      companionReply: event.target.value,
+                    },
+                  })
+                }
+                placeholder="例如：可以回覆：『看到你完成「{title}」了，今天有出去走走很棒。』"
+              />
+            </label>
+            <label>
+              志工／社福陪伴提示
+              <textarea
+                value={draft.companionPromptTemplates.volunteerNote}
+                onChange={(event) =>
+                  setDraft({
+                    ...draft,
+                    companionPromptTemplates: {
+                      ...draft.companionPromptTemplates,
+                      volunteerNote: event.target.value,
+                    },
+                  })
+                }
+                placeholder="例如：先肯定完成，再詢問是否需要休息或陪同。"
+              />
+            </label>
+            <label>
+              可分享摘要
+              <textarea
+                value={draft.companionPromptTemplates.shareSummary}
+                onChange={(event) =>
+                  setDraft({
+                    ...draft,
+                    companionPromptTemplates: {
+                      ...draft.companionPromptTemplates,
+                      shareSummary: event.target.value,
+                    },
+                  })
+                }
+                placeholder="例如：完成「{title}」，生命樹長出新葉 +{growthPoints}。"
+              />
+            </label>
+          </fieldset>
           <button className="primary-button" disabled={busy}>
             {editingId ? "儲存任務" : "建立草稿"}
           </button>
@@ -460,6 +587,7 @@ export function RadarMissionEditor({
 
         <div className="radar-admin-side">
           <RadarMissionPreview draft={draft} editingId={editingId} />
+          <CompanionPromptFeed prompts={prompts} />
           <div className="radar-admin-list">
             {missions.length === 0 ? (
               <div className="empty-state">尚未建立雷達任務。</div>
@@ -582,8 +710,69 @@ function RadarMissionPreview({
           ? `${startsAt.toLocaleString("zh-TW")} — ${endsAt.toLocaleString("zh-TW")}`
           : "請設定有效時間窗"}
       </small>
+      <div className="companion-preview">
+        <strong>陪伴回應預覽</strong>
+        <p>
+          {previewPrompt(
+            draft.companionPromptTemplates.companionReply,
+            `可以回覆：『看到你完成「${draft.title || "這個任務"}」了，今天有做一件照顧自己的事，很棒。』`,
+            draft,
+          )}
+        </p>
+      </div>
     </aside>
   );
+}
+
+function CompanionPromptFeed({
+  prompts,
+}: {
+  prompts: CompanionPromptSummary[];
+}) {
+  return (
+    <aside className="companion-prompt-feed" aria-label="最近產生的陪伴回應">
+      <span className="eyebrow">COMPANION RESPONSES</span>
+      <h3>最近陪伴回應</h3>
+      {prompts.length === 0 ? (
+        <p>完成雷達任務後，這裡會顯示家人／志工可轉述的自然回應。</p>
+      ) : (
+        prompts.slice(0, 4).map((prompt) => (
+          <article key={prompt.id}>
+            <small>
+              {prompt.tag}・+{prompt.growthPoints}・
+              {new Date(prompt.createdAt).toLocaleString("zh-TW")}
+            </small>
+            <strong>{prompt.sourceTitle}</strong>
+            <p>{prompt.companionReply}</p>
+          </article>
+        ))
+      )}
+    </aside>
+  );
+}
+
+function normalizeCompanionTemplates(
+  templates: RadarDraft["companionPromptTemplates"],
+) {
+  return {
+    elderMessage: templates.elderMessage.trim() || null,
+    companionReply: templates.companionReply.trim() || null,
+    volunteerNote: templates.volunteerNote.trim() || null,
+    shareSummary: templates.shareSummary.trim() || null,
+  };
+}
+
+function previewPrompt(template: string, fallback: string, draft: RadarDraft) {
+  const source = template.trim() || fallback;
+  return source.replace(/\{(title|tag|category|growthPoints)\}/g, (_, key) => {
+    const replacements = {
+      title: draft.title || "這個任務",
+      tag: draft.tag || "任務",
+      category: draft.category || "任務",
+      growthPoints: String(draft.growthPoints || 0),
+    };
+    return replacements[key as keyof typeof replacements] ?? "";
+  });
 }
 
 function coordinateToPercent(value: number, min: number, max: number) {
