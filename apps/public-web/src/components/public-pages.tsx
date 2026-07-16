@@ -1184,20 +1184,16 @@ function ImpactHeroScene() {
 }
 
 export function HomePage() {
-  const { publicRadar, routeData } = usePublicExploration();
-  const root = usePublicAnimations([
-    routeData?.id,
-    publicRadar?.missions.length,
-  ]);
+  const { routeData } = usePublicExploration();
+  const root = usePublicAnimations([routeData?.id]);
 
   return (
     <PublicShell>
-      <main ref={root}>
+      <main className="public-main public-main--home" ref={root}>
         <HomeHero />
         <CinematicStoryExperience />
         <NatureTechIndex />
         <ProductExperienceLab />
-        <RadarShowcase publicRadar={publicRadar} />
         <RouteJourneyShowcase routeData={routeData} />
         <ActionSection tone="light" />
       </main>
@@ -1209,7 +1205,7 @@ export function ProductPage() {
   const root = usePublicAnimations();
   return (
     <PublicShell>
-      <main ref={root}>
+      <main className="public-main public-main--light" ref={root}>
         <PageHero
           eyebrow="產品功能"
           title="任務陪你慢慢回到生活。"
@@ -1237,7 +1233,7 @@ export function ExplorePage() {
   ]);
   return (
     <PublicShell>
-      <main ref={root}>
+      <main className="public-main public-main--light" ref={root}>
         <ExploreHero publicRadar={publicRadar} />
         <RouteJourneyShowcase routeData={routeData} />
         <ActionSection tone="light" />
@@ -1250,7 +1246,7 @@ export function PartnersPage() {
   const root = usePublicAnimations();
   return (
     <PublicShell>
-      <main ref={root}>
+      <main className="public-main public-main--light" ref={root}>
         <PageHero
           eyebrow="合作夥伴與陪伴者"
           title="一個人也能開始，需要時再讓陪伴靠近。"
@@ -1275,7 +1271,7 @@ export function ImpactPage() {
   const root = usePublicAnimations();
   return (
     <PublicShell>
-      <main ref={root}>
+      <main className="public-main public-main--light" ref={root}>
         <PageHero
           eyebrow="理念與影響力"
           title="照顧自己，也可以成為對世界溫柔的一部分。"
