@@ -741,6 +741,11 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
               ) -
               _degreesToRadians(mapPresentation.bearing)
         : null;
+    final visibleRadarMissionViews = _visibleRadarMissionViews(
+      radarMissionViews,
+      selectedMissionId: _selectedRadarMissionId,
+      featuredMissionId: featuredMission?.mission.id,
+    );
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -788,7 +793,7 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
                       child: _QuestBeacon(quest: quest),
                     ),
                   ),
-                  ...radarMissionViews.map(
+                  ...visibleRadarMissionViews.map(
                     (view) => Marker(
                       point: Geographic(
                         lon: view.mission.longitude,
@@ -827,6 +832,18 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
           ),
         ),
         const _AdventureMapOverlay(),
+        if (!_treeMenuOpen &&
+            _selectedRadarMissionId != null &&
+            selectedMissionForSheet != null &&
+            selectedMissionScreenBearing != null)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: _MissionDirectionBeam(
+                angle: selectedMissionScreenBearing,
+                color: _radarAccentColor(selectedMissionForSheet.mission),
+              ),
+            ),
+          ),
         Positioned(
           left: 14,
           top: 12 + safeTop,
@@ -1536,12 +1553,47 @@ class _NearbyMissionTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 6),
-              Text(
-                '+${mission.growthPoints}',
-                style: const TextStyle(
-                  color: warmYellow,
-                  fontWeight: FontWeight.w900,
-                ),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: selected
+                    ? Container(
+                        key: const ValueKey('guiding'),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.near_me_rounded,
+                              color: Colors.white,
+                              size: 14,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              '導引',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : Text(
+                        '+${mission.growthPoints}',
+                        key: const ValueKey('points'),
+                        style: const TextStyle(
+                          color: warmYellow,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
               ),
             ],
           ),
@@ -2332,6 +2384,135 @@ class _AdventureMapOverlay extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _MissionDirectionBeam extends StatelessWidget {
+  const _MissionDirectionBeam({required this.angle, required this.color});
+
+  final double angle;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 560),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return CustomPaint(
+          painter: _MissionDirectionBeamPainter(
+            angle: angle,
+            color: color,
+            progress: value,
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _MissionDirectionBeamPainter extends CustomPainter {
+  const _MissionDirectionBeamPainter({
+    required this.angle,
+    required this.color,
+    required this.progress,
+  });
+
+  final double angle;
+  final Color color;
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final start = Offset(size.width * 0.5, size.height * 0.58);
+    final direction = Offset(math.sin(angle), -math.cos(angle));
+    final distance = math.min(size.width, size.height) * 0.31 * progress;
+    final end = start + direction * distance;
+    final normal = Offset(-direction.dy, direction.dx);
+    final control = Offset.lerp(start, end, 0.52)! + normal * 34 * progress;
+    final path = Path()
+      ..moveTo(start.dx, start.dy)
+      ..quadraticBezierTo(control.dx, control.dy, end.dx, end.dy);
+
+    final glowPaint = Paint()
+      ..color = color.withValues(alpha: 0.24 * progress)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 18
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 11);
+    canvas.drawPath(path, glowPaint);
+
+    final beamPaint = Paint()
+      ..shader = ui.Gradient.linear(
+        start,
+        end,
+        [
+          color.withValues(alpha: 0),
+          lime.withValues(alpha: 0.5 * progress),
+          Colors.white.withValues(alpha: 0.78 * progress),
+        ],
+        const [0, 0.56, 1],
+      )
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round;
+    canvas.drawPath(path, beamPaint);
+
+    final dashPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.76 * progress)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round;
+    final dashCount = 4;
+    for (var index = 1; index <= dashCount; index++) {
+      final t = index / (dashCount + 1);
+      final point = _quadraticPoint(start, control, end, t);
+      final dashStart = point - direction * 9;
+      final dashEnd = point + direction * 9;
+      canvas.drawLine(dashStart, dashEnd, dashPaint);
+    }
+
+    final targetPaint = Paint()
+      ..color = color.withValues(alpha: 0.28 * progress)
+      ..style = PaintingStyle.fill;
+    final targetStroke = Paint()
+      ..color = Colors.white.withValues(alpha: 0.8 * progress)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    canvas.drawCircle(end, 18 * progress, targetPaint);
+    canvas.drawCircle(end, 18 * progress, targetStroke);
+
+    final arrowPath = Path()
+      ..moveTo((end + direction * 14).dx, (end + direction * 14).dy)
+      ..lineTo(
+        (end - direction * 10 + normal * 8).dx,
+        (end - direction * 10 + normal * 8).dy,
+      )
+      ..lineTo((end - direction * 6).dx, (end - direction * 6).dy)
+      ..lineTo(
+        (end - direction * 10 - normal * 8).dx,
+        (end - direction * 10 - normal * 8).dy,
+      )
+      ..close();
+    canvas.drawPath(
+      arrowPath,
+      Paint()..color = Colors.white.withValues(alpha: 0.88 * progress),
+    );
+  }
+
+  Offset _quadraticPoint(Offset start, Offset control, Offset end, double t) {
+    final inverse = 1 - t;
+    return start * (inverse * inverse) +
+        control * (2 * inverse * t) +
+        end * (t * t);
+  }
+
+  @override
+  bool shouldRepaint(covariant _MissionDirectionBeamPainter oldDelegate) {
+    return oldDelegate.angle != angle ||
+        oldDelegate.color != color ||
+        oldDelegate.progress != progress;
   }
 }
 
@@ -5438,6 +5619,34 @@ Color _radarAccentColor(RadarMissionModel mission) {
     'WALK' => const Color(0xFFD98A00),
     _ => const Color(0xFF6A7770),
   };
+}
+
+List<RadarMissionViewState> _visibleRadarMissionViews(
+  List<RadarMissionViewState> views, {
+  required String? selectedMissionId,
+  required String? featuredMissionId,
+}) {
+  const maxVisible = 9;
+  final visible = <RadarMissionViewState>[];
+  final seen = <String>{};
+
+  void addIfNeeded(RadarMissionViewState view) {
+    if (seen.add(view.mission.id)) {
+      visible.add(view);
+    }
+  }
+
+  for (final view in views) {
+    if (view.mission.id == selectedMissionId ||
+        view.mission.id == featuredMissionId) {
+      addIfNeeded(view);
+    }
+  }
+  for (final view in views) {
+    if (visible.length >= maxVisible) break;
+    addIfNeeded(view);
+  }
+  return visible;
 }
 
 IconData _homeActionIcon(HomeNextActionKind? kind) => switch (kind) {
