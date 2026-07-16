@@ -773,7 +773,7 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
                         lon: quest.longitude!,
                         lat: quest.latitude!,
                       ),
-                      size: const Size(62, 78),
+                      size: const Size(76, 96),
                       alignment: Alignment.bottomCenter,
                       child: _QuestBeacon(quest: quest),
                     ),
@@ -785,8 +785,8 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
                         lat: view.mission.latitude,
                       ),
                       size: view.mission.id == featuredMission?.mission.id
-                          ? const Size(112, 124)
-                          : const Size(80, 96),
+                          ? const Size(126, 138)
+                          : const Size(92, 112),
                       alignment: Alignment.bottomCenter,
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
@@ -806,7 +806,7 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
                         lon: controller.latestLongitude!,
                         lat: controller.latestLatitude!,
                       ),
-                      size: const Size(72, 86),
+                      size: const Size(94, 112),
                       alignment: Alignment.bottomCenter,
                       child: const _ExplorerAvatar(),
                     ),
@@ -1289,18 +1289,40 @@ class _NearbyMissionDock extends StatelessWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 240),
       curve: Curves.easeOutCubic,
-      width: expanded ? 312 : 116,
-      constraints: BoxConstraints(maxHeight: expanded ? 430 : 116),
+      width: expanded ? 316 : 104,
+      constraints: BoxConstraints(maxHeight: expanded ? 432 : 104),
       decoration: BoxDecoration(
-        color: forestDark.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(expanded ? 28 : 32),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+        gradient: LinearGradient(
+          colors: expanded
+              ? [
+                  forestDark.withValues(alpha: 0.94),
+                  const Color(0xFF114D42).withValues(alpha: 0.9),
+                ]
+              : [
+                  Colors.white.withValues(alpha: 0.92),
+                  const Color(0xFFE4FFD3).withValues(alpha: 0.86),
+                ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(expanded ? 28 : 34),
+        border: Border.all(
+          color: expanded
+              ? Colors.white.withValues(alpha: 0.2)
+              : forestDark.withValues(alpha: 0.12),
+        ),
         boxShadow: [
           BoxShadow(
-            color: forestDark.withValues(alpha: 0.34),
-            blurRadius: 28,
+            color: forestDark.withValues(alpha: expanded ? 0.36 : 0.2),
+            blurRadius: expanded ? 30 : 20,
             offset: const Offset(0, 16),
           ),
+          if (!expanded)
+            BoxShadow(
+              color: lime.withValues(alpha: 0.24),
+              blurRadius: 24,
+              spreadRadius: 2,
+            ),
         ],
       ),
       child: Material(
@@ -1362,15 +1384,24 @@ class _NearbyMissionDock extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
-                        width: 58,
-                        height: 58,
+                        width: 56,
+                        height: 56,
                         decoration: BoxDecoration(
-                          color: lime,
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFCFFF61), Color(0xFF88E77A)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
                           shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.9),
+                            width: 3,
+                          ),
                           boxShadow: [
                             BoxShadow(
-                              color: lime.withValues(alpha: 0.32),
-                              blurRadius: 20,
+                              color: lime.withValues(alpha: 0.42),
+                              blurRadius: 22,
+                              spreadRadius: 1,
                             ),
                           ],
                         ),
@@ -1384,7 +1415,7 @@ class _NearbyMissionDock extends StatelessWidget {
                       Text(
                         actionable > 0 ? '$actionable 可接' : '附近',
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: forestDark,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
@@ -1392,7 +1423,7 @@ class _NearbyMissionDock extends StatelessWidget {
                         Text(
                           nearest.distanceLabel,
                           style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.62),
+                            color: forestDark.withValues(alpha: 0.62),
                             fontSize: 11,
                             fontWeight: FontWeight.w800,
                           ),
@@ -2668,66 +2699,276 @@ class _ExplorerAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Align(
       alignment: Alignment.center,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      child: Stack(
+        alignment: Alignment.center,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.92),
-              borderRadius: BorderRadius.circular(999),
-              boxShadow: const [
-                BoxShadow(
-                  color: Colors.black26,
-                  blurRadius: 10,
-                  offset: Offset(0, 4),
-                ),
-              ],
-            ),
-            child: const Text(
-              '你',
-              style: TextStyle(
-                color: forestDark,
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
+          Positioned(
+            bottom: 10,
+            child: Container(
+              width: 48,
+              height: 13,
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(999),
               ),
             ),
           ),
-          const SizedBox(height: 4),
           Container(
-            width: 54,
-            height: 54,
+            width: 92,
+            height: 92,
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [forestDark, forest],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
               shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 4),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.72),
+                width: 4,
+              ),
+              color: lime.withValues(alpha: 0.16),
+            ),
+          ),
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const RadialGradient(
+                colors: [Color(0xFF22C78A), Color(0xFF0C5D47)],
+              ),
+              border: Border.all(color: Colors.white, width: 5),
               boxShadow: [
                 BoxShadow(
-                  color: forestDark.withValues(alpha: 0.32),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
+                  color: forestDark.withValues(alpha: 0.36),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
+                ),
+                BoxShadow(
+                  color: lime.withValues(alpha: 0.34),
+                  blurRadius: 30,
+                  spreadRadius: 2,
                 ),
               ],
             ),
             child: const Icon(
-              Icons.emoji_people_rounded,
+              Icons.navigation_rounded,
               color: warmYellow,
-              size: 30,
+              size: 34,
             ),
           ),
-          Container(
-            width: 28,
-            height: 9,
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(999),
+          Positioned(
+            top: 2,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.94),
+                borderRadius: BorderRadius.circular(999),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.16),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: const Text(
+                '你',
+                style: TextStyle(
+                  color: forestDark,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            right: 15,
+            top: 22,
+            child: Transform.rotate(
+              angle: 0.62,
+              child: Container(
+                width: 18,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: warmYellow,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+              ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AdventureBeaconBase extends StatelessWidget {
+  const _AdventureBeaconBase({
+    required this.color,
+    required this.child,
+    this.featured = false,
+    this.pulse = false,
+    this.completed = false,
+  });
+
+  final Color color;
+  final Widget child;
+  final bool featured;
+  final bool pulse;
+  final bool completed;
+
+  @override
+  Widget build(BuildContext context) {
+    final coreSize = featured ? 58.0 : 48.0;
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(end: pulse ? 1 : 0),
+      duration: const Duration(milliseconds: 620),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, _) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: featured ? 98 : 78,
+                  height: featured ? 98 : 78,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.86),
+                      width: 3,
+                    ),
+                    color: color.withValues(alpha: 0.08 + value * 0.08),
+                  ),
+                ),
+                if (pulse)
+                  Container(
+                    width: (featured ? 116 : 96) + value * 18,
+                    height: (featured ? 116 : 96) + value * 18,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: color.withValues(alpha: 0.34 * (1 - value)),
+                        width: 3,
+                      ),
+                    ),
+                  ),
+                Container(
+                  width: coreSize,
+                  height: coreSize,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: completed
+                          ? [forestDark, forest]
+                          : [Colors.white, color.withValues(alpha: 0.9)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    border: Border.all(color: Colors.white, width: 4),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withValues(alpha: featured ? 0.46 : 0.34),
+                        blurRadius: featured ? 30 : 22,
+                        spreadRadius: featured ? 2 : 0,
+                        offset: const Offset(0, 9),
+                      ),
+                    ],
+                  ),
+                  child: child,
+                ),
+              ],
+            ),
+            Container(
+              width: 4,
+              height: featured ? 18 : 14,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.86),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            Container(
+              width: featured ? 22 : 18,
+              height: 7,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.88),
+                borderRadius: BorderRadius.circular(999),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.28),
+                    blurRadius: 8,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _BeaconLabel extends StatelessWidget {
+  const _BeaconLabel({required this.text, required this.color});
+
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 88),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.14),
+            blurRadius: 9,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: forestDark,
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+}
+
+class _BeaconSequenceBadge extends StatelessWidget {
+  const _BeaconSequenceBadge({required this.sequence});
+
+  final int sequence;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 20,
+      height: 20,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: warmYellow,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 2),
+      ),
+      child: Text(
+        '$sequence',
+        style: const TextStyle(
+          color: ink,
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+        ),
       ),
     );
   }
@@ -2740,86 +2981,38 @@ class _QuestBeacon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = quest.completed
-        ? forest
-        : quest.unlocked
-        ? const Color(0xFF2F80ED)
-        : const Color(0xFF788781);
-    final icon = quest.completed
-        ? Icons.check_rounded
-        : quest.unlocked
-        ? Icons.eco_rounded
-        : Icons.lock_rounded;
+    final color = _questAccentColor(quest);
+    final icon = _questIcon(quest);
+    final active = quest.unlocked || quest.completed;
 
     return Opacity(
-      opacity: quest.unlocked ? 1 : 0.78,
+      opacity: active ? 1 : 0.76,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 54,
-            height: 54,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [color.withValues(alpha: 0.82), color],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+          if (active) ...[
+            _BeaconLabel(text: quest.locationName, color: color),
+            const SizedBox(height: 3),
+          ],
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              _AdventureBeaconBase(
+                color: color,
+                pulse: quest.unlocked && !quest.completed,
+                completed: quest.completed,
+                child: Icon(
+                  icon,
+                  color: quest.completed ? Colors.white : color,
+                  size: 23,
+                ),
               ),
-              border: Border.all(color: Colors.white, width: 3),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.35),
-                  blurRadius: 18,
-                  offset: const Offset(0, 7),
-                ),
-              ],
-            ),
-            child: Stack(
-              children: [
-                Center(
-                  child: Container(
-                    width: 31,
-                    height: 31,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withValues(alpha: 0.22),
-                    ),
-                    child: Icon(icon, color: Colors.white, size: 20),
-                  ),
-                ),
-                Positioned(
-                  right: -1,
-                  top: -1,
-                  child: Container(
-                    width: 20,
-                    height: 20,
-                    alignment: Alignment.center,
-                    decoration: const BoxDecoration(
-                      color: warmYellow,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Text(
-                      '${quest.sequence}',
-                      style: const TextStyle(
-                        color: ink,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(width: 5, height: 13, color: color),
-          Container(
-            width: 19,
-            height: 6,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(8),
-            ),
+              Positioned(
+                right: 10,
+                top: 8,
+                child: _BeaconSequenceBadge(sequence: quest.sequence),
+              ),
+            ],
           ),
         ],
       ),
@@ -2846,82 +3039,19 @@ class _RadarBeacon extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.94),
-            borderRadius: BorderRadius.circular(999),
-            boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8)],
-          ),
-          child: Text(
-            mission.tag,
-            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900),
-          ),
-        ),
-        const SizedBox(height: 4),
-        TweenAnimationBuilder<double>(
-          tween: Tween<double>(end: pulse ? 1 : 0),
-          duration: const Duration(milliseconds: 520),
-          curve: Curves.easeOutCubic,
-          builder: (context, value, child) {
-            return Stack(
-              alignment: Alignment.center,
-              children: [
-                if (pulse)
-                  Container(
-                    width: 76 + value * 18,
-                    height: 76 + value * 18,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: color.withValues(alpha: 0.12 * (1 - value)),
-                      border: Border.all(
-                        color: color.withValues(alpha: 0.26 * (1 - value)),
-                        width: 2,
-                      ),
-                    ),
-                  ),
-                child!,
-              ],
-            );
-          },
-          child: Container(
-            width: featured ? 66 : 56,
-            height: featured ? 66 : 56,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: completed
-                    ? [forestDark, forest]
-                    : unlocked
-                    ? [warmYellow, color]
-                    : [Colors.white, color.withValues(alpha: 0.82)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 3),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: featured ? 0.48 : 0.36),
-                  blurRadius: featured ? 30 : 22,
-                  spreadRadius: unlocked ? 2 : 0,
-                  offset: const Offset(0, 9),
-                ),
-              ],
-            ),
-            child: Icon(
-              completed ? Icons.done_all_rounded : _radarIcon(mission),
-              color: completed || unlocked ? Colors.white : color,
-              size: featured ? 30 : 25,
-            ),
-          ),
-        ),
-        Container(width: 5, height: 12, color: color),
-        Container(
-          width: 20,
-          height: 6,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(999),
+        if (featured) ...[
+          _BeaconLabel(text: mission.tag, color: color),
+          const SizedBox(height: 4),
+        ],
+        _AdventureBeaconBase(
+          color: color,
+          featured: featured,
+          pulse: pulse,
+          completed: completed,
+          child: Icon(
+            completed ? Icons.done_all_rounded : _radarIcon(mission),
+            color: completed || unlocked ? Colors.white : color,
+            size: featured ? 30 : 25,
           ),
         ),
       ],
