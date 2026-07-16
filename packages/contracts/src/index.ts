@@ -405,11 +405,34 @@ export interface RadarMissionSummary {
   status: RadarMissionStatus;
   unlockedAt: string | null;
   completedAt: string | null;
+  companionPromptTemplates: CompanionPromptTemplates;
 }
 
 export interface RadarState {
   generatedAt: string;
   missions: RadarMissionSummary[];
+}
+
+export interface CompanionPromptTemplates {
+  elderMessage: string | null;
+  companionReply: string | null;
+  volunteerNote: string | null;
+  shareSummary: string | null;
+}
+
+export interface CompanionPromptSummary {
+  id: string;
+  sourceType: "RADAR_MISSION";
+  householdId: string;
+  sourceTitle: string;
+  category: string;
+  tag: string;
+  growthPoints: number;
+  elderMessage: string;
+  companionReply: string;
+  volunteerNote: string;
+  shareSummary: string;
+  createdAt: string;
 }
 
 export interface RadarMissionInput {
@@ -426,6 +449,7 @@ export interface RadarMissionInput {
   minimumSeconds?: number | null;
   growthPoints: number;
   badgeName?: string | null;
+  companionPromptTemplates?: CompanionPromptTemplates | null;
 }
 
 export interface RadarMissionUnlockInput {

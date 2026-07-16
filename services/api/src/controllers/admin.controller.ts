@@ -88,6 +88,11 @@ export class AdminController {
     return { data: await this.store.listAdminRadarMissions() };
   }
 
+  @Get("companion-prompts/recent")
+  async companionPrompts() {
+    return { data: await this.store.listAdminCompanionPrompts() };
+  }
+
   @Post("exploration/radar-missions")
   async createRadarMission(@Body() dto: CreateRadarMissionDto) {
     return { data: await this.store.createAdminRadarMission(dto) };

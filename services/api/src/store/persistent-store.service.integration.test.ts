@@ -1370,6 +1370,17 @@ describeWithDatabase("PersistentStoreService", () => {
       await radarStore.completeRadarMission(radarUid, mission.id);
       const afterRetry = await radarStore.getTree(radarUid);
       expect(afterRetry.growthPoints).toBe(before.growthPoints + 8);
+      const radarContext = await radarStore.getContext(radarUid);
+      const prompts = await radarStore.getRecentCompanionPrompts(radarUid);
+      expect(prompts).toHaveLength(1);
+      expect(prompts[0]).toMatchObject({
+        sourceType: "RADAR_MISSION",
+        householdId: radarContext.activeHouseholdId,
+        sourceTitle: "華山綠意觀察",
+        companionReply:
+          "可以回覆：『看到你完成「華山綠意觀察」了，今天有做一件照顧自己的事，很棒。』",
+        shareSummary: "完成「華山綠意觀察」，生命樹長出新葉 +8。",
+      });
 
       await radarStore.unlockRadarMission(otherUid, mission.id, {
         eventKey: `radar-other-${randomUUID()}`,
@@ -1379,6 +1390,9 @@ describeWithDatabase("PersistentStoreService", () => {
         occurredAt: now.toISOString(),
       });
       expect((await radarStore.getTree(otherUid)).growthPoints).toBe(0);
+      expect(await radarStore.getRecentCompanionPrompts(otherUid)).toHaveLength(
+        0,
+      );
 
       now = new Date("2026-07-07T08:00:00.000Z");
       const expiredDraft = await radarStore.createAdminRadarMission({
