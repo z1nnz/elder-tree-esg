@@ -17,9 +17,10 @@ Future<void> main() async {
 }
 
 class ElderTreeApp extends StatefulWidget {
-  const ElderTreeApp({this.authService, super.key});
+  const ElderTreeApp({this.authService, this.initialTab = 2, super.key});
 
   final AuthService? authService;
+  final int initialTab;
 
   @override
   State<ElderTreeApp> createState() => _ElderTreeAppState();
@@ -56,6 +57,7 @@ class _ElderTreeAppState extends State<ElderTreeApp> {
             key: ValueKey(account.uid),
             auth: auth,
             account: account,
+            initialTab: widget.initialTab,
           );
         },
       ),
@@ -67,11 +69,13 @@ class _AuthenticatedExperience extends StatefulWidget {
   const _AuthenticatedExperience({
     required this.auth,
     required this.account,
+    required this.initialTab,
     super.key,
   });
 
   final AuthService auth;
   final AuthAccount account;
+  final int initialTab;
 
   @override
   State<_AuthenticatedExperience> createState() =>
@@ -113,6 +117,7 @@ class _AuthenticatedExperienceState extends State<_AuthenticatedExperience> {
               controller: controller,
               accountEmail: widget.account.email,
               onSignOut: widget.auth.signOut,
+              initialIndex: widget.initialTab,
             ),
           ),
         );

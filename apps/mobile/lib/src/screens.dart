@@ -1,4 +1,8 @@
+// ignore_for_file: unused_element
+
 import 'dart:async';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:maplibre/maplibre.dart';
@@ -7,6 +11,8 @@ import 'app_controller.dart';
 import 'exploration_map_config.dart';
 import 'models.dart';
 import 'theme.dart';
+
+ui.ImageFilter get uiBlur => ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18);
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
@@ -676,9 +682,13 @@ class ExplorationScreen extends StatefulWidget {
 
 class _ExplorationScreenState extends State<ExplorationScreen> {
   ExplorationMapMode _mapMode = ExplorationMapMode.adventure;
-  bool _showAllRadarMissions = false;
-  bool _showRouteDetails = false;
   String? _selectedRadarMissionId;
+  bool _nearbyPanelOpen = false;
+  bool _treeMenuOpen = false;
+  bool _missionSheetOpen = false;
+  bool _cameraOutOfRange = false;
+  bool _recenteringMap = false;
+  MapController? _mapController;
 
   AppController get controller => widget.controller;
 
@@ -693,25 +703,14 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final route = controller.exploration.routes.isEmpty
-        ? null
-        : controller.exploration.routes.first;
     final pointQuests = controller.exploration.quests
         .where((quest) => quest.latitude != null && quest.longitude != null)
         .toList();
     final radarMissionViews = controller.radarMissionViews;
-    final radarMissions = radarMissionViews
-        .map((view) => view.mission)
-        .toList();
     final mapPresentation = explorationMapPresentation(
       _mapMode,
       streetStyleUrl: ExplorationScreen.mapStyleUrl,
     );
-    final routeProgress = route == null || route.totalQuestCount == 0
-        ? 0.0
-        : route.completedQuestCount / route.totalQuestCount;
-    final sessionDistance =
-        controller.exploration.activeSession?.distanceMeters ?? 0;
     RadarMissionViewState? selectedMission;
     for (final view in radarMissionViews) {
       if (view.mission.id == _selectedRadarMissionId) {
@@ -721,10 +720,8 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
     }
     final featuredMission =
         selectedMission ?? controller.featuredRadarMissionView;
-    final visibleRadarMissionViews = _showAllRadarMissions
-        ? radarMissionViews
-        : radarMissionViews.take(3).toList();
     final safeTop = MediaQuery.paddingOf(context).top;
+    final safeBottom = MediaQuery.paddingOf(context).bottom;
     final hasCurrentLocation =
         controller.latestLatitude != null && controller.latestLongitude != null;
     final mapCenter = hasCurrentLocation
@@ -733,6 +730,7 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
             lat: controller.latestLatitude!,
           )
         : const Geographic(lon: 121.5362, lat: 25.0316);
+    final selectedMissionForSheet = selectedMission ?? featuredMission;
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -758,8 +756,13 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
               initZoom: mapPresentation.zoom,
               initPitch: mapPresentation.pitch,
               initBearing: mapPresentation.bearing,
+              minZoom: 14.2,
+              maxZoom: 18.8,
               maxPitch: 60,
+              gestures: const MapGestures.all(),
             ),
+            onMapCreated: (controller) => _mapController = controller,
+            onEvent: _handleMapEvent,
             layers: const [],
             children: [
               WidgetLayer(
@@ -787,9 +790,7 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
                       alignment: Alignment.bottomCenter,
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
-                        onTap: () => setState(
-                          () => _selectedRadarMissionId = view.mission.id,
-                        ),
+                        onTap: () => _selectRadarMission(view),
                         child: _RadarBeacon(
                           view: view,
                           featured:
@@ -811,7 +812,6 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
                     ),
                 ],
               ),
-              const MapControlButtons(showTrackLocation: true),
               const SourceAttribution(),
             ],
           ),
@@ -819,85 +819,195 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
         const _AdventureMapOverlay(),
         Positioned(
           left: 14,
-          right: 14,
           top: 12 + safeTop,
-          child: _AdventureMapHud(
-            active: controller.exploring,
+          child: _CompactMapStatusCapsule(
             contextModel: controller.context,
             tree: controller.tree,
-            route: route,
-            routeProgress: routeProgress,
-            radarCount: radarMissions.length,
-            unlockedCount: radarMissions
-                .where((mission) => mission.status == 'UNLOCKED')
-                .length,
-            locationStatus: controller.explorationLocationStatus,
+            hasLocation: hasCurrentLocation,
+            locationStatus: hasCurrentLocation
+                ? controller.explorationLocationStatus
+                : '模擬器定位未設定，先以大安森林公園示範',
           ),
         ),
         Positioned(
           left: 14,
-          top: 118 + safeTop,
-          child: _MapModeSwitch(
+          top: 88 + safeTop,
+          child: _AdventureModeChip(
             mode: _mapMode,
             onChanged: (mode) => setState(() => _mapMode = mode),
           ),
         ),
-        Positioned(
-          right: 14,
-          top: 118 + safeTop,
-          child: _ExplorationQuickRail(onNavigate: widget.onNavigate),
-        ),
-        if (_mapMode == ExplorationMapMode.adventure)
-          const Positioned(left: 14, top: 184, child: _AdventureMapHint()),
+        if (_cameraOutOfRange)
+          const Positioned.fill(child: IgnorePointer(child: _MapScopeFog())),
         if (controller.latestLatitude == null)
-          const Center(child: IgnorePointer(child: _ExplorerAvatar())),
+          const Positioned(
+            left: 18,
+            right: 18,
+            top: 198,
+            child: IgnorePointer(child: _SimulatorLocationNotice()),
+          ),
         if (controller.lastGrowthAwardPoints != null)
           Positioned(
             left: 14,
             right: 14,
-            top: 174 + safeTop,
+            top: 136 + safeTop,
             child: _GrowthCelebrationBand(
               title: controller.lastGrowthAwardTitle ?? '城市任務',
               points: controller.lastGrowthAwardPoints!,
             ),
           ),
-        DraggableScrollableSheet(
-          initialChildSize: 0.24,
-          minChildSize: 0.18,
-          maxChildSize: 0.78,
-          snap: true,
-          snapSizes: const [0.22, 0.38, 0.78],
-          builder: (context, scrollController) => _AdventureBottomSheet(
-            controller: controller,
-            distanceMeters: sessionDistance,
-            exploring: controller.exploring,
-            hasSession: controller.exploration.activeSession != null,
-            sendingLocation: controller.sendingLocation,
-            locationStatus: controller.explorationLocationStatus,
-            mission: featuredMission,
-            radarMissionViews: visibleRadarMissionViews,
-            totalRadarMissionCount: radarMissionViews.length,
-            showAllRadarMissions: _showAllRadarMissions,
-            route: route,
-            routeProgress: routeProgress,
-            showRouteDetails: _showRouteDetails,
-            scrollController: scrollController,
-            onCompleteMission: featuredMission == null
-                ? null
-                : () => _confirmCompleteRadarMission(featuredMission),
-            onMissionSelected: (view) =>
-                setState(() => _selectedRadarMissionId = view.mission.id),
-            onToggleRadarMissions: radarMissionViews.length <= 3
-                ? null
-                : () => setState(
-                    () => _showAllRadarMissions = !_showAllRadarMissions,
-                  ),
-            onToggleRouteDetails: route == null
-                ? null
-                : () => setState(() => _showRouteDetails = !_showRouteDetails),
+        if (selectedMissionForSheet != null && _selectedRadarMissionId != null)
+          Positioned(
+            left: 14,
+            right: 14,
+            bottom:
+                (_missionSheetOpen ? 314 : 132) +
+                safeBottom +
+                (_treeMenuOpen ? 42 : 0),
+            child: _MissionNavigationCueCard(
+              view: selectedMissionForSheet,
+              onFocus: () => _focusRadarMission(selectedMissionForSheet),
+            ),
+          ),
+        if (selectedMissionForSheet != null && _missionSheetOpen)
+          Positioned(
+            left: 14,
+            right: 14,
+            bottom: 118 + safeBottom,
+            child: _MissionDetailPanel(
+              view: selectedMissionForSheet,
+              onClose: () => setState(() => _missionSheetOpen = false),
+              onComplete: selectedMissionForSheet.mission.isCompleted
+                  ? null
+                  : () => _confirmCompleteRadarMission(selectedMissionForSheet),
+            ),
+          ),
+        Positioned(
+          right: 14,
+          bottom: 118 + safeBottom,
+          child: _NearbyMissionDock(
+            missions: radarMissionViews,
+            selectedMissionId: _selectedRadarMissionId,
+            expanded: _nearbyPanelOpen && !_treeMenuOpen,
+            onToggle: () => setState(() {
+              _nearbyPanelOpen = !_nearbyPanelOpen;
+              if (_nearbyPanelOpen) _treeMenuOpen = false;
+            }),
+            onSelect: _selectRadarMission,
+          ),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 20 + safeBottom,
+          child: Center(
+            child: _TreeCoreMenu(
+              expanded: _treeMenuOpen,
+              onToggle: () => setState(() {
+                _treeMenuOpen = !_treeMenuOpen;
+                if (_treeMenuOpen) _nearbyPanelOpen = false;
+              }),
+              onNavigate: (index) {
+                setState(() => _treeMenuOpen = false);
+                widget.onNavigate(index);
+              },
+              onSettings: _showSettingsSheet,
+            ),
           ),
         ),
       ],
+    );
+  }
+
+  void _selectRadarMission(RadarMissionViewState view) {
+    setState(() {
+      _selectedRadarMissionId = view.mission.id;
+      _missionSheetOpen = true;
+      _nearbyPanelOpen = false;
+      _treeMenuOpen = false;
+    });
+    unawaited(_focusRadarMission(view));
+  }
+
+  Future<void> _focusRadarMission(RadarMissionViewState view) async {
+    await _mapController?.animateCamera(
+      center: Geographic(
+        lon: view.mission.longitude,
+        lat: view.mission.latitude,
+      ),
+      zoom: 17,
+      pitch: 42,
+      bearing: 18,
+      nativeDuration: const Duration(milliseconds: 650),
+    );
+  }
+
+  void _handleMapEvent(MapEvent event) {
+    if (event is! MapEventMoveCamera) return;
+    final playerLat = controller.latestLatitude ?? 25.0316;
+    final playerLng = controller.latestLongitude ?? 121.5362;
+    final distance = _haversineMeters(
+      playerLat,
+      playerLng,
+      event.camera.center.lat,
+      event.camera.center.lon,
+    );
+    final outOfRange = distance > 850;
+    if (outOfRange != _cameraOutOfRange && mounted) {
+      setState(() => _cameraOutOfRange = outOfRange);
+    }
+    if (distance > 1250 && !_recenteringMap) {
+      _recenteringMap = true;
+      unawaited(
+        _mapController
+            ?.animateCamera(
+              center: Geographic(lon: playerLng, lat: playerLat),
+              zoom: event.camera.zoom.clamp(14.8, 17.4).toDouble(),
+              pitch: event.camera.pitch,
+              bearing: event.camera.bearing,
+              nativeDuration: const Duration(milliseconds: 520),
+            )
+            .whenComplete(() {
+              _recenteringMap = false;
+              if (mounted) setState(() => _cameraOutOfRange = false);
+            }),
+      );
+    }
+  }
+
+  void _showSettingsSheet() {
+    setState(() => _treeMenuOpen = false);
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '地圖設定',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 12),
+              _MapModeSwitch(
+                mode: _mapMode,
+                onChanged: (mode) {
+                  setState(() => _mapMode = mode);
+                  Navigator.pop(context);
+                },
+              ),
+              const SizedBox(height: 12),
+              const _NoticeBand(
+                icon: Icons.touch_app_rounded,
+                text: '地圖可用雙指縮放與拖曳；拖太遠時會自動回到你附近。',
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -922,6 +1032,827 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
     if (confirmed == true) {
       await controller.completeRadarMission(view.mission);
     }
+  }
+}
+
+class _CompactMapStatusCapsule extends StatelessWidget {
+  const _CompactMapStatusCapsule({
+    required this.contextModel,
+    required this.tree,
+    required this.locationStatus,
+    required this.hasLocation,
+  });
+
+  final AppContextModel? contextModel;
+  final TreeSummary tree;
+  final String locationStatus;
+  final bool hasLocation;
+
+  @override
+  Widget build(BuildContext context) {
+    final householdName =
+        contextModel?.activeHousehold.name ?? tree.householdName;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 278),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: uiBlur,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(10, 9, 13, 9),
+            decoration: BoxDecoration(
+              color: forestDark.withValues(alpha: 0.78),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.18),
+                  blurRadius: 18,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: hasLocation ? lime : warmYellow,
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Icon(
+                    hasLocation
+                        ? Icons.navigation_rounded
+                        : Icons.location_searching_rounded,
+                    color: forestDark,
+                    size: 21,
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Flexible(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        householdName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        locationStatus,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.72),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AdventureModeChip extends StatelessWidget {
+  const _AdventureModeChip({required this.mode, required this.onChanged});
+
+  final ExplorationMapMode mode;
+  final ValueChanged<ExplorationMapMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final adventure = mode == ExplorationMapMode.adventure;
+    return GestureDetector(
+      onTap: () => onChanged(
+        adventure ? ExplorationMapMode.street : ExplorationMapMode.adventure,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(999),
+        child: BackdropFilter(
+          filter: uiBlur,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.88),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: forest.withValues(alpha: 0.16)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  adventure ? Icons.auto_awesome_rounded : Icons.map_rounded,
+                  color: forest,
+                  size: 18,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  adventure ? '遊戲視角' : '真實道路',
+                  style: const TextStyle(
+                    color: forestDark,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MapScopeFog extends StatelessWidget {
+  const _MapScopeFog();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: RadialGradient(
+          colors: [
+            Colors.transparent,
+            forestDark.withValues(alpha: 0.1),
+            forestDark.withValues(alpha: 0.34),
+          ],
+          stops: const [0.46, 0.74, 1],
+        ),
+      ),
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: Padding(
+          padding: EdgeInsets.only(top: MediaQuery.paddingOf(context).top + 94),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+            decoration: BoxDecoration(
+              color: forestDark.withValues(alpha: 0.82),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: const Text(
+              '你離探索範圍有點遠，地圖會帶你回到附近。',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SimulatorLocationNotice extends StatelessWidget {
+  const _SimulatorLocationNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: warmYellow.withValues(alpha: 0.55)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.12),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.info_outline_rounded, color: forest, size: 18),
+            SizedBox(width: 7),
+            Text(
+              '目前用大安森林公園示範位置',
+              style: TextStyle(
+                color: forestDark,
+                fontWeight: FontWeight.w900,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NearbyMissionDock extends StatelessWidget {
+  const _NearbyMissionDock({
+    required this.missions,
+    required this.selectedMissionId,
+    required this.expanded,
+    required this.onToggle,
+    required this.onSelect,
+  });
+
+  final List<RadarMissionViewState> missions;
+  final String? selectedMissionId;
+  final bool expanded;
+  final VoidCallback onToggle;
+  final ValueChanged<RadarMissionViewState> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final nearest = missions.isEmpty ? null : missions.first;
+    final actionable = missions
+        .where(
+          (view) =>
+              view.mission.status == 'UNLOCKED' ||
+              view.adventureState == AdventureMissionState.insideRadius ||
+              view.adventureState == AdventureMissionState.readyToComplete,
+        )
+        .length;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+      width: expanded ? 312 : 116,
+      constraints: BoxConstraints(maxHeight: expanded ? 430 : 116),
+      decoration: BoxDecoration(
+        color: forestDark.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(expanded ? 28 : 32),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+        boxShadow: [
+          BoxShadow(
+            color: forestDark.withValues(alpha: 0.34),
+            blurRadius: 28,
+            offset: const Offset(0, 16),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(expanded ? 28 : 32),
+          onTap: expanded ? null : onToggle,
+          child: Padding(
+            padding: const EdgeInsets.all(13),
+            child: expanded
+                ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.radar_rounded, color: lime),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              '附近任務',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 18,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: onToggle,
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (missions.isEmpty)
+                        Text(
+                          '附近還沒有任務，稍後重新整理看看。',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.72),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        )
+                      else
+                        ...missions
+                            .take(5)
+                            .map(
+                              (view) => _NearbyMissionTile(
+                                view: view,
+                                selected: view.mission.id == selectedMissionId,
+                                onTap: () => onSelect(view),
+                              ),
+                            ),
+                    ],
+                  )
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 58,
+                        height: 58,
+                        decoration: BoxDecoration(
+                          color: lime,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: lime.withValues(alpha: 0.32),
+                              blurRadius: 20,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.radar_rounded,
+                          color: forestDark,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        actionable > 0 ? '$actionable 可接' : '附近',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      if (nearest != null)
+                        Text(
+                          nearest.distanceLabel,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.62),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                    ],
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NearbyMissionTile extends StatelessWidget {
+  const _NearbyMissionTile({
+    required this.view,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final RadarMissionViewState view;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final mission = view.mission;
+    final accent = _radarAccentColor(mission);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.all(11),
+          decoration: BoxDecoration(
+            color: selected
+                ? lime.withValues(alpha: 0.2)
+                : Colors.white.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: selected ? lime : Colors.white.withValues(alpha: 0.12),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.22),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Icon(_radarIcon(mission), color: lime, size: 22),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      mission.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${view.distanceLabel} · ${view.stateLabel}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.66),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '+${mission.growthPoints}',
+                style: const TextStyle(
+                  color: warmYellow,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MissionNavigationCueCard extends StatelessWidget {
+  const _MissionNavigationCueCard({required this.view, required this.onFocus});
+
+  final RadarMissionViewState view;
+  final VoidCallback onFocus;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = _radarAccentColor(view.mission);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(22),
+      child: BackdropFilter(
+        filter: uiBlur,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.88),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: accent.withValues(alpha: 0.28)),
+          ),
+          child: Row(
+            children: [
+              Transform.rotate(
+                angle: -0.55,
+                child: Icon(Icons.navigation_rounded, color: accent),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  '${view.mission.title} · ${view.distanceLabel} · ${view.helperText}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: forestDark,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              TextButton(onPressed: onFocus, child: const Text('聚焦')),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MissionDetailPanel extends StatefulWidget {
+  const _MissionDetailPanel({
+    required this.view,
+    required this.onClose,
+    required this.onComplete,
+  });
+
+  final RadarMissionViewState view;
+  final VoidCallback onClose;
+  final VoidCallback? onComplete;
+
+  @override
+  State<_MissionDetailPanel> createState() => _MissionDetailPanelState();
+}
+
+class _MissionDetailPanelState extends State<_MissionDetailPanel> {
+  Timer? _timer;
+  DateTime _now = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _syncTimer();
+  }
+
+  @override
+  void didUpdateWidget(covariant _MissionDetailPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.view.mission.id != widget.view.mission.id ||
+        oldWidget.view.mission.unlockedAt != widget.view.mission.unlockedAt ||
+        oldWidget.view.mission.status != widget.view.mission.status) {
+      _syncTimer();
+    }
+  }
+
+  void _syncTimer() {
+    _timer?.cancel();
+    _now = DateTime.now();
+    if (widget.view.mission.isTimer &&
+        widget.view.mission.status == 'UNLOCKED') {
+      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        setState(() => _now = DateTime.now());
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mission = widget.view.mission;
+    final accent = _radarAccentColor(mission);
+    final timerRemaining = mission.timerRemainingAt(_now);
+    final canComplete =
+        mission.canCompleteAt(_now) && widget.onComplete != null;
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: accent.withValues(alpha: 0.24)),
+        boxShadow: [
+          BoxShadow(
+            color: forestDark.withValues(alpha: 0.2),
+            blurRadius: 26,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(17),
+                ),
+                child: Icon(_radarIcon(mission), color: accent),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      mission.title,
+                      style: const TextStyle(
+                        color: ink,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${widget.view.distanceLabel} · 半徑 ${mission.radiusMeters}m · +${mission.growthPoints} 新葉',
+                      style: const TextStyle(
+                        color: Color(0xFF66706A),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: widget.onClose,
+                icon: const Icon(Icons.close_rounded),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            mission.description,
+            style: const TextStyle(
+              color: Color(0xFF516058),
+              height: 1.45,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: mission.isCompleted
+                ? OutlinedButton.icon(
+                    onPressed: null,
+                    icon: const Icon(Icons.done_all_rounded),
+                    label: const Text('已完成，生命樹已長出新葉'),
+                  )
+                : FilledButton.icon(
+                    onPressed: canComplete ? widget.onComplete : null,
+                    icon: Icon(
+                      mission.isTimer && timerRemaining > Duration.zero
+                          ? Icons.hourglass_bottom_rounded
+                          : Icons.check_circle_outline_rounded,
+                    ),
+                    label: Text(
+                      mission.isTimer && timerRemaining > Duration.zero
+                          ? '還需 ${_formatDuration(timerRemaining)}'
+                          : mission.status == 'UNLOCKED'
+                          ? '我完成了'
+                          : widget.view.primaryActionLabel,
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TreeCoreMenu extends StatelessWidget {
+  const _TreeCoreMenu({
+    required this.expanded,
+    required this.onToggle,
+    required this.onNavigate,
+    required this.onSettings,
+  });
+
+  final bool expanded;
+  final VoidCallback onToggle;
+  final ValueChanged<int> onNavigate;
+  final VoidCallback onSettings;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 360,
+      height: expanded ? 178 : 96,
+      child: Stack(
+        alignment: Alignment.bottomCenter,
+        children: [
+          AnimatedOpacity(
+            opacity: expanded ? 1 : 0,
+            duration: const Duration(milliseconds: 180),
+            child: IgnorePointer(
+              ignoring: !expanded,
+              child: Stack(
+                alignment: Alignment.bottomCenter,
+                children: [
+                  _TreeMenuLeaf(
+                    label: '今天',
+                    icon: Icons.home_rounded,
+                    offset: const Offset(-150, -58),
+                    onTap: () => onNavigate(0),
+                  ),
+                  _TreeMenuLeaf(
+                    label: '任務',
+                    icon: Icons.checklist_rounded,
+                    offset: const Offset(-92, -100),
+                    onTap: () => onNavigate(1),
+                  ),
+                  _TreeMenuLeaf(
+                    label: '生命樹',
+                    icon: Icons.park_rounded,
+                    offset: const Offset(0, -118),
+                    onTap: () => onNavigate(5),
+                  ),
+                  _TreeMenuLeaf(
+                    label: '家人',
+                    icon: Icons.family_restroom_rounded,
+                    offset: const Offset(92, -100),
+                    onTap: () => onNavigate(3),
+                  ),
+                  _TreeMenuLeaf(
+                    label: '公益',
+                    icon: Icons.public_rounded,
+                    offset: const Offset(150, -58),
+                    onTap: () => onNavigate(4),
+                  ),
+                  _TreeMenuLeaf(
+                    label: '設定',
+                    icon: Icons.settings_rounded,
+                    offset: const Offset(0, -58),
+                    onTap: onSettings,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: onToggle,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              width: expanded ? 84 : 78,
+              height: expanded ? 84 : 78,
+              decoration: BoxDecoration(
+                color: expanded ? Colors.white : lime,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 5),
+                boxShadow: [
+                  BoxShadow(
+                    color: lime.withValues(alpha: 0.42),
+                    blurRadius: 28,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: Icon(
+                expanded ? Icons.close_rounded : Icons.eco_rounded,
+                color: forestDark,
+                size: 36,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TreeMenuLeaf extends StatelessWidget {
+  const _TreeMenuLeaf({
+    required this.label,
+    required this.icon,
+    required this.offset,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final Offset offset;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Transform.translate(
+      offset: offset,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 76,
+          height: 58,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.94),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: forest.withValues(alpha: 0.12)),
+            boxShadow: [
+              BoxShadow(
+                color: forestDark.withValues(alpha: 0.14),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: forest, size: 22),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: forestDark,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -3137,6 +4068,318 @@ class ImpactScreen extends StatelessWidget {
   }
 }
 
+class TreeGrowthScreen extends StatelessWidget {
+  const TreeGrowthScreen({required this.controller, super.key});
+
+  final AppController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final tree = controller.tree;
+    final stage = _TreeGrowthStage.fromPoints(tree.growthPoints);
+    final next = _TreeGrowthStage.nextAfter(stage);
+    final progress = next == null
+        ? 1.0
+        : ((tree.growthPoints - stage.threshold) /
+                  (next.threshold - stage.threshold))
+              .clamp(0.0, 1.0);
+    final recentTasks = controller.tasks
+        .where((task) => task.status == TaskStatus.completed)
+        .take(4)
+        .toList();
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
+      children: [
+        const _PageHeading(title: '生命樹', subtitle: '每一次任務完成，都會讓家庭共同照顧的樹長出新葉。'),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF0D4E3A), Color(0xFF197254)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(30),
+            boxShadow: [
+              BoxShadow(
+                color: forest.withValues(alpha: 0.22),
+                blurRadius: 26,
+                offset: const Offset(0, 14),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          tree.householdName,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.74),
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          stage.label,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 32,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '${tree.growthPoints} 點共同成長值',
+                          style: const TextStyle(
+                            color: lime,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _TreeStageIllustration(stage: stage),
+                ],
+              ),
+              const SizedBox(height: 24),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 12,
+                  color: lime,
+                  backgroundColor: Colors.white.withValues(alpha: 0.16),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Text(
+                    stage.label,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    next == null
+                        ? '已到目前最高階段'
+                        : '下一階段：${next.label} · 還差 ${math.max(0, next.threshold - tree.growthPoints)} 點',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.78),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        const _SectionTitle(
+          title: '成長階段',
+          subtitle: '先用真實成長值推導階段，之後可接上更完整的 2D/3D 樹動畫。',
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: _TreeGrowthStage.values
+              .map(
+                (item) => _TreeStageChip(
+                  stage: item,
+                  active: item == stage,
+                  reached: tree.growthPoints >= item.threshold,
+                ),
+              )
+              .toList(),
+        ),
+        const SizedBox(height: 22),
+        const _SectionTitle(
+          title: '最近讓樹長大的任務',
+          subtitle: '不做本地假加分，只顯示後端確認完成的紀錄。',
+        ),
+        const SizedBox(height: 10),
+        if (recentTasks.isEmpty)
+          const _EmptyBlock(
+            icon: Icons.eco_outlined,
+            title: '還沒有完成紀錄',
+            text: '去探索地圖完成第一個任務，生命樹就會長出新葉。',
+          )
+        else
+          ...recentTasks.map(
+            (task) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _TreeGrowthTaskTile(task: task),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+enum _TreeGrowthStage {
+  seed('種子', 0, Icons.grain_rounded),
+  sprout('發芽', 20, Icons.spa_rounded),
+  seedling('幼苗', 60, Icons.eco_rounded),
+  youngTree('小樹', 140, Icons.park_outlined),
+  matureTree('成樹', 280, Icons.park_rounded),
+  greatTree('大樹', 500, Icons.forest_rounded);
+
+  const _TreeGrowthStage(this.label, this.threshold, this.icon);
+
+  final String label;
+  final int threshold;
+  final IconData icon;
+
+  static _TreeGrowthStage fromPoints(int points) {
+    var current = _TreeGrowthStage.seed;
+    for (final stage in _TreeGrowthStage.values) {
+      if (points >= stage.threshold) current = stage;
+    }
+    return current;
+  }
+
+  static _TreeGrowthStage? nextAfter(_TreeGrowthStage current) {
+    final index = _TreeGrowthStage.values.indexOf(current);
+    if (index < 0 || index == _TreeGrowthStage.values.length - 1) {
+      return null;
+    }
+    return _TreeGrowthStage.values[index + 1];
+  }
+}
+
+class _TreeStageIllustration extends StatelessWidget {
+  const _TreeStageIllustration({required this.stage});
+
+  final _TreeGrowthStage stage;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0.92, end: 1),
+      duration: const Duration(milliseconds: 900),
+      curve: Curves.easeOutBack,
+      builder: (context, value, child) =>
+          Transform.scale(scale: value, child: child),
+      child: Container(
+        width: 112,
+        height: 112,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.12),
+          shape: BoxShape.circle,
+          border: Border.all(color: lime.withValues(alpha: 0.42)),
+        ),
+        child: Icon(stage.icon, color: lime, size: 58),
+      ),
+    );
+  }
+}
+
+class _TreeStageChip extends StatelessWidget {
+  const _TreeStageChip({
+    required this.stage,
+    required this.active,
+    required this.reached,
+  });
+
+  final _TreeGrowthStage stage;
+  final bool active;
+  final bool reached;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 104,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: active ? forestDark : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: active
+              ? lime
+              : reached
+              ? forest.withValues(alpha: 0.2)
+              : const Color(0xFFE0E7E2),
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(stage.icon, color: active ? lime : forest),
+          const SizedBox(height: 6),
+          Text(
+            stage.label,
+            style: TextStyle(
+              color: active ? Colors.white : ink,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '${stage.threshold}+',
+            style: TextStyle(
+              color: active
+                  ? Colors.white.withValues(alpha: 0.68)
+                  : const Color(0xFF69736D),
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TreeGrowthTaskTile extends StatelessWidget {
+  const _TreeGrowthTaskTile({required this.task});
+
+  final DailyTask task;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE0E7E2)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: lime.withValues(alpha: 0.28),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: const Icon(Icons.energy_savings_leaf_rounded, color: forest),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              task.title,
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+          ),
+          Text(
+            '+${task.growthPoints}',
+            style: const TextStyle(color: forest, fontWeight: FontWeight.w900),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class DeviceScreen extends StatelessWidget {
   const DeviceScreen({required this.controller, super.key});
   final AppController controller;
@@ -4019,6 +5262,22 @@ Color _questAccentColor(ExplorationQuestModel quest) {
     _ => const Color(0xFFD98A00),
   };
 }
+
+double _haversineMeters(double lat1, double lon1, double lat2, double lon2) {
+  const earthRadiusMeters = 6371000.0;
+  final dLat = _degreesToRadians(lat2 - lat1);
+  final dLon = _degreesToRadians(lon2 - lon1);
+  final a =
+      math.sin(dLat / 2) * math.sin(dLat / 2) +
+      math.cos(_degreesToRadians(lat1)) *
+          math.cos(_degreesToRadians(lat2)) *
+          math.sin(dLon / 2) *
+          math.sin(dLon / 2);
+  final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+  return earthRadiusMeters * c;
+}
+
+double _degreesToRadians(double degrees) => degrees * math.pi / 180;
 
 IconData _taskIcon(VerificationMode mode) => switch (mode) {
   VerificationMode.photoAi => Icons.photo_camera_outlined,

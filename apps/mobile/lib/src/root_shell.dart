@@ -9,18 +9,20 @@ class RootShell extends StatefulWidget {
     required this.controller,
     required this.accountEmail,
     required this.onSignOut,
+    this.initialIndex = 2,
     super.key,
   });
   final AppController controller;
   final String accountEmail;
   final Future<void> Function() onSignOut;
+  final int initialIndex;
 
   @override
   State<RootShell> createState() => _RootShellState();
 }
 
 class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
-  int index = 0;
+  late int index = widget.initialIndex;
 
   void _selectIndex(int value) {
     if (index == 2 && value != 2 && widget.controller.exploring) {
@@ -64,7 +66,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       ),
       FamilyScreen(controller: widget.controller),
       ImpactScreen(controller: widget.controller),
-      DeviceScreen(controller: widget.controller),
+      TreeGrowthScreen(controller: widget.controller),
     ];
     final immersiveExploration = index == 2;
     return Scaffold(
