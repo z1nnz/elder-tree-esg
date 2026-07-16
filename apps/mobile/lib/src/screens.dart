@@ -856,14 +856,6 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
                 : '模擬器定位未設定，先以大安森林公園示範',
           ),
         ),
-        Positioned(
-          left: 14,
-          top: 88 + safeTop,
-          child: _AdventureModeChip(
-            mode: _mapMode,
-            onChanged: (mode) => setState(() => _mapMode = mode),
-          ),
-        ),
         if (_cameraOutOfRange)
           const Positioned.fill(child: IgnorePointer(child: _MapScopeFog())),
         if (controller.latestLatitude == null)
@@ -884,6 +876,7 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
             ),
           ),
         if (!_treeMenuOpen &&
+            !_nearbyPanelOpen &&
             selectedMissionForSheet != null &&
             _selectedRadarMissionId != null)
           Positioned(
@@ -900,6 +893,7 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
             ),
           ),
         if (!_treeMenuOpen &&
+            !_nearbyPanelOpen &&
             selectedMissionForSheet != null &&
             _missionSheetOpen)
           Positioned(
@@ -914,32 +908,36 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
                   : () => _confirmCompleteRadarMission(selectedMissionForSheet),
             ),
           ),
-        Positioned(
-          right: 14,
-          bottom: 118 + safeBottom,
-          child: AnimatedScale(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOutCubic,
-            scale: _treeMenuOpen ? 0.92 : 1,
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 160),
-              opacity: _treeMenuOpen ? 0 : 1,
-              child: IgnorePointer(
-                ignoring: _treeMenuOpen,
-                child: _NearbyMissionDock(
-                  missions: radarMissionViews,
-                  selectedMissionId: _selectedRadarMissionId,
-                  expanded: _nearbyPanelOpen,
-                  onToggle: () => setState(() {
-                    _nearbyPanelOpen = !_nearbyPanelOpen;
-                    if (_nearbyPanelOpen) _treeMenuOpen = false;
-                  }),
-                  onSelect: _selectRadarMission,
+        if (!_missionSheetOpen)
+          Positioned(
+            right: 14,
+            bottom: 122 + safeBottom,
+            child: AnimatedScale(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              scale: _treeMenuOpen ? 0.92 : 1,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 160),
+                opacity: _treeMenuOpen ? 0 : 1,
+                child: IgnorePointer(
+                  ignoring: _treeMenuOpen,
+                  child: _NearbyMissionDock(
+                    missions: radarMissionViews,
+                    selectedMissionId: _selectedRadarMissionId,
+                    expanded: _nearbyPanelOpen,
+                    onToggle: () => setState(() {
+                      _nearbyPanelOpen = !_nearbyPanelOpen;
+                      if (_nearbyPanelOpen) {
+                        _treeMenuOpen = false;
+                        _missionSheetOpen = false;
+                      }
+                    }),
+                    onSelect: _selectRadarMission,
+                  ),
                 ),
               ),
             ),
           ),
-        ),
         Positioned(
           left: 0,
           right: 0,
@@ -1330,17 +1328,19 @@ class _NearbyMissionDock extends StatelessWidget {
               view.adventureState == AdventureMissionState.readyToComplete,
         )
         .length;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final expandedWidth = math.min(screenWidth - 28, 340.0);
     return AnimatedContainer(
       duration: const Duration(milliseconds: 240),
       curve: Curves.easeOutCubic,
-      width: expanded ? 316 : 104,
-      constraints: BoxConstraints(maxHeight: expanded ? 432 : 104),
+      width: expanded ? expandedWidth : 88,
+      constraints: BoxConstraints(maxHeight: expanded ? 388 : 88),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: expanded
               ? [
-                  forestDark.withValues(alpha: 0.94),
-                  const Color(0xFF114D42).withValues(alpha: 0.9),
+                  forestDark.withValues(alpha: 0.96),
+                  const Color(0xFF114D42).withValues(alpha: 0.92),
                 ]
               : [
                   Colors.white.withValues(alpha: 0.92),
@@ -1375,7 +1375,7 @@ class _NearbyMissionDock extends StatelessWidget {
           borderRadius: BorderRadius.circular(expanded ? 28 : 32),
           onTap: expanded ? null : onToggle,
           child: Padding(
-            padding: const EdgeInsets.all(13),
+            padding: EdgeInsets.all(expanded ? 13 : 9),
             child: expanded
                 ? Column(
                     mainAxisSize: MainAxisSize.min,
@@ -1413,23 +1413,31 @@ class _NearbyMissionDock extends StatelessWidget {
                           ),
                         )
                       else
-                        ...missions
-                            .take(5)
-                            .map(
-                              (view) => _NearbyMissionTile(
-                                view: view,
-                                selected: view.mission.id == selectedMissionId,
-                                onTap: () => onSelect(view),
-                              ),
-                            ),
+                        Flexible(
+                          child: ListView(
+                            shrinkWrap: true,
+                            padding: EdgeInsets.zero,
+                            children: missions
+                                .take(6)
+                                .map(
+                                  (view) => _NearbyMissionTile(
+                                    view: view,
+                                    selected:
+                                        view.mission.id == selectedMissionId,
+                                    onTap: () => onSelect(view),
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        ),
                     ],
                   )
                 : Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
-                        width: 56,
-                        height: 56,
+                        width: 48,
+                        height: 48,
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
                             colors: [Color(0xFFCFFF61), Color(0xFF88E77A)],
@@ -1452,15 +1460,16 @@ class _NearbyMissionDock extends StatelessWidget {
                         child: const Icon(
                           Icons.radar_rounded,
                           color: forestDark,
-                          size: 28,
+                          size: 25,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 5),
                       Text(
                         actionable > 0 ? '$actionable 可接' : '附近',
                         style: const TextStyle(
                           color: forestDark,
                           fontWeight: FontWeight.w900,
+                          fontSize: 12,
                         ),
                       ),
                       if (nearest != null)

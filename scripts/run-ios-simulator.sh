@@ -30,3 +30,4 @@ cd "${ROOT_DIR}/apps/mobile"
 exec flutter run \
   "${FLUTTER_ARGS[@]}" \
   --dart-define="API_URL=${API_URL}" \
+  --dart-define="ELDER_TREE_LOCATION_FALLBACK=true" \

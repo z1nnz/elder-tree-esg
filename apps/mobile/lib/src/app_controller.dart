@@ -36,6 +36,9 @@ class AppController extends ChangeNotifier {
   final ImagePicker _picker = ImagePicker();
   final List<StreamSubscription<dynamic>> _subscriptions = [];
   StreamSubscription<Position>? _locationSubscription;
+  static const bool _developmentLocationFallbackEnabled = bool.fromEnvironment(
+    'ELDER_TREE_LOCATION_FALLBACK',
+  );
 
   bool loading = true;
   bool elderMode = true;
@@ -483,6 +486,10 @@ class AppController extends ChangeNotifier {
       exploring = true;
       explorationLocationStatus = '等待第一個定位點';
       await _captureCurrentLocationPreview(notify: false);
+      final previewPosition = _latestPositionSnapshot();
+      if (previewPosition != null) {
+        unawaited(_recordPosition(previewPosition));
+      }
       lastGrowthAwardPoints = null;
       lastGrowthAwardTitle = null;
       notice = route == null
@@ -811,15 +818,71 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> _captureCurrentLocationPreview({bool notify = true}) async {
-    final position = await Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-    );
+    late final Position position;
+    try {
+      position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+    } catch (error) {
+      if (_useDevelopmentLocationFallback(error, notify: notify)) return;
+      rethrow;
+    }
     _updateLatestPosition(position);
     explorationLocationStatus = position.accuracy > 50
         ? '目前定位約 ${position.accuracy.round()} 公尺'
         : '目前位置已顯示';
     if (notify) notifyListeners();
   }
+
+  bool _useDevelopmentLocationFallback(Object error, {required bool notify}) {
+    if (!kDebugMode) return false;
+    final allowApplePreviewFallback =
+        defaultTargetPlatform == TargetPlatform.macOS ||
+        (defaultTargetPlatform == TargetPlatform.iOS &&
+            _developmentLocationFallbackEnabled);
+    if (!allowApplePreviewFallback) return false;
+    debugPrint('[DEBUG-location-fallback] $error');
+    _updateLatestPosition(_daanForestParkPosition());
+    explorationLocationStatus = '模擬器定位未設定，先以大安森林公園示範';
+    notice = '目前使用開發示範位置；若要測真實定位，請在 Simulator Features > Location 設定位置，或改用實機。';
+    if (notify) notifyListeners();
+    return true;
+  }
+
+  Position? _latestPositionSnapshot() {
+    final latitude = latestLatitude;
+    final longitude = latestLongitude;
+    if (latitude == null || longitude == null) return null;
+    return Position(
+      latitude: latitude,
+      longitude: longitude,
+      timestamp: latestLocationAt ?? DateTime.now(),
+      accuracy: latestAccuracyMeters ?? 12,
+      altitude: 0,
+      altitudeAccuracy: 0,
+      heading: 0,
+      headingAccuracy: 0,
+      speed: 0,
+      speedAccuracy: 0,
+      isMocked: kDebugMode,
+    );
+  }
+
+  Position _daanForestParkPosition() => Position(
+    latitude: 25.0316,
+    longitude: 121.5362,
+    timestamp: DateTime.now(),
+    accuracy: 18,
+    altitude: 0,
+    altitudeAccuracy: 0,
+    heading: 0,
+    headingAccuracy: 0,
+    speed: 0,
+    speedAccuracy: 0,
+    isMocked: true,
+  );
 
   void _updateLatestPosition(Position position) {
     latestLatitude = position.latitude;
