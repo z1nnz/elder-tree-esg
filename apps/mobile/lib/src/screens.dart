@@ -731,6 +731,16 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
           )
         : const Geographic(lon: 121.5362, lat: 25.0316);
     final selectedMissionForSheet = selectedMission ?? featuredMission;
+    final selectedMissionScreenBearing =
+        hasCurrentLocation && selectedMissionForSheet != null
+        ? _bearingRadians(
+                controller.latestLatitude!,
+                controller.latestLongitude!,
+                selectedMissionForSheet.mission.latitude,
+                selectedMissionForSheet.mission.longitude,
+              ) -
+              _degreesToRadians(mapPresentation.bearing)
+        : null;
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -856,7 +866,9 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
               points: controller.lastGrowthAwardPoints!,
             ),
           ),
-        if (selectedMissionForSheet != null && _selectedRadarMissionId != null)
+        if (!_treeMenuOpen &&
+            selectedMissionForSheet != null &&
+            _selectedRadarMissionId != null)
           Positioned(
             left: 14,
             right: 14,
@@ -866,10 +878,13 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
                 (_treeMenuOpen ? 42 : 0),
             child: _MissionNavigationCueCard(
               view: selectedMissionForSheet,
+              screenBearingRadians: selectedMissionScreenBearing,
               onFocus: () => _focusRadarMission(selectedMissionForSheet),
             ),
           ),
-        if (selectedMissionForSheet != null && _missionSheetOpen)
+        if (!_treeMenuOpen &&
+            selectedMissionForSheet != null &&
+            _missionSheetOpen)
           Positioned(
             left: 14,
             right: 14,
@@ -885,15 +900,27 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
         Positioned(
           right: 14,
           bottom: 118 + safeBottom,
-          child: _NearbyMissionDock(
-            missions: radarMissionViews,
-            selectedMissionId: _selectedRadarMissionId,
-            expanded: _nearbyPanelOpen && !_treeMenuOpen,
-            onToggle: () => setState(() {
-              _nearbyPanelOpen = !_nearbyPanelOpen;
-              if (_nearbyPanelOpen) _treeMenuOpen = false;
-            }),
-            onSelect: _selectRadarMission,
+          child: AnimatedScale(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            scale: _treeMenuOpen ? 0.92 : 1,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 160),
+              opacity: _treeMenuOpen ? 0 : 1,
+              child: IgnorePointer(
+                ignoring: _treeMenuOpen,
+                child: _NearbyMissionDock(
+                  missions: radarMissionViews,
+                  selectedMissionId: _selectedRadarMissionId,
+                  expanded: _nearbyPanelOpen,
+                  onToggle: () => setState(() {
+                    _nearbyPanelOpen = !_nearbyPanelOpen;
+                    if (_nearbyPanelOpen) _treeMenuOpen = false;
+                  }),
+                  onSelect: _selectRadarMission,
+                ),
+              ),
+            ),
           ),
         ),
         Positioned(
@@ -1525,10 +1552,15 @@ class _NearbyMissionTile extends StatelessWidget {
 }
 
 class _MissionNavigationCueCard extends StatelessWidget {
-  const _MissionNavigationCueCard({required this.view, required this.onFocus});
+  const _MissionNavigationCueCard({
+    required this.view,
+    required this.onFocus,
+    this.screenBearingRadians,
+  });
 
   final RadarMissionViewState view;
   final VoidCallback onFocus;
+  final double? screenBearingRadians;
 
   @override
   Widget build(BuildContext context) {
@@ -1547,7 +1579,7 @@ class _MissionNavigationCueCard extends StatelessWidget {
           child: Row(
             children: [
               Transform.rotate(
-                angle: -0.55,
+                angle: screenBearingRadians ?? -0.55,
                 child: Icon(Icons.navigation_rounded, color: accent),
               ),
               const SizedBox(width: 9),
@@ -1563,7 +1595,11 @@ class _MissionNavigationCueCard extends StatelessWidget {
                   ),
                 ),
               ),
-              TextButton(onPressed: onFocus, child: const Text('聚焦')),
+              TextButton.icon(
+                onPressed: onFocus,
+                icon: const Icon(Icons.my_location_rounded, size: 16),
+                label: const Text('帶我過去'),
+              ),
             ],
           ),
         ),
@@ -1748,11 +1784,33 @@ class _TreeCoreMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 360,
-      height: expanded ? 178 : 96,
+      width: 330,
+      height: expanded ? 198 : 96,
       child: Stack(
         alignment: Alignment.bottomCenter,
         children: [
+          AnimatedOpacity(
+            opacity: expanded ? 1 : 0,
+            duration: const Duration(milliseconds: 180),
+            child: IgnorePointer(
+              ignoring: !expanded,
+              child: Container(
+                width: 278,
+                height: 148,
+                margin: const EdgeInsets.only(bottom: 30),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(999),
+                  gradient: RadialGradient(
+                    colors: [
+                      lime.withValues(alpha: 0.18),
+                      forestDark.withValues(alpha: 0.1),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
           AnimatedOpacity(
             opacity: expanded ? 1 : 0,
             duration: const Duration(milliseconds: 180),
@@ -1764,31 +1822,31 @@ class _TreeCoreMenu extends StatelessWidget {
                   _TreeMenuLeaf(
                     label: '今天',
                     icon: Icons.home_rounded,
-                    offset: const Offset(-150, -58),
+                    offset: const Offset(-128, -48),
                     onTap: () => onNavigate(0),
                   ),
                   _TreeMenuLeaf(
                     label: '任務',
                     icon: Icons.checklist_rounded,
-                    offset: const Offset(-92, -100),
+                    offset: const Offset(-78, -102),
                     onTap: () => onNavigate(1),
                   ),
                   _TreeMenuLeaf(
                     label: '生命樹',
                     icon: Icons.park_rounded,
-                    offset: const Offset(0, -118),
+                    offset: const Offset(0, -128),
                     onTap: () => onNavigate(5),
                   ),
                   _TreeMenuLeaf(
                     label: '家人',
                     icon: Icons.family_restroom_rounded,
-                    offset: const Offset(92, -100),
+                    offset: const Offset(78, -102),
                     onTap: () => onNavigate(3),
                   ),
                   _TreeMenuLeaf(
                     label: '公益',
                     icon: Icons.public_rounded,
-                    offset: const Offset(150, -58),
+                    offset: const Offset(128, -48),
                     onTap: () => onNavigate(4),
                   ),
                   _TreeMenuLeaf(
@@ -1808,7 +1866,17 @@ class _TreeCoreMenu extends StatelessWidget {
               width: expanded ? 84 : 78,
               height: expanded ? 84 : 78,
               decoration: BoxDecoration(
-                color: expanded ? Colors.white : lime,
+                gradient: expanded
+                    ? const LinearGradient(
+                        colors: [Colors.white, Color(0xFFE9FFD6)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : const LinearGradient(
+                        colors: [Color(0xFFD8FF66), Color(0xFF72E082)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.white, width: 5),
                 boxShadow: [
@@ -1852,17 +1920,29 @@ class _TreeMenuLeaf extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          width: 76,
-          height: 58,
+          width: 68,
+          height: 56,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.94),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: forest.withValues(alpha: 0.12)),
+            gradient: LinearGradient(
+              colors: [
+                Colors.white.withValues(alpha: 0.98),
+                const Color(0xFFEFFFF3).withValues(alpha: 0.92),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(28),
+              topRight: Radius.circular(20),
+              bottomLeft: Radius.circular(20),
+              bottomRight: Radius.circular(28),
+            ),
+            border: Border.all(color: forest.withValues(alpha: 0.16)),
             boxShadow: [
               BoxShadow(
-                color: forestDark.withValues(alpha: 0.14),
-                blurRadius: 18,
-                offset: const Offset(0, 8),
+                color: forestDark.withValues(alpha: 0.16),
+                blurRadius: 20,
+                offset: const Offset(0, 9),
               ),
             ],
           ),
@@ -5408,6 +5488,17 @@ double _haversineMeters(double lat1, double lon1, double lat2, double lon2) {
 }
 
 double _degreesToRadians(double degrees) => degrees * math.pi / 180;
+
+double _bearingRadians(double lat1, double lon1, double lat2, double lon2) {
+  final startLat = _degreesToRadians(lat1);
+  final endLat = _degreesToRadians(lat2);
+  final deltaLon = _degreesToRadians(lon2 - lon1);
+  final y = math.sin(deltaLon) * math.cos(endLat);
+  final x =
+      math.cos(startLat) * math.sin(endLat) -
+      math.sin(startLat) * math.cos(endLat) * math.cos(deltaLon);
+  return math.atan2(y, x);
+}
 
 IconData _taskIcon(VerificationMode mode) => switch (mode) {
   VerificationMode.photoAi => Icons.photo_camera_outlined,
