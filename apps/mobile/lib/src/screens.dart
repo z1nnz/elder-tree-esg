@@ -1606,7 +1606,7 @@ class _NearbyMissionTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      '${view.distanceLabel} · ${view.stateLabel}',
+                      '${view.navigationDistanceLabel} · ${view.stateLabel}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -1702,25 +1702,124 @@ class _MissionNavigationCueCard extends StatelessWidget {
               ),
               const SizedBox(width: 9),
               Expanded(
-                child: Text(
-                  '${view.mission.title} · ${view.distanceLabel} · ${view.helperText}',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: forestDark,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${view.navigationHeadline} · ${view.navigationDistanceLabel}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: forestDark,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(999),
+                      child: LinearProgressIndicator(
+                        minHeight: 5,
+                        value: view.proximityProgress,
+                        backgroundColor: forestDark.withValues(alpha: 0.08),
+                        valueColor: AlwaysStoppedAnimation<Color>(accent),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      view.navigationInstruction,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: forestDark.withValues(alpha: 0.72),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
                 ),
               ),
+              const SizedBox(width: 8),
               TextButton.icon(
                 onPressed: onFocus,
                 icon: const Icon(Icons.my_location_rounded, size: 16),
-                label: const Text('帶我過去'),
+                label: const Text('帶我靠近'),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _MissionProgressStrip extends StatelessWidget {
+  const _MissionProgressStrip({required this.view, required this.accent});
+
+  final RadarMissionViewState view;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: accent.withValues(alpha: 0.16)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.near_me_rounded, color: accent, size: 17),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  view.navigationHeadline,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: accent,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              Text(
+                view.navigationDistanceLabel,
+                style: const TextStyle(
+                  color: forestDark,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              minHeight: 7,
+              value: view.proximityProgress,
+              backgroundColor: forestDark.withValues(alpha: 0.08),
+              valueColor: AlwaysStoppedAnimation<Color>(accent),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            view.navigationInstruction,
+            style: TextStyle(
+              color: forestDark.withValues(alpha: 0.72),
+              height: 1.35,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1858,13 +1957,15 @@ class _MissionDetailPanelState extends State<_MissionDetailPanel> {
             ),
           ),
           const SizedBox(height: 12),
+          _MissionProgressStrip(view: widget.view, accent: accent),
+          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: widget.onFocus,
                   icon: const Icon(Icons.near_me_rounded),
-                  label: const Text('導航到任務點'),
+                  label: const Text('帶我靠近任務'),
                 ),
               ),
               const SizedBox(width: 10),
