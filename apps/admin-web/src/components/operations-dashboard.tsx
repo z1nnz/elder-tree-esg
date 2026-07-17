@@ -796,6 +796,7 @@ function Reviews({
         </span>
       </div>
       <PhotoAiStatusPanel status={photoAiStatus} reviewCount={reviews.length} />
+      <PhotoAiValidationRunbook fullyEnabled={fullyEnabled} />
       {reviews.length ? (
         <div className="review-list">
           {reviews.map((item) => (
@@ -833,6 +834,74 @@ function Reviews({
         <EmptyState text="覆核佇列已清空" />
       )}
     </section>
+  );
+}
+
+const photoAiValidationCases = [
+  {
+    label: "植物 PASS",
+    title: "拍花、葉片、草地或樹",
+    expectation: "高信心時完成任務，生命樹只增加一次。",
+  },
+  {
+    label: "補水 PASS",
+    title: "拍水瓶、水杯或飲料杯",
+    expectation: "主體清楚時通過；不需要拍人臉或身分。",
+  },
+  {
+    label: "REVIEW",
+    title: "拍得太暗、太遠或 AI 信心不足",
+    expectation: "進入同家庭其他帳號覆核；提交者不能覆核自己。",
+  },
+  {
+    label: "FAIL / 重拍",
+    title: "拍到不符合任務的物品",
+    expectation: "不加成長值，App 顯示可重新拍攝。",
+  },
+  {
+    label: "冪等",
+    title: "同一 evidence complete 重送",
+    expectation: "不重複呼叫 verifier，不重複增加成長值。",
+  },
+];
+
+function PhotoAiValidationRunbook({
+  fullyEnabled,
+}: {
+  fullyEnabled: boolean;
+}) {
+  return (
+    <div className="photo-ai-runbook" aria-label="照片 AI 實機驗收劇本">
+      <div className="photo-ai-runbook-heading">
+        <div>
+          <span>VALIDATION SCRIPT</span>
+          <h3>照片 AI 實機驗收劇本</h3>
+          <p>
+            拿手機測時照這五步走：一般任務拍照、Storage 上傳、Gemini 判斷、
+            家人覆核、最後確認生命樹沒有重複加分。
+          </p>
+        </div>
+        <strong className={fullyEnabled ? "ready" : "blocked"}>
+          {fullyEnabled ? "Ready to test" : "Check env first"}
+        </strong>
+      </div>
+      <div className="photo-ai-runbook-grid">
+        {photoAiValidationCases.map((item, index) => (
+          <article key={item.label}>
+            <span>{String(index + 1).padStart(2, "0")}</span>
+            <strong>{item.label}</strong>
+            <h4>{item.title}</h4>
+            <p>{item.expectation}</p>
+          </article>
+        ))}
+      </div>
+      <div className="photo-ai-runbook-note">
+        <ShieldCheck size={17} />
+        <span>
+          雷達任務仍維持 SELF_CHECK / TIMER；照片 AI 只驗收一般任務，避免定位任務和照片證據模型混用。
+        </span>
+      </div>
+    </div>
   );
 }
 
