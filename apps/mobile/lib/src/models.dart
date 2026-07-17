@@ -893,6 +893,55 @@ class FamilyMessageModel {
       );
 }
 
+class CompanionPromptModel {
+  const CompanionPromptModel({
+    required this.id,
+    required this.sourceType,
+    required this.householdId,
+    required this.participantName,
+    required this.sourceTitle,
+    required this.category,
+    required this.tag,
+    required this.growthPoints,
+    required this.elderMessage,
+    required this.companionReply,
+    required this.volunteerNote,
+    required this.shareSummary,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String sourceType;
+  final String householdId;
+  final String participantName;
+  final String sourceTitle;
+  final String category;
+  final String tag;
+  final int growthPoints;
+  final String elderMessage;
+  final String companionReply;
+  final String volunteerNote;
+  final String shareSummary;
+  final DateTime createdAt;
+
+  factory CompanionPromptModel.fromJson(Map<String, dynamic> json) =>
+      CompanionPromptModel(
+        id: json['id'] as String,
+        sourceType: json['sourceType'] as String,
+        householdId: json['householdId'] as String,
+        participantName: json['participantName'] as String? ?? '家庭成員',
+        sourceTitle: json['sourceTitle'] as String,
+        category: json['category'] as String,
+        tag: json['tag'] as String,
+        growthPoints: json['growthPoints'] as int,
+        elderMessage: json['elderMessage'] as String,
+        companionReply: json['companionReply'] as String,
+        volunteerNote: json['volunteerNote'] as String,
+        shareSummary: json['shareSummary'] as String,
+        createdAt: DateTime.parse(json['createdAt'] as String),
+      );
+}
+
 class CompanionDevice {
   const CompanionDevice({
     required this.id,

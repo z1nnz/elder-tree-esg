@@ -2190,9 +2190,9 @@ export class PersistentStoreService {
     const active = await this.getActiveUser(firebaseUid);
     const prompts = await this.prisma.companionPrompt.findMany({
       where: {
-        userId: active.id,
         householdId: active.activeHouseholdId,
       },
+      include: { user: true },
       orderBy: { createdAt: "desc" },
       take: 12,
     });
@@ -2201,6 +2201,7 @@ export class PersistentStoreService {
 
   async listAdminCompanionPrompts(): Promise<CompanionPromptSummary[]> {
     const prompts = await this.prisma.companionPrompt.findMany({
+      include: { user: true },
       orderBy: { createdAt: "desc" },
       take: 30,
     });
@@ -2363,70 +2364,90 @@ export class PersistentStoreService {
   ): Promise<RadarState> {
     const active = await this.getActiveUser(firebaseUid);
     const now = this.clock.now();
-    await this.prisma.$transaction(async (transaction) => {
-      const progress = await transaction.radarMissionProgress.findUnique({
-        where: {
-          missionId_userId_householdId: {
-            missionId,
-            userId: active.id,
-            householdId: active.activeHouseholdId,
+    const companionNotification = await this.prisma.$transaction(
+      async (transaction): Promise<{
+        sourceTitle: string;
+        growthPoints: number;
+        companionReply: string;
+      } | null> => {
+        const progress = await transaction.radarMissionProgress.findUnique({
+          where: {
+            missionId_userId_householdId: {
+              missionId,
+              userId: active.id,
+              householdId: active.activeHouseholdId,
+            },
           },
-        },
-        include: { mission: true },
-      });
-      if (!progress)
-        throw new NotFoundException("Radar mission is not unlocked");
-      if (progress.completedAt) {
-        await this.ensureRadarCompanionPrompt(
+          include: { mission: true },
+        });
+        if (!progress)
+          throw new NotFoundException("Radar mission is not unlocked");
+        if (progress.completedAt) {
+          await this.ensureRadarCompanionPrompt(
+            transaction,
+            progress,
+            active.id,
+            active.activeHouseholdId,
+            progress.completedAt,
+          );
+          return null;
+        }
+        if (progress.mission.status !== "PUBLISHED") {
+          throw new BadRequestException("Radar mission is not published");
+        }
+        if (now > progress.mission.endsAt) {
+          throw new BadRequestException("Radar mission has expired");
+        }
+        if (progress.mission.verificationMode === VerificationMode.PHOTO_AI) {
+          throw new BadRequestException(
+            "PHOTO_AI radar missions are not supported in this MVP",
+          );
+        }
+        if (progress.mission.verificationMode === VerificationMode.TIMER) {
+          const minimumSeconds = progress.mission.minimumSeconds ?? 0;
+          const elapsedSeconds = Math.floor(
+            (now.getTime() - progress.unlockedAt.getTime()) / 1000,
+          );
+          if (elapsedSeconds < minimumSeconds) {
+            throw new BadRequestException(
+              `Radar timer requires ${minimumSeconds - elapsedSeconds} more seconds`,
+            );
+          }
+        }
+        await this.awardRadarMissionGrowth(
+          transaction,
+          progress.id,
+          progress.missionId,
+          progress.mission.growthPoints,
+          active.activeHouseholdId,
+        );
+        await transaction.radarMissionProgress.update({
+          where: { id: progress.id },
+          data: { completedAt: now },
+        });
+        const prompt = await this.ensureRadarCompanionPrompt(
           transaction,
           progress,
           active.id,
           active.activeHouseholdId,
-          progress.completedAt,
+          now,
         );
-        return;
-      }
-      if (progress.mission.status !== "PUBLISHED") {
-        throw new BadRequestException("Radar mission is not published");
-      }
-      if (now > progress.mission.endsAt) {
-        throw new BadRequestException("Radar mission has expired");
-      }
-      if (progress.mission.verificationMode === VerificationMode.PHOTO_AI) {
-        throw new BadRequestException(
-          "PHOTO_AI radar missions are not supported in this MVP",
-        );
-      }
-      if (progress.mission.verificationMode === VerificationMode.TIMER) {
-        const minimumSeconds = progress.mission.minimumSeconds ?? 0;
-        const elapsedSeconds = Math.floor(
-          (now.getTime() - progress.unlockedAt.getTime()) / 1000,
-        );
-        if (elapsedSeconds < minimumSeconds) {
-          throw new BadRequestException(
-            `Radar timer requires ${minimumSeconds - elapsedSeconds} more seconds`,
-          );
-        }
-      }
-      await this.awardRadarMissionGrowth(
-        transaction,
-        progress.id,
-        progress.missionId,
-        progress.mission.growthPoints,
-        active.activeHouseholdId,
-      );
-      await transaction.radarMissionProgress.update({
-        where: { id: progress.id },
-        data: { completedAt: now },
+        return {
+          sourceTitle: prompt.sourceTitle,
+          growthPoints: prompt.growthPoints,
+          companionReply: prompt.companionReply,
+        };
+      },
+    );
+    if (companionNotification) {
+      await this.pushLineNotificationToHousehold({
+        householdId: active.activeHouseholdId,
+        excludeUserId: active.id,
+        type: "COMPANION_RESPONSE_READY",
+        message: `綠伴生活片段：「${companionNotification.sourceTitle}」已完成，生命樹長出新葉 +${companionNotification.growthPoints}。可以自然回應：${companionNotification.companionReply}`,
+        quickReplies: ["打開 App", "晚點提醒我", "我需要幫忙"],
       });
-      await this.ensureRadarCompanionPrompt(
-        transaction,
-        progress,
-        active.id,
-        active.activeHouseholdId,
-        now,
-      );
-    });
+    }
     return this.getRadarState(firebaseUid);
   }
 
@@ -3252,9 +3273,9 @@ export class PersistentStoreService {
     userId: string,
     householdId: string,
     createdAt: Date,
-  ): Promise<void> {
+  ) {
     const prompt = this.buildRadarCompanionPrompt(progress.mission);
-    await transaction.companionPrompt.upsert({
+    return transaction.companionPrompt.upsert({
       where: { radarMissionProgressId: progress.id },
       update: { sourceTitle: progress.mission.title },
       create: {
@@ -3309,6 +3330,7 @@ export class PersistentStoreService {
     id: string;
     sourceType: "RADAR_MISSION";
     householdId: string;
+    user?: { displayName: string } | null;
     sourceTitle: string;
     category: string;
     tag: string;
@@ -3323,6 +3345,7 @@ export class PersistentStoreService {
       id: prompt.id,
       sourceType: prompt.sourceType,
       householdId: prompt.householdId,
+      participantName: prompt.user?.displayName ?? "家庭成員",
       sourceTitle: prompt.sourceTitle,
       category: prompt.category,
       tag: prompt.tag,

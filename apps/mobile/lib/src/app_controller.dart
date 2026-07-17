@@ -49,6 +49,7 @@ class AppController extends ChangeNotifier {
   List<DailyTask> tasks = _fallbackTasks;
   TreeSummary tree = _fallbackTree;
   List<FamilyMessageModel> messages = _fallbackMessages;
+  List<CompanionPromptModel> companionPrompts = [];
   List<CompanionDevice> devices = _fallbackDevices;
   List<FamilyReviewModel> reviews = [];
   List<LineBindingModel> lineBindings = [];
@@ -163,17 +164,20 @@ class AppController extends ChangeNotifier {
 
       final optionalResults = await Future.wait<Object?>([
         _safeRefresh('messages', _api.getMessages()),
+        _safeRefresh('companionPrompts', _api.getCompanionPrompts()),
         _safeRefresh('devices', _api.getDevices()),
         _safeRefresh('reviews', _api.getFamilyReviews()),
         _safeRefresh('impact', _api.getImpactSummary()),
         _safeRefresh('lineBindings', _api.getLineBindings()),
       ]);
       messages = optionalResults[0] as List<FamilyMessageModel>? ?? messages;
-      devices = optionalResults[1] as List<CompanionDevice>? ?? devices;
-      reviews = optionalResults[2] as List<FamilyReviewModel>? ?? reviews;
-      impact = optionalResults[3] as ImpactSummaryModel? ?? impact;
+      companionPrompts =
+          optionalResults[1] as List<CompanionPromptModel>? ?? companionPrompts;
+      devices = optionalResults[2] as List<CompanionDevice>? ?? devices;
+      reviews = optionalResults[3] as List<FamilyReviewModel>? ?? reviews;
+      impact = optionalResults[4] as ImpactSummaryModel? ?? impact;
       lineBindings =
-          optionalResults[4] as List<LineBindingModel>? ?? lineBindings;
+          optionalResults[5] as List<LineBindingModel>? ?? lineBindings;
     } catch (error) {
       if (kDebugMode) {
         debugPrint('[DEBUG-app-refresh] failed: $error');
@@ -674,11 +678,18 @@ class AppController extends ChangeNotifier {
         tree = await _api.getTree();
         impact = await _api.getImpactSummary();
         exploration = await _api.getExplorationState();
+        companionPrompts =
+            await _safeRefresh(
+              'companionPromptsAfterRadarComplete',
+              _api.getCompanionPrompts(),
+            ) ??
+            companionPrompts;
         await _refreshHomeSummary();
       }
       lastGrowthAwardPoints = mission.growthPoints;
       lastGrowthAwardTitle = mission.title;
-      notice = '生命樹長出新葉 +${mission.growthPoints}：${mission.title}';
+      notice =
+          '生命樹長出新葉 +${mission.growthPoints}：${mission.title}。生活片段已整理，可分享給家人/陪伴者。';
     } catch (error) {
       notice = _friendlyActionError(error, fallback: '雷達任務暫時無法完成，請稍後再試一次。');
     }

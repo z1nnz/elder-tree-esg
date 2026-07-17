@@ -424,6 +424,7 @@ export interface CompanionPromptSummary {
   id: string;
   sourceType: "RADAR_MISSION";
   householdId: string;
+  participantName: string;
   sourceTitle: string;
   category: string;
   tag: string;
