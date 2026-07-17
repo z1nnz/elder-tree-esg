@@ -3269,6 +3269,7 @@ class _AdventureBeaconBase extends StatelessWidget {
     this.featured = false,
     this.pulse = false,
     this.completed = false,
+    this.status = _AdventureBeaconStatus.locked,
   });
 
   final Color color;
@@ -3276,10 +3277,12 @@ class _AdventureBeaconBase extends StatelessWidget {
   final bool featured;
   final bool pulse;
   final bool completed;
+  final _AdventureBeaconStatus status;
 
   @override
   Widget build(BuildContext context) {
     final coreSize = featured ? 58.0 : 48.0;
+    final statusColor = _beaconStatusColor(status, color);
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(end: pulse ? 1 : 0),
       duration: const Duration(milliseconds: 620),
@@ -3291,6 +3294,14 @@ class _AdventureBeaconBase extends StatelessWidget {
             Stack(
               alignment: Alignment.center,
               children: [
+                CustomPaint(
+                  size: Size(featured ? 124 : 100, featured ? 124 : 100),
+                  painter: _BeaconSignalPainter(
+                    color: color,
+                    active: pulse,
+                    featured: featured,
+                  ),
+                ),
                 Container(
                   width: featured ? 98 : 78,
                   height: featured ? 98 : 78,
@@ -3323,14 +3334,25 @@ class _AdventureBeaconBase extends StatelessWidget {
                     gradient: LinearGradient(
                       colors: completed
                           ? [forestDark, forest]
+                          : status == _AdventureBeaconStatus.ready
+                          ? [Colors.white, lime.withValues(alpha: 0.94)]
+                          : status == _AdventureBeaconStatus.timer
+                          ? [Colors.white, warmYellow.withValues(alpha: 0.92)]
+                          : status == _AdventureBeaconStatus.unlocked
+                          ? [Colors.white, const Color(0xFF62A2FF)]
                           : [Colors.white, color.withValues(alpha: 0.9)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
-                    border: Border.all(color: Colors.white, width: 4),
+                    border: Border.all(
+                      color: completed ? lime : statusColor,
+                      width: featured ? 4 : 3.5,
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: color.withValues(alpha: featured ? 0.46 : 0.34),
+                        color: statusColor.withValues(
+                          alpha: featured ? 0.5 : 0.36,
+                        ),
                         blurRadius: featured ? 30 : 22,
                         spreadRadius: featured ? 2 : 0,
                         offset: const Offset(0, 9),
@@ -3338,6 +3360,15 @@ class _AdventureBeaconBase extends StatelessWidget {
                     ],
                   ),
                   child: child,
+                ),
+                Positioned(
+                  top: featured ? 16 : 14,
+                  right: featured ? 12 : 10,
+                  child: _BeaconStatusBadge(
+                    color: statusColor,
+                    icon: _beaconStatusIcon(status),
+                    compact: !featured,
+                  ),
                 ),
               ],
             ),
@@ -3367,6 +3398,99 @@ class _AdventureBeaconBase extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+enum _AdventureBeaconStatus {
+  locked,
+  near,
+  inside,
+  unlocked,
+  timer,
+  ready,
+  completed,
+  expired,
+  upcoming,
+}
+
+class _BeaconStatusBadge extends StatelessWidget {
+  const _BeaconStatusBadge({
+    required this.color,
+    required this.icon,
+    required this.compact,
+  });
+
+  final Color color;
+  final IconData icon;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: compact ? 22 : 26,
+      height: compact ? 22 : 26,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: compact ? 2 : 2.4),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.5),
+            blurRadius: compact ? 9 : 12,
+          ),
+        ],
+      ),
+      child: Icon(icon, color: Colors.white, size: compact ? 13 : 15),
+    );
+  }
+}
+
+class _BeaconSignalPainter extends CustomPainter {
+  const _BeaconSignalPainter({
+    required this.color,
+    required this.active,
+    required this.featured,
+  });
+
+  final Color color;
+  final bool active;
+  final bool featured;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final maxRadius = math.min(size.width, size.height) / 2;
+    final ringPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = featured ? 2.2 : 1.7
+      ..strokeCap = StrokeCap.round;
+    for (var index = 0; index < 3; index++) {
+      final radius = maxRadius * (0.42 + index * 0.18);
+      ringPaint.color = color.withValues(
+        alpha: (active ? 0.24 : 0.12) * (1 - index * 0.18),
+      );
+      canvas.drawCircle(center, radius, ringPaint);
+    }
+    final sweepPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = featured ? 4 : 3
+      ..strokeCap = StrokeCap.round
+      ..color = Colors.white.withValues(alpha: active ? 0.72 : 0.34);
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: maxRadius * 0.64),
+      -math.pi * 0.72,
+      math.pi * 0.46,
+      false,
+      sweepPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _BeaconSignalPainter oldDelegate) {
+    return oldDelegate.color != color ||
+        oldDelegate.active != active ||
+        oldDelegate.featured != featured;
   }
 }
 
@@ -3463,6 +3587,11 @@ class _QuestBeacon extends StatelessWidget {
                 color: color,
                 pulse: quest.unlocked && !quest.completed,
                 completed: quest.completed,
+                status: quest.completed
+                    ? _AdventureBeaconStatus.completed
+                    : quest.unlocked
+                    ? _AdventureBeaconStatus.unlocked
+                    : _AdventureBeaconStatus.locked,
                 child: Icon(
                   icon,
                   color: quest.completed ? Colors.white : color,
@@ -3510,6 +3639,7 @@ class _RadarBeacon extends StatelessWidget {
           featured: featured,
           pulse: pulse,
           completed: completed,
+          status: _beaconStatusForAdventureState(view.adventureState),
           child: Icon(
             completed ? Icons.done_all_rounded : _radarIcon(mission),
             color: completed || unlocked ? Colors.white : color,
@@ -4776,22 +4906,14 @@ class TreeGrowthScreen extends StatelessWidget {
         ),
         const SizedBox(height: 18),
         const _SectionTitle(
-          title: '成長階段',
-          subtitle: '先用真實成長值推導階段，之後可接上更完整的 2D/3D 樹動畫。',
+          title: '生命樹成長路徑',
+          subtitle: '每一片新葉都來自真實完成的任務，家庭共同累積成長。',
         ),
         const SizedBox(height: 10),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: _TreeGrowthStage.values
-              .map(
-                (item) => _TreeStageChip(
-                  stage: item,
-                  active: item == stage,
-                  reached: tree.growthPoints >= item.threshold,
-                ),
-              )
-              .toList(),
+        _TreeStagePath(
+          currentStage: stage,
+          growthPoints: tree.growthPoints,
+          progress: progress,
         ),
         const SizedBox(height: 22),
         const _SectionTitle(
@@ -4861,71 +4983,346 @@ class _TreeStageIllustration extends StatelessWidget {
       curve: Curves.easeOutBack,
       builder: (context, value, child) =>
           Transform.scale(scale: value, child: child),
-      child: Container(
-        width: 112,
-        height: 112,
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.12),
-          shape: BoxShape.circle,
-          border: Border.all(color: lime.withValues(alpha: 0.42)),
+      child: SizedBox(
+        width: 132,
+        height: 132,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: 124,
+              height: 124,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    lime.withValues(alpha: 0.26),
+                    Colors.white.withValues(alpha: 0.08),
+                  ],
+                ),
+                border: Border.all(color: lime.withValues(alpha: 0.46)),
+                boxShadow: [
+                  BoxShadow(
+                    color: lime.withValues(alpha: 0.18),
+                    blurRadius: 28,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+            ),
+            CustomPaint(
+              size: const Size(112, 112),
+              painter: _TreeStagePainter(stage: stage),
+            ),
+            Positioned(
+              right: 10,
+              bottom: 14,
+              child: Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: forestDark.withValues(alpha: 0.88),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.5),
+                  ),
+                ),
+                child: Icon(stage.icon, color: lime, size: 19),
+              ),
+            ),
+          ],
         ),
-        child: Icon(stage.icon, color: lime, size: 58),
       ),
     );
   }
 }
 
-class _TreeStageChip extends StatelessWidget {
-  const _TreeStageChip({
+class _TreeStagePainter extends CustomPainter {
+  const _TreeStagePainter({required this.stage});
+
+  final _TreeGrowthStage stage;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final stageIndex = _TreeGrowthStage.values.indexOf(stage);
+    final growth = (stageIndex + 1) / _TreeGrowthStage.values.length;
+    final center = Offset(size.width / 2, size.height * 0.57);
+    final groundPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.2)
+      ..style = PaintingStyle.fill;
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(size.width / 2, size.height * 0.83),
+        width: size.width * 0.72,
+        height: 18,
+      ),
+      groundPaint,
+    );
+
+    final trunkHeight = ui.lerpDouble(22, 56, growth)!;
+    final trunkWidth = ui.lerpDouble(8, 20, growth)!;
+    final trunkTop = center.translate(0, -trunkHeight);
+    final trunkPath = Path()
+      ..moveTo(center.dx - trunkWidth / 2, center.dy)
+      ..cubicTo(
+        center.dx - trunkWidth * 0.8,
+        center.dy - trunkHeight * 0.36,
+        trunkTop.dx - trunkWidth * 0.42,
+        trunkTop.dy + trunkHeight * 0.28,
+        trunkTop.dx - trunkWidth * 0.16,
+        trunkTop.dy,
+      )
+      ..lineTo(trunkTop.dx + trunkWidth * 0.16, trunkTop.dy)
+      ..cubicTo(
+        trunkTop.dx + trunkWidth * 0.55,
+        trunkTop.dy + trunkHeight * 0.22,
+        center.dx + trunkWidth * 0.72,
+        center.dy - trunkHeight * 0.34,
+        center.dx + trunkWidth / 2,
+        center.dy,
+      )
+      ..close();
+    canvas.drawPath(
+      trunkPath,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          center.translate(-10, 0),
+          trunkTop.translate(18, 0),
+          const [Color(0xFF6A3B1D), Color(0xFF2F1A0F)],
+        ),
+    );
+
+    if (stageIndex == 0) {
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: center.translate(0, -12),
+          width: 24,
+          height: 18,
+        ),
+        Paint()..color = const Color(0xFFD0A246),
+      );
+      return;
+    }
+
+    final crownRadius = ui.lerpDouble(18, 43, growth)!;
+    final crownCenter = trunkTop.translate(0, -crownRadius * 0.28);
+    final crownColors = [
+      const Color(0xFFC6F460),
+      const Color(0xFF7EDC62),
+      const Color(0xFF2E8B57),
+      const Color(0xFF155D43),
+    ];
+    final crownPaint = Paint()
+      ..shader = ui.Gradient.radial(
+        crownCenter.translate(-crownRadius * 0.25, -crownRadius * 0.3),
+        crownRadius * 1.25,
+        crownColors,
+        const [0, 0.34, 0.72, 1],
+      );
+    final blobs = [
+      crownCenter,
+      crownCenter.translate(-crownRadius * 0.52, crownRadius * 0.12),
+      crownCenter.translate(crownRadius * 0.5, crownRadius * 0.1),
+      crownCenter.translate(0, -crownRadius * 0.44),
+      crownCenter.translate(-crownRadius * 0.12, crownRadius * 0.45),
+    ];
+    for (final point in blobs) {
+      canvas.drawCircle(point, crownRadius * 0.58, crownPaint);
+    }
+
+    final leafPaint = Paint()..color = lime.withValues(alpha: 0.86);
+    final leafCount = math.max(3, stageIndex * 3);
+    for (var index = 0; index < leafCount; index++) {
+      final angle = (index / leafCount) * math.pi * 2;
+      final radius = crownRadius * (0.32 + (index % 3) * 0.2);
+      final leafCenter = crownCenter.translate(
+        math.cos(angle) * radius,
+        math.sin(angle) * radius * 0.72,
+      );
+      canvas.save();
+      canvas.translate(leafCenter.dx, leafCenter.dy);
+      canvas.rotate(angle + 0.7);
+      canvas.drawOval(
+        Rect.fromCenter(center: Offset.zero, width: 6, height: 15),
+        leafPaint,
+      );
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _TreeStagePainter oldDelegate) {
+    return oldDelegate.stage != stage;
+  }
+}
+
+class _TreeStagePath extends StatelessWidget {
+  const _TreeStagePath({
+    required this.currentStage,
+    required this.growthPoints,
+    required this.progress,
+  });
+
+  final _TreeGrowthStage currentStage;
+  final int growthPoints;
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: const Color(0xFFE0E7E2)),
+        boxShadow: [
+          BoxShadow(
+            color: forest.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: lime.withValues(alpha: 0.22),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '$growthPoints 點',
+                  style: const TextStyle(
+                    color: forestDark,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '目前：${currentStage.label} · ${(progress * 100).round()}%',
+                style: const TextStyle(
+                  color: forest,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (
+                  var index = 0;
+                  index < _TreeGrowthStage.values.length;
+                  index++
+                )
+                  _TreeStagePathNode(
+                    stage: _TreeGrowthStage.values[index],
+                    active: _TreeGrowthStage.values[index] == currentStage,
+                    reached:
+                        growthPoints >=
+                        _TreeGrowthStage.values[index].threshold,
+                    isLast: index == _TreeGrowthStage.values.length - 1,
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TreeStagePathNode extends StatelessWidget {
+  const _TreeStagePathNode({
     required this.stage,
     required this.active,
     required this.reached,
+    required this.isLast,
   });
 
   final _TreeGrowthStage stage;
   final bool active;
   final bool reached;
+  final bool isLast;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 104,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: active ? forestDark : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: active
-              ? lime
-              : reached
-              ? forest.withValues(alpha: 0.2)
-              : const Color(0xFFE0E7E2),
-        ),
-      ),
-      child: Column(
-        children: [
-          Icon(stage.icon, color: active ? lime : forest),
-          const SizedBox(height: 6),
-          Text(
-            stage.label,
-            style: TextStyle(
-              color: active ? Colors.white : ink,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            '${stage.threshold}+',
-            style: TextStyle(
+    final color = active
+        ? forestDark
+        : reached
+        ? forest
+        : const Color(0xFFB8C4BD);
+    return Row(
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          width: active ? 92 : 74,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: active
+                ? forestDark
+                : reached
+                ? const Color(0xFFEAF7D7)
+                : const Color(0xFFF4F6F2),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
               color: active
-                  ? Colors.white.withValues(alpha: 0.68)
-                  : const Color(0xFF69736D),
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
+                  ? lime
+                  : reached
+                  ? forest.withValues(alpha: 0.22)
+                  : const Color(0xFFE0E7E2),
             ),
           ),
-        ],
-      ),
+          child: Column(
+            children: [
+              Icon(stage.icon, color: active ? lime : color),
+              const SizedBox(height: 6),
+              Text(
+                stage.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: active ? Colors.white : forestDark,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                ),
+              ),
+              Text(
+                '${stage.threshold}+',
+                style: TextStyle(
+                  color: active
+                      ? Colors.white.withValues(alpha: 0.64)
+                      : color.withValues(alpha: 0.72),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (!isLast)
+          Container(
+            width: 26,
+            height: 3,
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            decoration: BoxDecoration(
+              color: reached ? lime : const Color(0xFFE0E7E2),
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -5819,6 +6216,51 @@ Color _radarAccentColor(RadarMissionModel mission) {
     'HYDRATION' => const Color(0xFF2F80ED),
     'WALK' => const Color(0xFFD98A00),
     _ => const Color(0xFF6A7770),
+  };
+}
+
+_AdventureBeaconStatus _beaconStatusForAdventureState(
+  AdventureMissionState state,
+) {
+  return switch (state) {
+    AdventureMissionState.waitingForLocation => _AdventureBeaconStatus.locked,
+    AdventureMissionState.far => _AdventureBeaconStatus.locked,
+    AdventureMissionState.near => _AdventureBeaconStatus.near,
+    AdventureMissionState.insideRadius => _AdventureBeaconStatus.inside,
+    AdventureMissionState.unlocked => _AdventureBeaconStatus.unlocked,
+    AdventureMissionState.timerRunning => _AdventureBeaconStatus.timer,
+    AdventureMissionState.readyToComplete => _AdventureBeaconStatus.ready,
+    AdventureMissionState.completed => _AdventureBeaconStatus.completed,
+    AdventureMissionState.expired => _AdventureBeaconStatus.expired,
+    AdventureMissionState.upcoming => _AdventureBeaconStatus.upcoming,
+  };
+}
+
+Color _beaconStatusColor(_AdventureBeaconStatus status, Color fallback) {
+  return switch (status) {
+    _AdventureBeaconStatus.locked => fallback,
+    _AdventureBeaconStatus.near => const Color(0xFFFFA33A),
+    _AdventureBeaconStatus.inside => const Color(0xFFFFCE4A),
+    _AdventureBeaconStatus.unlocked => const Color(0xFF2F80ED),
+    _AdventureBeaconStatus.timer => warmYellow,
+    _AdventureBeaconStatus.ready => lime,
+    _AdventureBeaconStatus.completed => forest,
+    _AdventureBeaconStatus.expired => const Color(0xFF8A5A44),
+    _AdventureBeaconStatus.upcoming => const Color(0xFF8C9A93),
+  };
+}
+
+IconData _beaconStatusIcon(_AdventureBeaconStatus status) {
+  return switch (status) {
+    _AdventureBeaconStatus.locked => Icons.lock_rounded,
+    _AdventureBeaconStatus.near => Icons.navigation_rounded,
+    _AdventureBeaconStatus.inside => Icons.radar_rounded,
+    _AdventureBeaconStatus.unlocked => Icons.radio_button_checked_rounded,
+    _AdventureBeaconStatus.timer => Icons.timer_rounded,
+    _AdventureBeaconStatus.ready => Icons.bolt_rounded,
+    _AdventureBeaconStatus.completed => Icons.check_rounded,
+    _AdventureBeaconStatus.expired => Icons.hourglass_disabled_rounded,
+    _AdventureBeaconStatus.upcoming => Icons.schedule_rounded,
   };
 }
 

@@ -56,6 +56,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.text('生命樹'), findsWidgets);
-    expect(find.text('成長階段'), findsOneWidget);
+    expect(find.text('生命樹成長路徑'), findsOneWidget);
   });
 }
