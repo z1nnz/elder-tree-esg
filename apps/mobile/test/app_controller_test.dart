@@ -255,14 +255,21 @@ void main() {
       expect(lockedFar.adventureState, AdventureMissionState.far);
       expect(lockedFar.stateLabel, '靠近中');
       expect(lockedFar.proximityProgress, 0);
+      expect(lockedFar.navigationHeadline, '朝任務光點前進');
+      expect(lockedFar.navigationDistanceLabel, '還差 1.1km');
+      expect(lockedFar.navigationInstruction, contains('靠近後會自動解鎖'));
       expect(lockedNear.adventureState, AdventureMissionState.near);
       expect(lockedNear.stateLabel, '快到了');
       expect(lockedNear.proximityProgress, greaterThan(0));
+      expect(lockedNear.navigationHeadline, '任務就在附近');
+      expect(lockedNear.navigationDistanceLabel, '還差 30m');
+      expect(lockedNear.navigationInstruction, contains('走進光圈'));
       expect(
         waitingLocation.adventureState,
         AdventureMissionState.waitingForLocation,
       );
       expect(waitingLocation.primaryActionLabel, '正在找位置');
+      expect(waitingLocation.navigationDistanceLabel, '等待定位');
     },
   );
 

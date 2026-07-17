@@ -976,6 +976,54 @@ class RadarMissionViewState {
     return progress.clamp(0, 1).toDouble();
   }
 
+  int? get remainingToRadiusMeters {
+    final distance = distanceMeters;
+    if (distance == null) return null;
+    return math.max(0, distance - mission.radiusMeters);
+  }
+
+  String get navigationDistanceLabel {
+    final remaining = remainingToRadiusMeters;
+    if (remaining == null) return '等待定位';
+    if (remaining == 0) return '已在半徑內';
+    if (remaining >= 1000) {
+      return '還差 ${(remaining / 1000).toStringAsFixed(1)}km';
+    }
+    return '還差 ${remaining}m';
+  }
+
+  String get navigationHeadline => switch (adventureState) {
+    AdventureMissionState.waitingForLocation => '正在定位你的位置',
+    AdventureMissionState.far => '朝任務光點前進',
+    AdventureMissionState.near => '任務就在附近',
+    AdventureMissionState.insideRadius => '已進入任務範圍',
+    AdventureMissionState.unlocked => '任務已接取',
+    AdventureMissionState.timerRunning => '計時任務進行中',
+    AdventureMissionState.readyToComplete => '可以完成任務',
+    AdventureMissionState.completed => '任務已完成',
+    AdventureMissionState.expired => '任務已結束',
+    AdventureMissionState.upcoming => '任務尚未開始',
+  };
+
+  String get navigationInstruction {
+    final remaining = navigationDistanceLabel;
+    return switch (adventureState) {
+      AdventureMissionState.waitingForLocation => '先讓地圖找到你，再顯示附近任務。',
+      AdventureMissionState.far => '$remaining，靠近後會自動解鎖。',
+      AdventureMissionState.near => '$remaining，走進光圈就能接取。',
+      AdventureMissionState.insideRadius => '你已在安全半徑內，App 正在確認任務。',
+      AdventureMissionState.unlocked =>
+        mission.isTimer ? '停留一下，倒數完成後就能提交。' : '可以完成這件小事，完成後生命樹會長出新葉。',
+      AdventureMissionState.timerRunning =>
+        '剩下 ${timerRemaining.inSeconds} 秒，時間到才能完成。',
+      AdventureMissionState.readyToComplete =>
+        '完成後生命樹會長出新葉 +${mission.growthPoints}。',
+      AdventureMissionState.completed => '這次成長已被記錄，重送也不會重複加分。',
+      AdventureMissionState.expired => '這個任務已經結束，看看附近其他光點。',
+      AdventureMissionState.upcoming => '這個任務稍後才會亮起。',
+    };
+  }
+
   String get stateLabel => switch (adventureState) {
     AdventureMissionState.waitingForLocation => '等待定位',
     AdventureMissionState.far => '靠近中',
