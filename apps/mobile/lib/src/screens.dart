@@ -15,7 +15,7 @@ import 'theme.dart';
 ui.ImageFilter get uiBlur => ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18);
 
 const double _nearbyDockCollapsedWidth = 104;
-const double _nearbyDockCollapsedHeight = 96;
+const double _nearbyDockCollapsedHeight = 112;
 const double _missionCueDockClearance = 118;
 const double _missionCueBottom = 128;
 const double _missionSheetBottom = 118;
@@ -794,7 +794,7 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
                         lon: quest.longitude!,
                         lat: quest.latitude!,
                       ),
-                      size: const Size(76, 96),
+                      size: const Size(108, 132),
                       alignment: Alignment.bottomCenter,
                       child: _QuestBeacon(quest: quest),
                     ),
@@ -806,8 +806,8 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
                         lat: view.mission.latitude,
                       ),
                       size: view.mission.id == featuredMission?.mission.id
-                          ? const Size(126, 138)
-                          : const Size(92, 112),
+                          ? const Size(148, 212)
+                          : const Size(108, 132),
                       alignment: Alignment.bottomCenter,
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
@@ -3576,10 +3576,6 @@ class _QuestBeacon extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (active) ...[
-            _BeaconLabel(text: quest.locationName, color: color),
-            const SizedBox(height: 3),
-          ],
           Stack(
             clipBehavior: Clip.none,
             children: [
