@@ -1376,9 +1376,24 @@ describeWithDatabase("PersistentStoreService", () => {
       expect(prompts[0]).toMatchObject({
         sourceType: "RADAR_MISSION",
         householdId: radarContext.activeHouseholdId,
+        participantName: "綠伴使用者",
         sourceTitle: "華山綠意觀察",
         companionReply:
           "可以回覆：『看到你完成「華山綠意觀察」了，今天有做一件照顧自己的事，很棒。』",
+        shareSummary: "完成「華山綠意觀察」，生命樹長出新葉 +8。",
+      });
+
+      const familyUid = `integration-radar-family-${randomUUID()}`;
+      createdFirebaseUids.add(familyUid);
+      const invite = await radarStore.createHouseholdInvite(radarUid);
+      await radarStore.joinHousehold(familyUid, invite.code, "家人");
+      const familyPrompts = await radarStore.getRecentCompanionPrompts(
+        familyUid,
+      );
+      expect(familyPrompts).toHaveLength(1);
+      expect(familyPrompts[0]).toMatchObject({
+        householdId: radarContext.activeHouseholdId,
+        sourceTitle: "華山綠意觀察",
         shareSummary: "完成「華山綠意觀察」，生命樹長出新葉 +8。",
       });
 

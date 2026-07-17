@@ -105,6 +105,11 @@ class ApiClient {
     return data.map(FamilyMessageModel.fromJson).toList();
   }
 
+  Future<List<CompanionPromptModel>> getCompanionPrompts() async {
+    final data = await _getList('/companion-prompts/recent');
+    return data.map(CompanionPromptModel.fromJson).toList();
+  }
+
   Future<List<FamilyReviewModel>> getFamilyReviews() async {
     final data = await _getList('/family/reviews');
     return data.map(FamilyReviewModel.fromJson).toList();

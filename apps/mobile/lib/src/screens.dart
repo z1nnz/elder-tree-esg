@@ -4328,6 +4328,8 @@ class _FamilyScreenState extends State<FamilyScreen> {
         const SizedBox(height: 12),
         _LineCompanionCard(controller: widget.controller),
         const SizedBox(height: 12),
+        _CompanionPromptSection(prompts: widget.controller.companionPrompts),
+        const SizedBox(height: 12),
         if (widget.controller.reviews.isNotEmpty) ...[
           const _SectionTitle(title: '等待你的確認', subtitle: '只能覆核同家庭其他成員提交的照片'),
           const SizedBox(height: 10),
@@ -4493,6 +4495,200 @@ class _FamilyScreenState extends State<FamilyScreen> {
     );
     code.dispose();
     relationship.dispose();
+  }
+}
+
+class _CompanionPromptSection extends StatelessWidget {
+  const _CompanionPromptSection({required this.prompts});
+
+  final List<CompanionPromptModel> prompts;
+
+  @override
+  Widget build(BuildContext context) {
+    final recent = prompts.take(4).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionTitle(
+          title: '最近生活片段',
+          subtitle: '任務完成後，綠伴會整理成家人與陪伴者可以自然回應的話。',
+        ),
+        const SizedBox(height: 10),
+        if (recent.isEmpty)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const CircleAvatar(
+                    backgroundColor: Color(0xFFE2F4C3),
+                    foregroundColor: forest,
+                    child: Icon(Icons.auto_stories_rounded),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          '還沒有可分享的生活片段',
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        SizedBox(height: 5),
+                        Text('完成城市任務後，這裡會出現一段簡短紀錄，家人或陪伴者可以用它自然開啟關心。'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          ...recent.map(
+            (prompt) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _CompanionPromptCard(prompt: prompt),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _CompanionPromptCard extends StatelessWidget {
+  const _CompanionPromptCard({required this.prompt});
+
+  final CompanionPromptModel prompt;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const CircleAvatar(
+                  backgroundColor: Color(0xFFDFF5EA),
+                  foregroundColor: forest,
+                  child: Icon(Icons.eco_rounded),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${prompt.participantName} · ${prompt.sourceTitle}',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        prompt.shareSummary,
+                        style: const TextStyle(color: Color(0xFF65746D)),
+                      ),
+                    ],
+                  ),
+                ),
+                _GrowthChip(points: prompt.growthPoints),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _CompanionReplyBox(
+              label: '可以這樣回應',
+              text: prompt.companionReply,
+              icon: Icons.chat_bubble_outline_rounded,
+            ),
+            const SizedBox(height: 8),
+            _CompanionReplyBox(
+              label: '陪伴提醒',
+              text: prompt.volunteerNote,
+              icon: Icons.volunteer_activism_outlined,
+              subtle: true,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CompanionReplyBox extends StatelessWidget {
+  const _CompanionReplyBox({
+    required this.label,
+    required this.text,
+    required this.icon,
+    this.subtle = false,
+  });
+
+  final String label;
+  final String text;
+  final IconData icon;
+  final bool subtle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: subtle ? const Color(0xFFF5F8F5) : const Color(0xFFEFF8E6),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFD9E7D9)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: forest, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: forest,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(text),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GrowthChip extends StatelessWidget {
+  const _GrowthChip({required this.points});
+
+  final int points;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFD45A),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        '+$points',
+        style: const TextStyle(color: ink, fontWeight: FontWeight.w900),
+      ),
+    );
   }
 }
 
