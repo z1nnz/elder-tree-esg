@@ -7,6 +7,12 @@ import type {
 } from "@elder-tree/contracts";
 import { FormEvent, useEffect, useState, type CSSProperties } from "react";
 import { api } from "../lib/api";
+import {
+  photoAiTaskIdeas,
+  taipeiValidationTemplates,
+  taiwanSafeMissionTemplates,
+  type RadarMissionTemplate,
+} from "../lib/mission-template-library";
 
 const now = new Date();
 const nextMonth = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
@@ -55,51 +61,14 @@ const emptyRadarDraft: RadarDraft = {
   },
 };
 
-const validationTemplates = [
-  {
-    name: "中正紀念堂補水確認",
-    title: "中正紀念堂廣場補水確認",
-    description: "走到廣場附近，停下來喝水並確認今天身體狀態。",
-    category: "HYDRATION",
-    tag: "補水",
-    latitude: 25.03461,
-    longitude: 121.52187,
-    radiusMeters: 120,
-    verificationMode: "SELF_CHECK" as const,
-    minimumSeconds: 180,
-    growthPoints: 6,
-    badgeName: "城市補水者",
-    companionPromptTemplates: {
-      elderMessage: "你完成了「{title}」。有記得喝水，就是把身體放在心上。",
-      companionReply:
-        "可以回覆：『今天有記得補水，很棒。晚點出門也可以帶一瓶水。』",
-      volunteerNote:
-        "先肯定補水這個具體行動；若要延伸，只提醒下次出門帶水，不追問感受。",
-      shareSummary: "完成「{title}」，生命樹長出新葉 +{growthPoints}。",
-    },
-  },
-  {
-    name: "二二八公園慢呼吸",
-    title: "二二八公園三分鐘慢呼吸",
-    description: "找安全的位置，安靜慢呼吸三分鐘，再讓生命樹長出新葉。",
-    category: "WELLNESS",
-    tag: "慢呼吸",
-    latitude: 25.04236,
-    longitude: 121.51542,
-    radiusMeters: 120,
-    verificationMode: "TIMER" as const,
-    minimumSeconds: 180,
-    growthPoints: 10,
-    badgeName: "慢呼吸同行者",
-    companionPromptTemplates: {
-      elderMessage: "你完成了「{title}」。願意慢下來，是照顧自己的開始。",
-      companionReply:
-        "可以回覆：『看到你完成三分鐘慢呼吸了，願意停一下也很不錯。』",
-      volunteerNote:
-        "先回應已完成的慢呼吸行動；若要邀約，下次可一起找安全座位練習。",
-      shareSummary: "完成「{title}」，生命樹長出新葉 +{growthPoints}。",
-    },
-  },
+const quickTemplates = [
+  ...taipeiValidationTemplates,
+  ...taiwanSafeMissionTemplates.filter(
+    (template) =>
+      !taipeiValidationTemplates.some(
+        (taipeiTemplate) => taipeiTemplate.name === template.name,
+      ),
+  ),
 ];
 
 export function RadarMissionEditor({
@@ -231,9 +200,7 @@ export function RadarMissionEditor({
     }
   }
 
-  function templateToDraft(
-    template: (typeof validationTemplates)[number],
-  ): RadarDraft {
+  function templateToDraft(template: RadarMissionTemplate): RadarDraft {
     const startsAt = new Date(Date.now() - 5 * 60 * 1000);
     const endsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     return {
@@ -243,20 +210,26 @@ export function RadarMissionEditor({
     };
   }
 
-  async function createValidationPack() {
+  async function createMissionPack({
+    templates,
+    label,
+  }: {
+    templates: RadarMissionTemplate[];
+    label: string;
+  }) {
     const confirmed = window.confirm(
-      "將建立並發布 2 個台北市中心測試任務，有效期 7 天。確定繼續？",
+      `將建立並發布 ${templates.length} 個「${label}」，有效期 7 天。確定繼續？`,
     );
     if (!confirmed) return;
     setBusy(true);
     setMessage(null);
     try {
       const saved: RadarMissionSummary[] = [];
-      for (const template of validationTemplates) {
+      for (const template of templates) {
         const draft = templateToDraft(template);
         const created = await api.createRadarMission({
           title: `${draft.title} ${new Date().toLocaleDateString("zh-TW")}`,
-          description: draft.description,
+          description: `${draft.description}\n\n安全提醒：${template.safetyNote}`,
           category: draft.category,
           tag: draft.tag,
           latitude: draft.latitude,
@@ -276,11 +249,11 @@ export function RadarMissionEditor({
         saved.push(await api.publishRadarMission(created.id));
       }
       onMissionsChange([...saved, ...missions]);
-      setMessage("已建立並發布 2 個台北實機驗收任務。");
+      setMessage(`已建立並發布 ${saved.length} 個「${label}」。`);
       await refreshPrompts();
     } catch (error) {
       setMessage(
-        error instanceof Error ? error.message : "測試任務建立或發布失敗",
+        error instanceof Error ? error.message : "任務包建立或發布失敗",
       );
     } finally {
       setBusy(false);
@@ -295,13 +268,32 @@ export function RadarMissionEditor({
           <h2>任務雷達</h2>
           <p>發布台北市中心的限時任務點；MVP 僅支援自我確認與計時任務。</p>
         </div>
-        <button
-          className="primary-button"
-          disabled={busy}
-          onClick={() => void createValidationPack()}
-        >
-          一鍵建立實機測試任務
-        </button>
+        <div className="mission-pack-actions">
+          <button
+            className="secondary-button"
+            disabled={busy}
+            onClick={() =>
+              void createMissionPack({
+                templates: taipeiValidationTemplates,
+                label: "台北實機驗收任務",
+              })
+            }
+          >
+            建立台北驗收包
+          </button>
+          <button
+            className="primary-button"
+            disabled={busy}
+            onClick={() =>
+              void createMissionPack({
+                templates: taiwanSafeMissionTemplates,
+                label: "安全台灣任務池",
+              })
+            }
+          >
+            發布安全台灣任務池
+          </button>
+        </div>
       </div>
 
       <div className="radar-admin-grid">
@@ -309,7 +301,7 @@ export function RadarMissionEditor({
           <h3>{editingId ? "編輯雷達任務" : "新增雷達任務"}</h3>
           <div className="template-strip">
             <span>快速模板</span>
-            {validationTemplates.map((template) => (
+            {quickTemplates.map((template) => (
               <button
                 type="button"
                 key={template.name}
@@ -322,7 +314,7 @@ export function RadarMissionEditor({
                   );
                 }}
               >
-                {template.name}
+                {template.city}・{template.name}
               </button>
             ))}
           </div>
@@ -587,6 +579,7 @@ export function RadarMissionEditor({
 
         <div className="radar-admin-side">
           <RadarMissionPreview draft={draft} editingId={editingId} />
+          <PhotoAiTaskLibrary />
           <CompanionPromptFeed prompts={prompts} />
           <div className="radar-admin-list">
             {missions.length === 0 ? (
@@ -647,6 +640,29 @@ export function RadarMissionEditor({
         </div>
       </div>
     </section>
+  );
+}
+
+function PhotoAiTaskLibrary() {
+  return (
+    <aside className="photo-ai-task-library" aria-label="照片 AI 任務庫">
+      <span className="eyebrow">PHOTO AI TASK LIBRARY</span>
+      <h3>照片辨識任務庫</h3>
+      <p>
+        這些任務先用於一般 PHOTO_AI 任務；雷達任務本階段仍只允許自我確認與計時。
+      </p>
+      {photoAiTaskIdeas.map((idea) => (
+        <article key={idea.title}>
+          <div>
+            <strong>{idea.title}</strong>
+            <small>{idea.category}</small>
+          </div>
+          <p>{idea.description}</p>
+          <small>辨識標籤：{idea.expectedLabels.join(" / ")}</small>
+          <small>安全：{idea.safetyNote}</small>
+        </article>
+      ))}
+    </aside>
   );
 }
 

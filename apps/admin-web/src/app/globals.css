@@ -2050,6 +2050,13 @@ body {
   opacity: 0.55;
 }
 
+.mission-pack-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 .form-pair {
   grid-template-columns: 1fr 1fr;
 }
@@ -2274,6 +2281,63 @@ body {
   line-height: 1.5;
 }
 
+.photo-ai-task-library {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid rgba(36, 87, 55, 0.16);
+  border-radius: 18px;
+  background:
+    radial-gradient(
+      circle at 88% 8%,
+      rgba(191, 222, 132, 0.2),
+      transparent 28%
+    ),
+    #fffef8;
+  box-shadow: 0 18px 48px rgba(22, 43, 29, 0.08);
+}
+
+.photo-ai-task-library h3,
+.photo-ai-task-library p {
+  margin: 0;
+}
+
+.photo-ai-task-library > p {
+  color: #607067;
+  line-height: 1.6;
+}
+
+.photo-ai-task-library article {
+  display: grid;
+  gap: 7px;
+  padding: 13px;
+  border: 1px solid rgba(36, 87, 55, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.photo-ai-task-library article div {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.photo-ai-task-library article strong {
+  color: #123225;
+}
+
+.photo-ai-task-library article p {
+  color: #43564b;
+  line-height: 1.5;
+}
+
+.photo-ai-task-library article small {
+  color: #64736b;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
 .radar-admin-list {
   display: grid;
   gap: 12px;
@@ -2344,6 +2408,10 @@ body {
   .route-editor-grid,
   .radar-admin-grid {
     grid-template-columns: 1fr;
+  }
+
+  .mission-pack-actions {
+    justify-content: flex-start;
   }
 
   .map-editor {
