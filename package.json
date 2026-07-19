@@ -26,7 +26,8 @@
     "test": "npm run test -w @elder-tree/contracts && npm run test -w @elder-tree/api && npm run test -w @elder-tree/iot-bridge",
     "test:persistence": "./scripts/test-persistence.sh",
     "typecheck": "npm run build:contracts && npm run typecheck -w @elder-tree/contracts && npm run typecheck -w @elder-tree/api && npm run typecheck -w @elder-tree/admin-web && npm run typecheck -w @elder-tree/public-web && npm run typecheck -w @elder-tree/iot-bridge && npm run typecheck -w @elder-tree/device-simulator",
-    "photo-ai:check": "node scripts/check-photo-ai-validation.mjs"
+    "photo-ai:check": "node scripts/check-photo-ai-validation.mjs",
+    "photo-ai:doctor": "scripts/photo-ai-doctor.sh"
   },
   "engines": {
     "node": ">=20"

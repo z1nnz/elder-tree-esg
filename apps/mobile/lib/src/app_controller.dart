@@ -396,7 +396,7 @@ class AppController extends ChangeNotifier {
       'STORAGE_NOT_CONFIGURED' => '照片驗證需要的私人儲存空間還沒設定完成；其他任務仍可正常使用。',
       'PHOTO_VERIFIER_UNAVAILABLE' || 'VERIFIER_DISABLED' =>
         '照片驗證服務尚未連線。請先啟動 AI verifier，或確認 PHOTO_VERIFICATION_ENABLED 已開啟。',
-      'BLAZE_REQUIRED' => '照片驗證尚未啟用；其他任務與城市探索仍可正常使用。',
+      'BLAZE_REQUIRED' => '照片驗證環境尚未完成連線；請確認 Firebase Storage 與 AI 驗證服務已啟動。',
       _ => '照片驗證暫時不可用，請稍後再試；其他任務仍可正常使用。',
     };
   }

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { existsSync, readFileSync } from "node:fs";
+import { basename } from "node:path";
 
 const apiBaseUrl = normalizeBaseUrl(
   process.env.API_URL ?? "http://127.0.0.1:4100/api/v1",
@@ -10,6 +11,25 @@ const verifierUrl = normalizeBaseUrl(
 );
 
 const checks = [];
+
+function checkProjectRoot() {
+  const packageJsonExists = existsSync("package.json");
+  const verifierExists = existsSync("services/ai-verifier/app/main.py");
+  const apiExists = existsSync("services/api/package.json");
+
+  if (!packageJsonExists || !verifierExists || !apiExists) {
+    addCheck(
+      "Project folder",
+      "fail",
+      `current folder is ${process.cwd()}`,
+      "請先切到 /Users/whzi_111/elder-tree-esg，或直接執行 scripts/photo-ai-doctor.sh。",
+    );
+    return false;
+  }
+
+  addCheck("Project folder", "pass", basename(process.cwd()));
+  return true;
+}
 
 function normalizeBaseUrl(value) {
   return value.replace(/\/+$/, "");
@@ -139,6 +159,8 @@ function printReport() {
   process.exitCode = 1;
 }
 
+const isProjectRoot = checkProjectRoot();
+
 requiredEnv("PHOTO_EVIDENCE_ENABLED", "true");
 requiredEnv("PHOTO_VERIFICATION_ENABLED", "true");
 requiredEnv("FIREBASE_STORAGE_BUCKET");
@@ -155,7 +177,9 @@ if (process.env.GEMINI_API_KEY) {
   );
 }
 
-checkStorageRules();
+if (isProjectRoot) {
+  checkStorageRules();
+}
 
 await probeJson(
   "API health",
@@ -169,7 +193,7 @@ await probeJson(
           detail: `unexpected response: ${JSON.stringify(payload).slice(0, 160)}`,
         };
   },
-  `啟動 API：npm run dev:api:neon，並確認 API_URL=${apiBaseUrl}`,
+  `在 /Users/whzi_111/elder-tree-esg 啟動 API：npm run dev:api:neon，並確認 API_URL=${apiBaseUrl}`,
 );
 
 await probeJson(
@@ -194,7 +218,7 @@ await probeJson(
       detail: `verifier is running in gemini mode with ${payload.model}`,
     };
   },
-  `啟動 verifier：GEMINI_API_KEY=... npm run dev:ai，並確認 AI_VERIFIER_URL=${verifierUrl}`,
+  `在 /Users/whzi_111/elder-tree-esg 啟動 verifier：先 export GEMINI_API_KEY，再執行 npm run dev:ai。`,
 );
 
 printReport();
