@@ -1090,6 +1090,13 @@ class RadarMissionViewState {
     final distance = distanceMeters;
     if (distance == null) return '等待定位';
     if (insideRadius) return '已進入 ${mission.radiusMeters}m 半徑';
+    if (distance >= 1000) {
+      final kilometers = distance / 1000;
+      final compact = kilometers >= 100
+          ? kilometers.toStringAsFixed(0)
+          : kilometers.toStringAsFixed(1);
+      return '距離 ${compact}km';
+    }
     return '距離 ${distance}m';
   }
 }

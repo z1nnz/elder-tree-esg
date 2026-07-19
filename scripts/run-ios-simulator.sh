@@ -27,7 +27,23 @@ curl -fsS "${API_URL}/health" >/dev/null
 echo "Launching Flutter with args: ${FLUTTER_ARGS[*]}"
 
 cd "${ROOT_DIR}/apps/mobile"
+echo "Preparing iOS simulator packages..."
+flutter pub get >/dev/null
+
+# Xcode 26 validates Swift Package platform floors more strictly. Some Flutter
+# plugin packages are generated with an iOS 12-14 minimum, while the generated
+# FlutterFramework package requires iOS 13+. The app target is iOS 15, so keep
+# generated package floors aligned before launching the simulator.
+for package_file in \
+  ios/Flutter/ephemeral/Packages/.packages/*/Package.swift \
+  ios/Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage/Package.swift; do
+  if [[ -f "${package_file}" ]]; then
+    /usr/bin/perl -0pi -e 's/\.iOS\("(1[0-4])\.0"\)/.iOS("15.0")/g' "${package_file}"
+  fi
+done
+
 exec flutter run \
+  --no-pub \
   "${FLUTTER_ARGS[@]}" \
   --dart-define="API_URL=${API_URL}" \
   --dart-define="ELDER_TREE_LOCATION_FALLBACK=true" \
