@@ -35,7 +35,31 @@
    API_URL=http://你的-Mac-區網-IP:4100/api/v1 flutter run
    ```
 
-5. 開後台檢查「照片覆核佇列」：
+5. 跑照片 AI readiness check。
+
+   最不容易出錯的方式是直接用專案裡的 doctor 腳本。它會自動切到正確的專案資料夾，並補上本機預設值：
+
+   ```bash
+   /Users/whzi_111/elder-tree-esg/scripts/photo-ai-doctor.sh
+   ```
+
+   如果你想手動跑，也可以先切到專案根目錄：
+
+   ```bash
+   cd /Users/whzi_111/elder-tree-esg
+   PHOTO_EVIDENCE_ENABLED=true \
+   PHOTO_VERIFICATION_ENABLED=true \
+   FIREBASE_STORAGE_BUCKET=elder-tree-esg-z1nnz.firebasestorage.app \
+   AI_VERIFIER_URL=http://127.0.0.1:4400 \
+   GEMINI_API_KEY="$GEMINI_API_KEY" \
+   npm run photo-ai:check
+   ```
+
+   這個指令只檢查設定與服務狀態，不會印出完整 Gemini key。若 AI verifier 不是 `gemini` mode，仍可測 API 與 Storage 流程，但不能算真正的 Gemini 圖片驗收。
+
+   若看到 `Could not read package.json`，代表你在錯的資料夾執行 `npm run ...`。請改用上面的 `scripts/photo-ai-doctor.sh`。
+
+6. 開後台檢查「照片覆核佇列」：
 
    - `Photo Evidence` 應為 Ready。
    - `Gemini Verifier` 應為 Ready。
@@ -83,6 +107,7 @@
 
 ## 環境檢查
 
+- `npm run photo-ai:check` 應該至少顯示 API health、AI verifier health 與 Firebase Storage rules files 可用。
 - App 的 `me/context` 必須顯示 `photoEvidence.enabled=true` 與 `geminiPhotoVerification.enabled=true`。
 - 後台「照片覆核佇列」會顯示 Photo Evidence、Gemini Verifier、Storage Rules 與 Radar PHOTO_AI 狀態。
 - 後台不會顯示 Gemini key、Firebase Admin private key 或 `DATABASE_URL`。

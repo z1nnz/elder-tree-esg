@@ -17,8 +17,8 @@ ui.ImageFilter get uiBlur => ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18);
 const double _nearbyDockCollapsedWidth = 104;
 const double _nearbyDockCollapsedHeight = 112;
 const double _missionCueDockClearance = 118;
-const double _missionCueBottom = 128;
-const double _missionSheetBottom = 118;
+const double _missionCueBottom = 152;
+const double _missionSheetBottom = 142;
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
@@ -833,7 +833,11 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
                     ),
                 ],
               ),
-              const SourceAttribution(),
+              const SourceAttribution(
+                alignment: Alignment.topRight,
+                padding: EdgeInsets.only(top: 112, right: 10),
+                showMapLibre: false,
+              ),
             ],
           ),
         ),
@@ -915,7 +919,7 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
         if (!_missionSheetOpen)
           Positioned(
             right: 14,
-            bottom: 122 + safeBottom,
+            bottom: 150 + safeBottom,
             child: AnimatedScale(
               duration: const Duration(milliseconds: 180),
               curve: Curves.easeOutCubic,
@@ -936,22 +940,25 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
               ),
             ),
           ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 20 + safeBottom,
-          child: Center(
-            child: _TreeCoreMenu(
-              expanded: _treeMenuOpen,
-              onToggle: _toggleTreeMenu,
+        if (_treeMenuOpen)
+          Positioned.fill(
+            child: _MapMainMenuOverlay(
+              mapMode: _mapMode,
+              onClose: () => setState(() => _treeMenuOpen = false),
               onNavigate: (index) {
                 setState(() => _treeMenuOpen = false);
                 widget.onNavigate(index);
               },
-              onSettings: _showSettingsSheet,
+              onMapModeChanged: (mode) => setState(() => _mapMode = mode),
             ),
           ),
-        ),
+        if (!_treeMenuOpen)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 42 + safeBottom,
+            child: Center(child: _TreeCoreMenu(onToggle: _toggleTreeMenu)),
+          ),
       ],
     );
   }
@@ -1030,42 +1037,6 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
             }),
       );
     }
-  }
-
-  void _showSettingsSheet() {
-    setState(() => _treeMenuOpen = false);
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                '地圖設定',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 12),
-              _MapModeSwitch(
-                mode: _mapMode,
-                onChanged: (mode) {
-                  setState(() => _mapMode = mode);
-                  Navigator.pop(context);
-                },
-              ),
-              const SizedBox(height: 12),
-              const _NoticeBand(
-                icon: Icons.touch_app_rounded,
-                text: '地圖可用雙指縮放與拖曳；拖太遠時會自動回到你附近。',
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   Future<void> _confirmCompleteRadarMission(RadarMissionViewState view) async {
@@ -2022,198 +1993,542 @@ class _MissionDetailPanelState extends State<_MissionDetailPanel> {
 }
 
 class _TreeCoreMenu extends StatelessWidget {
-  const _TreeCoreMenu({
-    required this.expanded,
-    required this.onToggle,
-    required this.onNavigate,
-    required this.onSettings,
-  });
+  const _TreeCoreMenu({required this.onToggle});
 
-  final bool expanded;
   final VoidCallback onToggle;
-  final ValueChanged<int> onNavigate;
-  final VoidCallback onSettings;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 330,
-      height: expanded ? 198 : 96,
-      child: Stack(
-        alignment: Alignment.bottomCenter,
-        children: [
-          AnimatedOpacity(
-            opacity: expanded ? 1 : 0,
-            duration: const Duration(milliseconds: 180),
-            child: IgnorePointer(
-              ignoring: !expanded,
-              child: Container(
-                width: 278,
-                height: 148,
-                margin: const EdgeInsets.only(bottom: 30),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(999),
-                  gradient: RadialGradient(
-                    colors: [
-                      lime.withValues(alpha: 0.18),
-                      forestDark.withValues(alpha: 0.1),
-                      Colors.transparent,
-                    ],
+    return Semantics(
+      button: true,
+      label: '打開功能選單',
+      child: GestureDetector(
+        onTap: onToggle,
+        child: Container(
+          width: 82,
+          height: 82,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFFD8FF66), Color(0xFF72E082)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 5),
+            boxShadow: [
+              BoxShadow(
+                color: lime.withValues(alpha: 0.44),
+                blurRadius: 28,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: const Icon(Icons.eco_rounded, color: forestDark, size: 36),
+        ),
+      ),
+    );
+  }
+}
+
+class _MapMainMenuOverlay extends StatelessWidget {
+  const _MapMainMenuOverlay({
+    required this.mapMode,
+    required this.onClose,
+    required this.onNavigate,
+    required this.onMapModeChanged,
+  });
+
+  final ExplorationMapMode mapMode;
+  final VoidCallback onClose;
+  final ValueChanged<int> onNavigate;
+  final ValueChanged<ExplorationMapMode> onMapModeChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final primaryItems = [
+      _MapMenuItemData(
+        title: '今日',
+        subtitle: '回到今日陪伴',
+        icon: Icons.home_rounded,
+        index: 0,
+      ),
+      _MapMenuItemData(
+        title: '任務',
+        subtitle: '生活任務卡',
+        icon: Icons.checklist_rounded,
+        index: 1,
+      ),
+      _MapMenuItemData(
+        title: '生命樹',
+        subtitle: '成長階段與新葉',
+        icon: Icons.park_rounded,
+        index: 5,
+      ),
+      _MapMenuItemData(
+        title: '家人',
+        subtitle: '訊息、覆核與 LINE',
+        icon: Icons.family_restroom_rounded,
+        index: 3,
+      ),
+    ];
+    final secondaryItems = [
+      _MapMenuItemData(
+        title: '公益',
+        subtitle: '成熟後的回饋紀錄',
+        icon: Icons.public_rounded,
+        index: 4,
+      ),
+      _MapMenuItemData(
+        title: '設定',
+        subtitle: '帳號、顯示與登出',
+        icon: Icons.settings_rounded,
+        index: 6,
+      ),
+    ];
+    final bottomPadding = MediaQuery.paddingOf(context).bottom;
+
+    Widget buildActions(List<_MapMenuItemData> entries) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final twoColumns = constraints.maxWidth >= 540;
+          final gap = twoColumns ? 14.0 : 12.0;
+          final width = twoColumns
+              ? (constraints.maxWidth - gap) / 2
+              : constraints.maxWidth;
+
+          return Wrap(
+            spacing: gap,
+            runSpacing: 12,
+            children: [
+              for (final item in entries)
+                SizedBox(
+                  width: width,
+                  child: _MapMenuAction(
+                    data: item,
+                    onTap: () => onNavigate(item.index),
                   ),
+                ),
+            ],
+          );
+        },
+      );
+    }
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onClose,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFFE7FFD8).withValues(alpha: 0.92),
+                    const Color(0xFFB8F3C4).withValues(alpha: 0.9),
+                    const Color(0xFFF8FFF1).withValues(alpha: 0.92),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: BackdropFilter(filter: uiBlur, child: const SizedBox()),
+            ),
+          ),
+        ),
+        const Positioned.fill(
+          child: IgnorePointer(child: _MapMenuBackdropArt()),
+        ),
+        Positioned.fill(
+          child: SafeArea(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: () {},
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(22, 14, 22, 0),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '功能選單',
+                                style: TextStyle(
+                                  color: forestDark,
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              SizedBox(height: 3),
+                              Text(
+                                '選一個入口；每個頁面都可以用 X 回到地圖。',
+                                style: TextStyle(
+                                  color: Color(0xFF587064),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        _MapMenuMiniAction(
+                          label: '設定',
+                          icon: Icons.settings_rounded,
+                          onTap: () => onNavigate(6),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        padding: EdgeInsets.only(bottom: 112 + bottomPadding),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const _MapMenuSectionLabel(
+                              label: '主要功能',
+                              helper: '今天要做的事、附近任務與生命樹都在這裡。',
+                            ),
+                            const SizedBox(height: 10),
+                            buildActions(primaryItems),
+                            const SizedBox(height: 22),
+                            const _MapMenuSectionLabel(
+                              label: '更多',
+                              helper: '公益紀錄與帳號設定放在比較安靜的位置。',
+                            ),
+                            const SizedBox(height: 10),
+                            buildActions(secondaryItems),
+                            const SizedBox(height: 18),
+                            _MapMenuModePanel(
+                              mode: mapMode,
+                              onChanged: onMapModeChanged,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
-          AnimatedOpacity(
-            opacity: expanded ? 1 : 0,
-            duration: const Duration(milliseconds: 180),
-            child: IgnorePointer(
-              ignoring: !expanded,
-              child: Stack(
-                alignment: Alignment.bottomCenter,
-                children: [
-                  _TreeMenuLeaf(
-                    label: '今天',
-                    icon: Icons.home_rounded,
-                    offset: const Offset(-128, -48),
-                    onTap: () => onNavigate(0),
-                  ),
-                  _TreeMenuLeaf(
-                    label: '任務',
-                    icon: Icons.checklist_rounded,
-                    offset: const Offset(-78, -102),
-                    onTap: () => onNavigate(1),
-                  ),
-                  _TreeMenuLeaf(
-                    label: '生命樹',
-                    icon: Icons.park_rounded,
-                    offset: const Offset(0, -128),
-                    onTap: () => onNavigate(5),
-                  ),
-                  _TreeMenuLeaf(
-                    label: '家人',
-                    icon: Icons.family_restroom_rounded,
-                    offset: const Offset(78, -102),
-                    onTap: () => onNavigate(3),
-                  ),
-                  _TreeMenuLeaf(
-                    label: '公益',
-                    icon: Icons.public_rounded,
-                    offset: const Offset(128, -48),
-                    onTap: () => onNavigate(4),
-                  ),
-                  _TreeMenuLeaf(
-                    label: '設定',
-                    icon: Icons.settings_rounded,
-                    offset: const Offset(0, -58),
-                    onTap: onSettings,
-                  ),
-                ],
-              ),
-            ),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 18 + bottomPadding,
+          child: Center(child: _MapMenuCloseButton(onClose: onClose)),
+        ),
+      ],
+    );
+  }
+}
+
+class _MapMenuBackdropArt extends StatelessWidget {
+  const _MapMenuBackdropArt();
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Positioned(
+          left: -90,
+          top: 120,
+          child: _MapMenuGlow(size: 210, color: const Color(0xFF7DE889)),
+        ),
+        Positioned(
+          right: -58,
+          top: 36,
+          child: _MapMenuGlow(size: 160, color: const Color(0xFFA8F05B)),
+        ),
+        Positioned(
+          right: 28,
+          bottom: 110,
+          child: _MapMenuGlow(size: 190, color: const Color(0xFF89EED8)),
+        ),
+      ],
+    );
+  }
+}
+
+class _MapMenuGlow extends StatelessWidget {
+  const _MapMenuGlow({required this.size, required this.color});
+
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [color.withValues(alpha: 0.22), color.withValues(alpha: 0)],
+        ),
+      ),
+    );
+  }
+}
+
+class _MapMenuSectionLabel extends StatelessWidget {
+  const _MapMenuSectionLabel({required this.label, required this.helper});
+
+  final String label;
+  final String helper;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: forestDark,
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
           ),
-          GestureDetector(
-            onTap: onToggle,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              width: expanded ? 84 : 78,
-              height: expanded ? 84 : 78,
-              decoration: BoxDecoration(
-                gradient: expanded
-                    ? const LinearGradient(
-                        colors: [Colors.white, Color(0xFFE9FFD6)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      )
-                    : const LinearGradient(
-                        colors: [Color(0xFFD8FF66), Color(0xFF72E082)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
+        ),
+        const SizedBox(height: 3),
+        Text(
+          helper,
+          style: const TextStyle(
+            color: Color(0xFF64786E),
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            height: 1.35,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MapMenuItemData {
+  const _MapMenuItemData({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.index,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final int index;
+}
+
+class _MapMenuAction extends StatelessWidget {
+  const _MapMenuAction({required this.data, required this.onTap});
+
+  final _MapMenuItemData data;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.82),
+      borderRadius: BorderRadius.circular(28),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(28),
+        onTap: onTap,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 104),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: forest.withValues(alpha: 0.12)),
+            boxShadow: [
+              BoxShadow(
+                color: forestDark.withValues(alpha: 0.1),
+                blurRadius: 18,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      lime.withValues(alpha: 0.72),
+                      const Color(0xFFCBF9D0).withValues(alpha: 0.78),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(data.icon, color: forestDark, size: 27),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      data.title,
+                      style: const TextStyle(
+                        color: forestDark,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
                       ),
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 5),
-                boxShadow: [
-                  BoxShadow(
-                    color: lime.withValues(alpha: 0.42),
-                    blurRadius: 28,
-                    offset: const Offset(0, 12),
-                  ),
-                ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      data.subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF5E6F66),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              child: Icon(
-                expanded ? Icons.close_rounded : Icons.eco_rounded,
-                color: forestDark,
-                size: 36,
+              const SizedBox(width: 8),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: forestDark.withValues(alpha: 0.58),
+                size: 28,
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MapMenuMiniAction extends StatelessWidget {
+  const _MapMenuMiniAction({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.62),
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: forestDark,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(width: 7),
+              Icon(icon, color: forestDark, size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MapMenuModePanel extends StatelessWidget {
+  const _MapMenuModePanel({required this.mode, required this.onChanged});
+
+  final ExplorationMapMode mode;
+  final ValueChanged<ExplorationMapMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.58),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: forest.withValues(alpha: 0.12)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            '地圖視角',
+            style: TextStyle(
+              color: forestDark,
+              fontWeight: FontWeight.w900,
+              fontSize: 13,
             ),
           ),
+          const SizedBox(height: 8),
+          _MapModeSwitch(mode: mode, onChanged: onChanged),
         ],
       ),
     );
   }
 }
 
-class _TreeMenuLeaf extends StatelessWidget {
-  const _TreeMenuLeaf({
-    required this.label,
-    required this.icon,
-    required this.offset,
-    required this.onTap,
-  });
+class _MapMenuCloseButton extends StatelessWidget {
+  const _MapMenuCloseButton({required this.onClose});
 
-  final String label;
-  final IconData icon;
-  final Offset offset;
-  final VoidCallback onTap;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
-    return Transform.translate(
-      offset: offset,
+    return Semantics(
+      button: true,
+      label: '回到地圖',
       child: GestureDetector(
-        onTap: onTap,
+        onTap: onClose,
         child: Container(
           width: 68,
-          height: 56,
+          height: 68,
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Colors.white.withValues(alpha: 0.98),
-                const Color(0xFFEFFFF3).withValues(alpha: 0.92),
-              ],
+            gradient: const LinearGradient(
+              colors: [Color(0xFF0E6E58), Color(0xFF0C9A8D)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(28),
-              topRight: Radius.circular(20),
-              bottomLeft: Radius.circular(20),
-              bottomRight: Radius.circular(28),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.86),
+              width: 4,
             ),
-            border: Border.all(color: forest.withValues(alpha: 0.16)),
             boxShadow: [
               BoxShadow(
-                color: forestDark.withValues(alpha: 0.16),
-                blurRadius: 20,
-                offset: const Offset(0, 9),
+                color: forestDark.withValues(alpha: 0.24),
+                blurRadius: 22,
+                offset: const Offset(0, 10),
               ),
             ],
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: forest, size: 22),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: forestDark,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
+          child: const Icon(Icons.close_rounded, color: Colors.white, size: 32),
         ),
       ),
     );
@@ -4903,6 +5218,118 @@ String _formatLineExpiry(DateTime value) {
   final local = value.toLocal();
   String two(int number) => number.toString().padLeft(2, '0');
   return '${two(local.hour)}:${two(local.minute)}';
+}
+
+class SettingsScreen extends StatelessWidget {
+  const SettingsScreen({
+    required this.controller,
+    required this.accountEmail,
+    required this.onSignOut,
+    super.key,
+  });
+
+  final AppController controller;
+  final String accountEmail;
+  final Future<void> Function() onSignOut;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
+      children: [
+        const _PageHeading(
+          title: '設定',
+          subtitle: '帳號、顯示、提醒與登出都放在這裡；地圖只保留探索本身。',
+        ),
+        const SizedBox(height: 14),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '帳號',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const CircleAvatar(
+                    backgroundColor: Color(0xFFE4F6C8),
+                    foregroundColor: forest,
+                    child: Icon(Icons.person_rounded),
+                  ),
+                  title: Text(
+                    accountEmail,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  subtitle: Text(
+                    controller.context?.activeHousehold.name ?? '目前家庭',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: Column(
+            children: [
+              SwitchListTile(
+                value: controller.elderMode,
+                onChanged: controller.toggleElderMode,
+                secondary: const Icon(Icons.text_fields_rounded),
+                title: const Text(
+                  '長者友善顯示',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+                subtitle: const Text('放大文字與主要按鈕，減少一次看見的資訊量。'),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.refresh_rounded),
+                title: const Text(
+                  '重新整理資料',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+                subtitle: const Text('重新載入任務、生命樹、家人與探索狀態。'),
+                trailing: controller.loading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.chevron_right_rounded),
+                onTap: controller.refresh,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        const _NoticeBand(
+          icon: Icons.touch_app_rounded,
+          text: '地圖頁的小樹按鈕會回到全螢幕功能選單；進入任何功能頁後，左上角 X 會回到地圖。',
+        ),
+        const SizedBox(height: 18),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: onSignOut,
+            icon: const Icon(Icons.logout_rounded),
+            label: const Text('登出'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF9A2F2F),
+              side: const BorderSide(color: Color(0xFFE1B4B4)),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class ImpactScreen extends StatelessWidget {

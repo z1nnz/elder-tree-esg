@@ -67,8 +67,18 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       FamilyScreen(controller: widget.controller),
       ImpactScreen(controller: widget.controller),
       TreeGrowthScreen(controller: widget.controller),
+      SettingsScreen(
+        controller: widget.controller,
+        accountEmail: widget.accountEmail,
+        onSignOut: widget.onSignOut,
+      ),
     ];
     final immersiveExploration = index == 2;
+    final safePadding = MediaQuery.paddingOf(context);
+    final noticeTopInset = immersiveExploration ? safePadding.top + 94.0 : null;
+    final noticeBottomInset = immersiveExploration
+        ? null
+        : 12.0 + safePadding.bottom;
     return Scaffold(
       extendBodyBehindAppBar: immersiveExploration,
       appBar: immersiveExploration
@@ -77,6 +87,11 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
               backgroundColor: Colors.white,
               surfaceTintColor: Colors.white,
               titleSpacing: 18,
+              leading: IconButton(
+                tooltip: '回到地圖',
+                onPressed: () => _selectIndex(2),
+                icon: const Icon(Icons.close_rounded),
+              ),
               title: Row(
                 children: [
                   Container(
@@ -164,11 +179,6 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
                         )
                       : const Icon(Icons.refresh_rounded),
                 ),
-                IconButton(
-                  onPressed: widget.onSignOut,
-                  tooltip: '登出 ${widget.accountEmail}',
-                  icon: const Icon(Icons.logout_rounded),
-                ),
                 const SizedBox(width: 6),
               ],
             ),
@@ -177,21 +187,26 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
           KeyedSubtree(key: ValueKey(index), child: screens[index]),
           if (widget.controller.notice != null)
             Positioned(
-              right: 12,
-              bottom: 12,
-              left: 12,
+              right: 14,
+              top: noticeTopInset,
+              bottom: noticeBottomInset,
+              left: 14,
               child: Material(
-                elevation: 4,
-                borderRadius: BorderRadius.circular(8),
-                color: ink,
+                elevation: 8,
+                borderRadius: BorderRadius.circular(18),
+                color: ink.withValues(alpha: 0.94),
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
+                  padding: const EdgeInsets.fromLTRB(15, 12, 6, 12),
                   child: Row(
                     children: [
                       Expanded(
                         child: Text(
                           widget.controller.notice!,
-                          style: const TextStyle(color: Colors.white),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            height: 1.35,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                       IconButton(
@@ -206,44 +221,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
             ),
         ],
       ),
-      bottomNavigationBar: immersiveExploration
-          ? null
-          : NavigationBar(
-              selectedIndex: index,
-              onDestinationSelected: _selectIndex,
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.home_outlined),
-                  selectedIcon: Icon(Icons.home_rounded),
-                  label: '今天',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.checklist_outlined),
-                  selectedIcon: Icon(Icons.checklist_rounded),
-                  label: '任務',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.explore_outlined),
-                  selectedIcon: Icon(Icons.explore_rounded),
-                  label: '探索',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.family_restroom_outlined),
-                  selectedIcon: Icon(Icons.family_restroom_rounded),
-                  label: '家人',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.public_outlined),
-                  selectedIcon: Icon(Icons.public_rounded),
-                  label: '公益',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.hub_outlined),
-                  selectedIcon: Icon(Icons.hub_rounded),
-                  label: '互動樹',
-                ),
-              ],
-            ),
+      bottomNavigationBar: null,
     );
   }
 }
