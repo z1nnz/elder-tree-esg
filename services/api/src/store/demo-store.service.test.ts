@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { ClockService } from "../time/clock.service";
 import { DemoStoreService } from "./demo-store.service";
 
 describe("DemoStoreService", () => {
@@ -47,6 +48,13 @@ describe("DemoStoreService", () => {
     const before = store.getTree().growthPoints;
     const chapterId = "66666666-6666-4666-8666-000000000003";
 
+    store.claimCooperativeActionChapter(
+      "77777777-7777-4777-8777-777777777777",
+      chapterId,
+      "demo-elder",
+      true,
+    );
+
     const completed = store.completeCooperativeActionChapter(
       "77777777-7777-4777-8777-777777777777",
       chapterId,
@@ -62,18 +70,86 @@ describe("DemoStoreService", () => {
 
     expect(completed.activeAction?.status).toBe("COMPLETED");
     expect(completed.activeAction?.contributorCount).toBe(3);
+    expect(completed.activeAction?.chapters[2]?.contributor).toMatchObject({
+      actionTitle: "在室內找一片綠",
+      usedAlternative: true,
+    });
     expect(store.getTree().growthPoints).toBe(before + 120);
+  });
+
+  it("requires the current relay chapter to be claimed before completion", () => {
+    const store = new DemoStoreService();
+
+    expect(() =>
+      store.completeCooperativeActionChapter(
+        "77777777-7777-4777-8777-777777777777",
+        "66666666-6666-4666-8666-000000000003",
+        "demo-elder",
+        "relay-unclaimed-completion",
+      ),
+    ).toThrow("Claim the relay chapter before completing it");
   });
 
   it("requires a different member for each relay chapter", () => {
     const store = new DemoStoreService();
     expect(() =>
-      store.completeCooperativeActionChapter(
+      store.claimCooperativeActionChapter(
         "77777777-7777-4777-8777-777777777777",
         "66666666-6666-4666-8666-000000000003",
         "demo-daughter",
-        "relay-completion-456",
       ),
     ).toThrow("Each member can complete only one chapter");
+  });
+
+  it("lets the current claimant hand the relay chapter to an eligible member", () => {
+    const store = new DemoStoreService();
+    const runId = "77777777-7777-4777-8777-777777777777";
+    const chapterId = "66666666-6666-4666-8666-000000000003";
+    store.claimCooperativeActionChapter(runId, chapterId, "demo-elder");
+
+    const handedOff = store.handoffCooperativeActionChapter(
+      runId,
+      chapterId,
+      "demo-elder",
+      "demo-friend",
+    );
+
+    expect(handedOff.activeAction?.chapters[2]?.claim?.memberId).toBe(
+      "demo-friend",
+    );
+  });
+
+  it("releases a relay claim only after its time limit has passed", () => {
+    let now = new Date("2026-08-22T01:00:00.000Z");
+    const store = new DemoStoreService({ now: () => now } as ClockService);
+    const runId = "77777777-7777-4777-8777-777777777777";
+    const chapterId = "66666666-6666-4666-8666-000000000003";
+    store.claimCooperativeActionChapter(runId, chapterId, "demo-elder");
+
+    expect(() =>
+      store.releaseExpiredCooperativeActionClaim(
+        runId,
+        chapterId,
+        "demo-elder",
+      ),
+    ).toThrow("Relay claim has not expired");
+
+    now = new Date("2026-08-22T01:31:00.000Z");
+    expect(() =>
+      store.claimCooperativeActionChapter(runId, chapterId, "demo-friend"),
+    ).toThrow("Expired relay claim must be released");
+    expect(() =>
+      store.releaseExpiredCooperativeActionClaim(
+        runId,
+        chapterId,
+        "not-a-circle-member",
+      ),
+    ).toThrow("Circle member not found");
+    const released = store.releaseExpiredCooperativeActionClaim(
+      runId,
+      chapterId,
+      "demo-elder",
+    );
+    expect(released.activeAction?.chapters[2]?.claim).toBeNull();
   });
 });

@@ -146,6 +146,7 @@ model User {
   lineBindings             LineBinding[]
   lineBindingCodes         LineBindingCode[]
   cooperativeContributions CooperativeActionContribution[]
+  claimedCooperativeRuns   CooperativeActionRun[]          @relation("ClaimedCooperativeMember")
   auditLogs                AuditLog[]                      @relation("AuditActor")
   createdAt                DateTime                        @default(now())
   updatedAt                DateTime                        @updatedAt
@@ -214,17 +215,20 @@ model DeviceEvent {
 }
 
 model Task {
-  id                 String                    @id @default(uuid())
-  title              String
-  description        String
-  verificationMode   VerificationMode
-  verificationRule   Json
-  growthPoints       Int
-  assignments        TaskAssignment[]
-  mapQuest           MapQuest?
-  cooperativeChapter CooperativeActionChapter?
-  createdAt          DateTime                  @default(now())
-  updatedAt          DateTime                  @updatedAt
+  id                            String                          @id @default(uuid())
+  title                         String
+  description                   String
+  verificationMode              VerificationMode
+  verificationRule              Json
+  growthPoints                  Int
+  assignments                   TaskAssignment[]
+  mapQuest                      MapQuest?
+  primaryCooperativeChapter     CooperativeActionChapter?       @relation("PrimaryCooperativeTask")
+  alternativeCooperativeChapter CooperativeActionChapter?       @relation("AlternativeCooperativeTask")
+  claimedCooperativeRuns        CooperativeActionRun[]          @relation("ClaimedCooperativeTask")
+  cooperativeContributions      CooperativeActionContribution[]
+  createdAt                     DateTime                        @default(now())
+  updatedAt                     DateTime                        @updatedAt
 }
 
 model CooperativeAction {
@@ -250,36 +254,48 @@ model CooperativeAction {
 }
 
 model CooperativeActionChapter {
-  id            String                          @id @default(uuid())
-  actionId      String
-  taskId        String                          @unique
-  sequence      Int
-  elementName   String
-  action        CooperativeAction               @relation(fields: [actionId], references: [id], onDelete: Cascade)
-  task          Task                            @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  contributions CooperativeActionContribution[]
-  createdAt     DateTime                        @default(now())
-  updatedAt     DateTime                        @updatedAt
+  id                String                          @id @default(uuid())
+  actionId          String
+  taskId            String                          @unique
+  alternativeTaskId String?                         @unique
+  sequence          Int
+  elementName       String
+  action            CooperativeAction               @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  task              Task                            @relation("PrimaryCooperativeTask", fields: [taskId], references: [id], onDelete: Cascade)
+  alternativeTask   Task?                           @relation("AlternativeCooperativeTask", fields: [alternativeTaskId], references: [id], onDelete: SetNull)
+  claimedRuns       CooperativeActionRun[]          @relation("ClaimedCooperativeChapter")
+  contributions     CooperativeActionContribution[]
+  createdAt         DateTime                        @default(now())
+  updatedAt         DateTime                        @updatedAt
 
   @@unique([actionId, sequence])
   @@index([actionId])
 }
 
 model CooperativeActionRun {
-  id            String                          @id @default(uuid())
-  actionId      String
-  householdId   String
-  status        CooperativeActionRunStatus      @default(ACTIVE)
-  startedAt     DateTime                        @default(now())
-  completedAt   DateTime?
-  action        CooperativeAction               @relation(fields: [actionId], references: [id], onDelete: Cascade)
-  household     Household                       @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  contributions CooperativeActionContribution[]
-  createdAt     DateTime                        @default(now())
-  updatedAt     DateTime                        @updatedAt
+  id               String                          @id @default(uuid())
+  actionId         String
+  householdId      String
+  status           CooperativeActionRunStatus      @default(ACTIVE)
+  startedAt        DateTime                        @default(now())
+  completedAt      DateTime?
+  claimedChapterId String?
+  claimedById      String?
+  claimedTaskId    String?
+  claimedAt        DateTime?
+  claimExpiresAt   DateTime?
+  action           CooperativeAction               @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  household        Household                       @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  claimedChapter   CooperativeActionChapter?       @relation("ClaimedCooperativeChapter", fields: [claimedChapterId], references: [id], onDelete: SetNull)
+  claimedBy        User?                           @relation("ClaimedCooperativeMember", fields: [claimedById], references: [id], onDelete: SetNull)
+  claimedTask      Task?                           @relation("ClaimedCooperativeTask", fields: [claimedTaskId], references: [id], onDelete: SetNull)
+  contributions    CooperativeActionContribution[]
+  createdAt        DateTime                        @default(now())
+  updatedAt        DateTime                        @updatedAt
 
   @@unique([actionId, householdId])
   @@index([householdId, status])
+  @@index([claimedById, claimExpiresAt])
 }
 
 model CooperativeActionContribution {
@@ -287,12 +303,14 @@ model CooperativeActionContribution {
   runId          String
   chapterId      String
   userId         String
+  taskId         String
   idempotencyKey String                   @unique
   witnessTier    ActionWitnessTier        @default(SELF_CHECK)
   witnessedAt    DateTime                 @default(now())
   run            CooperativeActionRun     @relation(fields: [runId], references: [id], onDelete: Cascade)
   chapter        CooperativeActionChapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
   user           User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task           Task                     @relation(fields: [taskId], references: [id], onDelete: Restrict)
   createdAt      DateTime                 @default(now())
 
   @@unique([runId, chapterId])

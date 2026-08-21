@@ -122,27 +122,40 @@ const COOPERATIVE_ACTION_SEED = {
   chapters: [
     {
       taskId: "66666666-6666-4666-8666-000000000001",
+      alternativeTaskId: "66666666-6666-4666-8666-000000001001",
       sequence: 1,
       title: "找回陽光",
       description: "到附近安全的戶外空間走一小段，感受今天的光。",
+      alternativeTitle: "在窗邊找一束光",
+      alternativeDescription:
+        "不方便外出時，在安全的窗邊坐一會兒，感受今天的光。",
       elementName: "陽光",
     },
     {
       taskId: "66666666-6666-4666-8666-000000000002",
+      alternativeTaskId: "66666666-6666-4666-8666-000000001002",
       sequence: 2,
       title: "喚醒水流",
       description: "跟著畫面完成三分鐘舒緩伸展或慢呼吸。",
+      alternativeTitle: "坐著完成慢呼吸",
+      alternativeDescription: "不方便伸展時，坐穩後跟著畫面完成三分鐘慢呼吸。",
       elementName: "水",
     },
     {
       taskId: "66666666-6666-4666-8666-000000000003",
+      alternativeTaskId: "66666666-6666-4666-8666-000000001003",
       sequence: 3,
       title: "迎接新芽",
       description: "到戶外找到一株讓你喜歡的植物，停下來看看它。",
+      alternativeTitle: "在室內找一片綠",
+      alternativeDescription:
+        "不方便外出時，在室內找一株植物或從窗邊觀察一片綠。",
       elementName: "新芽",
     },
   ],
 } as const;
+
+const COOPERATIVE_CLAIM_DURATION_MS = 30 * 60 * 1000;
 
 type AssignmentWithTask = Prisma.TaskAssignmentGetPayload<{
   include: { task: true };
@@ -1041,12 +1054,13 @@ export class PersistentStoreService {
         action: {
           include: {
             chapters: {
-              include: { task: true },
+              include: { task: true, alternativeTask: true },
               orderBy: { sequence: "asc" },
             },
           },
         },
-        contributions: { include: { user: true } },
+        claimedBy: true,
+        contributions: { include: { user: true, task: true } },
       },
     });
     const contributionsByChapter = new Map(
@@ -1092,10 +1106,34 @@ export class PersistentStoreService {
             description: chapter.task.description,
             elementName: chapter.elementName,
             verificationMode: chapter.task.verificationMode,
+            alternative: chapter.alternativeTask
+              ? {
+                  title: chapter.alternativeTask.title,
+                  description: chapter.alternativeTask.description,
+                  verificationMode: chapter.alternativeTask.verificationMode,
+                }
+              : null,
+            claim:
+              run.claimedChapterId === chapter.id &&
+              run.claimedBy &&
+              run.claimedAt &&
+              run.claimExpiresAt
+                ? {
+                    memberId: run.claimedBy.id,
+                    displayName: run.claimedBy.displayName,
+                    claimedAt: run.claimedAt.toISOString(),
+                    expiresAt: run.claimExpiresAt.toISOString(),
+                    usingAlternative:
+                      run.claimedTaskId === chapter.alternativeTaskId,
+                  }
+                : null,
             contributor: contribution
               ? {
                   memberId: contribution.userId,
                   displayName: contribution.user.displayName,
+                  actionTitle: contribution.task.title,
+                  usedAlternative:
+                    contribution.taskId === chapter.alternativeTaskId,
                   witnessedAt: contribution.witnessedAt.toISOString(),
                   witnessTier: contribution.witnessTier,
                 }
@@ -1104,6 +1142,221 @@ export class PersistentStoreService {
         }),
       },
     };
+  }
+
+  async claimCooperativeActionChapter(
+    firebaseUid: string,
+    runId: string,
+    chapterId: string,
+    useAlternative = false,
+  ): Promise<CircleOverview> {
+    const active = await this.getActiveUser(firebaseUid);
+    await this.prisma.$transaction(async (transaction) => {
+      await transaction.$executeRaw`
+        SELECT pg_advisory_xact_lock(hashtext(${runId}))
+      `;
+      const run = await transaction.cooperativeActionRun.findFirst({
+        where: { id: runId, householdId: active.activeHouseholdId },
+        include: {
+          action: { include: { chapters: { orderBy: { sequence: "asc" } } } },
+        },
+      });
+      if (!run) throw new NotFoundException("Cooperative action run not found");
+      if (
+        run.status !== "ACTIVE" ||
+        run.action.status !== "PUBLISHED" ||
+        run.action.kind !== "RELAY"
+      ) {
+        throw new ConflictException("Cooperative action is not active");
+      }
+      const now = this.clock.now();
+      if (
+        (run.action.startsAt &&
+          run.action.startsAt.getTime() > now.getTime()) ||
+        (run.action.endsAt && run.action.endsAt.getTime() <= now.getTime())
+      ) {
+        throw new ConflictException(
+          "Cooperative action is outside its active period",
+        );
+      }
+      const chapter = run.action.chapters.find((item) => item.id === chapterId);
+      if (!chapter)
+        throw new NotFoundException("Cooperative action chapter not found");
+
+      const contributions =
+        await transaction.cooperativeActionContribution.findMany({
+          where: { runId },
+          select: { chapterId: true, userId: true },
+        });
+      if (contributions.some((item) => item.chapterId === chapterId)) {
+        throw new ConflictException(
+          "Cooperative action chapter is already complete",
+        );
+      }
+      const completedChapterIds = new Set(
+        contributions.map((item) => item.chapterId),
+      );
+      const missingPrevious = run.action.chapters.some(
+        (item) =>
+          item.sequence < chapter.sequence && !completedChapterIds.has(item.id),
+      );
+      if (missingPrevious) {
+        throw new ConflictException("Previous relay chapter is not complete");
+      }
+      if (
+        contributions.filter((item) => item.userId === active.id).length >=
+        run.action.maxChaptersPerMember
+      ) {
+        throw new ConflictException(
+          "Each member can complete only one chapter",
+        );
+      }
+      const taskId = useAlternative
+        ? chapter.alternativeTaskId
+        : chapter.taskId;
+      if (!taskId) {
+        throw new ConflictException("Alternative action is not available");
+      }
+      if (run.claimedChapterId) {
+        const claimIsActive =
+          run.claimExpiresAt && run.claimExpiresAt.getTime() > now.getTime();
+        if (
+          claimIsActive &&
+          run.claimedChapterId === chapterId &&
+          run.claimedById === active.id &&
+          run.claimedTaskId === taskId
+        ) {
+          return;
+        }
+        throw new ConflictException(
+          claimIsActive
+            ? "Relay chapter is already claimed"
+            : "Expired relay claim must be released",
+        );
+      }
+      await transaction.cooperativeActionRun.update({
+        where: { id: run.id },
+        data: {
+          claimedChapterId: chapter.id,
+          claimedById: active.id,
+          claimedTaskId: taskId,
+          claimedAt: now,
+          claimExpiresAt: new Date(
+            now.getTime() + COOPERATIVE_CLAIM_DURATION_MS,
+          ),
+        },
+      });
+    });
+    return this.getCircleOverview(firebaseUid);
+  }
+
+  async handoffCooperativeActionChapter(
+    firebaseUid: string,
+    runId: string,
+    chapterId: string,
+    targetMemberId: string,
+  ): Promise<CircleOverview> {
+    const active = await this.getActiveUser(firebaseUid);
+    await this.prisma.$transaction(async (transaction) => {
+      await transaction.$executeRaw`
+        SELECT pg_advisory_xact_lock(hashtext(${runId}))
+      `;
+      const run = await transaction.cooperativeActionRun.findFirst({
+        where: { id: runId, householdId: active.activeHouseholdId },
+        include: { action: true },
+      });
+      if (!run) throw new NotFoundException("Cooperative action run not found");
+      const now = this.clock.now();
+      if (
+        run.status !== "ACTIVE" ||
+        run.action.status !== "PUBLISHED" ||
+        run.action.kind !== "RELAY" ||
+        run.claimedChapterId !== chapterId ||
+        run.claimedById !== active.id ||
+        !run.claimExpiresAt ||
+        run.claimExpiresAt.getTime() <= now.getTime()
+      ) {
+        throw new ConflictException(
+          "Only the current claimant can hand off this chapter",
+        );
+      }
+      if (
+        (run.action.startsAt &&
+          run.action.startsAt.getTime() > now.getTime()) ||
+        (run.action.endsAt && run.action.endsAt.getTime() <= now.getTime())
+      ) {
+        throw new ConflictException(
+          "Cooperative action is outside its active period",
+        );
+      }
+      if (targetMemberId === active.id) {
+        throw new ConflictException("Choose another circle member for handoff");
+      }
+      const targetMembership = await transaction.householdMember.findUnique({
+        where: {
+          householdId_userId: {
+            householdId: active.activeHouseholdId,
+            userId: targetMemberId,
+          },
+        },
+      });
+      if (!targetMembership)
+        throw new NotFoundException("Circle member not found");
+      const targetContributionCount =
+        await transaction.cooperativeActionContribution.count({
+          where: { runId, userId: targetMemberId },
+        });
+      if (targetContributionCount >= run.action.maxChaptersPerMember) {
+        throw new ConflictException(
+          "Target member already completed their chapter",
+        );
+      }
+      await transaction.cooperativeActionRun.update({
+        where: { id: run.id },
+        data: {
+          claimedById: targetMemberId,
+          claimedAt: now,
+          claimExpiresAt: new Date(
+            now.getTime() + COOPERATIVE_CLAIM_DURATION_MS,
+          ),
+        },
+      });
+    });
+    return this.getCircleOverview(firebaseUid);
+  }
+
+  async releaseExpiredCooperativeActionClaim(
+    firebaseUid: string,
+    runId: string,
+    chapterId: string,
+  ): Promise<CircleOverview> {
+    const active = await this.getActiveUser(firebaseUid);
+    await this.prisma.$transaction(async (transaction) => {
+      await transaction.$executeRaw`
+        SELECT pg_advisory_xact_lock(hashtext(${runId}))
+      `;
+      const run = await transaction.cooperativeActionRun.findFirst({
+        where: { id: runId, householdId: active.activeHouseholdId },
+      });
+      if (!run) throw new NotFoundException("Cooperative action run not found");
+      if (run.claimedChapterId !== chapterId || !run.claimExpiresAt) {
+        throw new ConflictException("No relay claim to release");
+      }
+      if (run.claimExpiresAt.getTime() > this.clock.now().getTime()) {
+        throw new ConflictException("Relay claim has not expired");
+      }
+      await transaction.cooperativeActionRun.update({
+        where: { id: run.id },
+        data: {
+          claimedChapterId: null,
+          claimedById: null,
+          claimedTaskId: null,
+          claimedAt: null,
+          claimExpiresAt: null,
+        },
+      });
+    });
+    return this.getCircleOverview(firebaseUid);
   }
 
   async completeCooperativeActionChapter(
@@ -1130,18 +1383,49 @@ export class PersistentStoreService {
       }
       const now = this.clock.now();
       if (
-        (run.action.startsAt && run.action.startsAt.getTime() > now.getTime()) ||
+        (run.action.startsAt &&
+          run.action.startsAt.getTime() > now.getTime()) ||
         (run.action.endsAt && run.action.endsAt.getTime() <= now.getTime())
       ) {
-        throw new ConflictException("Cooperative action is outside its active period");
+        throw new ConflictException(
+          "Cooperative action is outside its active period",
+        );
       }
       const chapter = run.action.chapters.find((item) => item.id === chapterId);
-      if (!chapter) throw new NotFoundException("Cooperative action chapter not found");
+      if (!chapter)
+        throw new NotFoundException("Cooperative action chapter not found");
 
-      const existing = await transaction.cooperativeActionContribution.findUnique({
-        where: { runId_chapterId: { runId, chapterId } },
-      });
+      const existing =
+        await transaction.cooperativeActionContribution.findUnique({
+          where: { runId_chapterId: { runId, chapterId } },
+        });
       if (existing) return;
+      if (
+        run.claimedChapterId !== chapterId ||
+        run.claimedById !== active.id ||
+        !run.claimedTaskId ||
+        !run.claimExpiresAt ||
+        run.claimExpiresAt.getTime() <= now.getTime()
+      ) {
+        throw new ConflictException(
+          "Claim the relay chapter before completing it",
+        );
+      }
+      if (
+        run.claimedTaskId !== chapter.taskId &&
+        run.claimedTaskId !== chapter.alternativeTaskId
+      ) {
+        throw new ConflictException(
+          "Claimed action does not belong to this chapter",
+        );
+      }
+      const claimedTask = await transaction.task.findUnique({
+        where: { id: run.claimedTaskId },
+      });
+      if (!claimedTask) throw new NotFoundException("Claimed action not found");
+      if (claimedTask.verificationMode !== "SELF_CHECK") {
+        throw new ConflictException("Selected action requires witness data");
+      }
       const completedChapterIds = new Set(
         (
           await transaction.cooperativeActionContribution.findMany({
@@ -1151,7 +1435,8 @@ export class PersistentStoreService {
         ).map((item) => item.chapterId),
       );
       const missingPrevious = run.action.chapters.some(
-        (item) => item.sequence < chapter.sequence && !completedChapterIds.has(item.id),
+        (item) =>
+          item.sequence < chapter.sequence && !completedChapterIds.has(item.id),
       );
       if (missingPrevious) {
         throw new ConflictException("Previous relay chapter is not complete");
@@ -1161,11 +1446,14 @@ export class PersistentStoreService {
           where: { runId, userId: active.id },
         });
       if (memberContributionCount >= run.action.maxChaptersPerMember) {
-        throw new ConflictException("Each member can complete only one chapter");
+        throw new ConflictException(
+          "Each member can complete only one chapter",
+        );
       }
 
       const idempotencyKey =
-        requestIdempotencyKey ?? `cooperative:${runId}:${chapterId}:${active.id}`;
+        requestIdempotencyKey ??
+        `cooperative:${runId}:${chapterId}:${active.id}`;
       const duplicateReceipt =
         await transaction.cooperativeActionContribution.findUnique({
           where: { idempotencyKey },
@@ -1185,6 +1473,7 @@ export class PersistentStoreService {
           runId,
           chapterId,
           userId: active.id,
+          taskId: claimedTask.id,
           idempotencyKey,
           witnessTier: "SELF_CHECK",
           witnessedAt: now,
@@ -1196,7 +1485,8 @@ export class PersistentStoreService {
           where: { runId },
           select: { userId: true },
         });
-      const enoughChapters = contributions.length === run.action.chapters.length;
+      const enoughChapters =
+        contributions.length === run.action.chapters.length;
       const enoughMembers =
         new Set(contributions.map((item) => item.userId)).size >=
         run.action.minimumContributors;
@@ -1209,7 +1499,26 @@ export class PersistentStoreService {
         );
         await transaction.cooperativeActionRun.update({
           where: { id: run.id },
-          data: { status: "COMPLETED", completedAt: now },
+          data: {
+            status: "COMPLETED",
+            completedAt: now,
+            claimedChapterId: null,
+            claimedById: null,
+            claimedTaskId: null,
+            claimedAt: null,
+            claimExpiresAt: null,
+          },
+        });
+      } else {
+        await transaction.cooperativeActionRun.update({
+          where: { id: run.id },
+          data: {
+            claimedChapterId: null,
+            claimedById: null,
+            claimedTaskId: null,
+            claimedAt: null,
+            claimExpiresAt: null,
+          },
         });
       }
     });
@@ -4024,6 +4333,24 @@ export class PersistentStoreService {
             growthPoints: 0,
           },
         });
+        await transaction.task.upsert({
+          where: { id: chapter.alternativeTaskId },
+          update: {
+            title: chapter.alternativeTitle,
+            description: chapter.alternativeDescription,
+            verificationMode: "SELF_CHECK",
+            verificationRule: { confirmationRequired: true },
+            growthPoints: 0,
+          },
+          create: {
+            id: chapter.alternativeTaskId,
+            title: chapter.alternativeTitle,
+            description: chapter.alternativeDescription,
+            verificationMode: "SELF_CHECK",
+            verificationRule: { confirmationRequired: true },
+            growthPoints: 0,
+          },
+        });
         await transaction.cooperativeActionChapter.upsert({
           where: {
             actionId_sequence: {
@@ -4033,11 +4360,13 @@ export class PersistentStoreService {
           },
           update: {
             taskId: chapter.taskId,
+            alternativeTaskId: chapter.alternativeTaskId,
             elementName: chapter.elementName,
           },
           create: {
             actionId: action.id,
             taskId: chapter.taskId,
+            alternativeTaskId: chapter.alternativeTaskId,
             sequence: chapter.sequence,
             elementName: chapter.elementName,
           },

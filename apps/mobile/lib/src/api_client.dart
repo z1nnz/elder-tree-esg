@@ -104,6 +104,43 @@ class ApiClient {
     return CircleOverviewModel.fromJson(await _getMap('/circles/current'));
   }
 
+  Future<CircleOverviewModel> claimCooperativeActionChapter({
+    required String runId,
+    required String chapterId,
+    required bool useAlternative,
+  }) async {
+    return CircleOverviewModel.fromJson(
+      await _post('/circles/current/actions/$runId/chapters/$chapterId/claim', {
+        'useAlternative': useAlternative,
+      }),
+    );
+  }
+
+  Future<CircleOverviewModel> handoffCooperativeActionChapter({
+    required String runId,
+    required String chapterId,
+    required String memberId,
+  }) async {
+    return CircleOverviewModel.fromJson(
+      await _post(
+        '/circles/current/actions/$runId/chapters/$chapterId/handoff',
+        {'memberId': memberId},
+      ),
+    );
+  }
+
+  Future<CircleOverviewModel> releaseExpiredCooperativeActionClaim({
+    required String runId,
+    required String chapterId,
+  }) async {
+    return CircleOverviewModel.fromJson(
+      await _post(
+        '/circles/current/actions/$runId/chapters/$chapterId/release-expired',
+        const {},
+      ),
+    );
+  }
+
   Future<CircleOverviewModel> completeCooperativeActionChapter({
     required String runId,
     required String chapterId,

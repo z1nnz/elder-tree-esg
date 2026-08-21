@@ -63,6 +63,22 @@ export class CompleteCooperativeActionChapterDto {
   idempotencyKey?: string;
 }
 
+export class ClaimCooperativeActionChapterDto {
+  @ApiPropertyOptional({
+    description: "Choose the accessibility alternative for this chapter",
+  })
+  @IsOptional()
+  @IsBoolean()
+  useAlternative?: boolean;
+}
+
+export class HandoffCooperativeActionChapterDto {
+  @ApiProperty({ description: "Circle member receiving the relay chapter" })
+  @IsString()
+  @Length(1, 80)
+  memberId!: string;
+}
+
 export class InitializeEvidenceDto {
   @ApiProperty()
   @IsUUID()

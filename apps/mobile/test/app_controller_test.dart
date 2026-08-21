@@ -139,6 +139,28 @@ const _syncedTree = TreeSummary(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('offline demonstration never awards local growth', () async {
+    SharedPreferences.setMockInitialValues({});
+    final controller = AppController(api: UnavailableApiClient());
+
+    await controller.initialize();
+    final task = controller.tasks.firstWhere(
+      (item) => item.verificationMode == VerificationMode.selfCheck,
+    );
+    final before = controller.tree.growthPoints;
+
+    await controller.completeTask(task);
+
+    expect(controller.offlineDemo, isTrue);
+    expect(controller.tree.growthPoints, before);
+    expect(
+      controller.tasks.firstWhere((item) => item.id == task.id).status,
+      task.status,
+    );
+    expect(controller.notice, contains('不會建立真實足跡'));
+    controller.dispose();
+  });
+
   test('authenticated offline mode never awards local growth', () async {
     SharedPreferences.setMockInitialValues({});
     final controller = AppController(

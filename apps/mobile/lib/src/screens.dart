@@ -4551,10 +4551,33 @@ class _InfoPill extends StatelessWidget {
   }
 }
 
-class CircleScreen extends StatelessWidget {
+class CircleScreen extends StatefulWidget {
   const CircleScreen({required this.controller, super.key});
 
   final AppController controller;
+
+  @override
+  State<CircleScreen> createState() => _CircleScreenState();
+}
+
+class _CircleScreenState extends State<CircleScreen> {
+  Timer? _claimRefreshTimer;
+
+  AppController get controller => widget.controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _claimRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _claimRefreshTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -4581,10 +4604,17 @@ class CircleScreen extends StatelessWidget {
         )
         .length;
     final nextChapter = action.nextChapter;
-    final canComplete =
+    final canParticipate =
         !action.completed &&
         nextChapter != null &&
         currentMemberContributionCount < action.maxChaptersPerMember;
+    final claim = nextChapter?.claim;
+    final claimExpired = claim?.expiredAt(DateTime.now()) ?? false;
+    final currentMemberHasClaim =
+        canParticipate &&
+        !claimExpired &&
+        claim?.memberId == circle.currentMemberId;
+    final canClaim = canParticipate && claim == null;
 
     return RefreshIndicator(
       onRefresh: controller.refresh,
@@ -4720,6 +4750,7 @@ class CircleScreen extends StatelessWidget {
             _CooperativeActionChapterCard(
               chapter: chapter,
               isNext: nextChapter?.id == chapter.id,
+              currentMemberId: circle.currentMemberId,
             ),
             const SizedBox(height: 10),
           ],
@@ -4729,12 +4760,50 @@ class CircleScreen extends StatelessWidget {
               text:
                   '你們共同解鎖了「${action.keepsakeName}」。這次成長來自 ${action.contributorCount} 位樹伴通過行動見證的真實足跡。',
             )
-          else if (canComplete)
+          else if (currentMemberHasClaim)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                FilledButton.icon(
+                  onPressed: () => _confirmCooperativeChapter(
+                    context,
+                    controller,
+                    nextChapter,
+                  ),
+                  icon: const Icon(Icons.task_alt_rounded),
+                  label: Text('完成「${nextChapter.elementName}」這一棒'),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () => _chooseHandoffMember(
+                    context,
+                    controller,
+                    action,
+                    nextChapter,
+                  ),
+                  icon: const Icon(Icons.redo_rounded),
+                  label: const Text('暫時不方便，轉交給其他樹伴'),
+                ),
+              ],
+            )
+          else if (claimExpired)
             FilledButton.icon(
               onPressed: () =>
-                  _confirmCooperativeChapter(context, controller, nextChapter),
+                  controller.releaseExpiredCooperativeActionClaim(nextChapter!),
+              icon: const Icon(Icons.restart_alt_rounded),
+              label: const Text('釋出逾時的接力棒'),
+            )
+          else if (canClaim)
+            FilledButton.icon(
+              onPressed: () =>
+                  _chooseCooperativeAction(context, controller, nextChapter),
               icon: const Icon(Icons.sync_alt_rounded),
-              label: Text('接下「${nextChapter.elementName}」這一棒'),
+              label: Text('認領「${nextChapter.elementName}」這一棒'),
+            )
+          else if (claim != null)
+            _NoticeBand(
+              icon: Icons.hourglass_top_rounded,
+              text: '${claim.displayName} 正在完成這一棒，逾時後樹伴成員可重新釋出。',
             )
           else
             const _NoticeBand(
@@ -4751,16 +4820,142 @@ class CircleScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _chooseCooperativeAction(
+    BuildContext context,
+    AppController controller,
+    CooperativeActionChapterModel chapter,
+  ) async {
+    final useAlternative = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('認領「${chapter.elementName}」'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('選一個現在做得到的方式。認領後保留 30 分鐘，也可以再轉交。'),
+            const SizedBox(height: 14),
+            OutlinedButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Column(
+                  children: [
+                    Text(
+                      chapter.title,
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(chapter.description, textAlign: TextAlign.center),
+                  ],
+                ),
+              ),
+            ),
+            if (chapter.alternative != null) ...[
+              const SizedBox(height: 8),
+              FilledButton.tonal(
+                onPressed: () => Navigator.pop(context, true),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Column(
+                    children: [
+                      Text(
+                        '無障礙替代：${chapter.alternative!.title}',
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        chapter.alternative!.description,
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('先不認領'),
+          ),
+        ],
+      ),
+    );
+    if (useAlternative != null) {
+      await controller.claimCooperativeActionChapter(
+        chapter,
+        useAlternative: useAlternative,
+      );
+    }
+  }
+
+  Future<void> _chooseHandoffMember(
+    BuildContext context,
+    AppController controller,
+    CooperativeActionModel action,
+    CooperativeActionChapterModel chapter,
+  ) async {
+    final completedMemberIds = action.chapters
+        .map((item) => item.contributor?.memberId)
+        .whereType<String>()
+        .toSet();
+    final candidates = controller.circle.members
+        .where(
+          (member) =>
+              member.id != controller.circle.currentMemberId &&
+              !completedMemberIds.contains(member.id),
+        )
+        .toList();
+    final target = await showDialog<CircleMemberModel>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('把這一棒交給誰？'),
+        content: candidates.isEmpty
+            ? const Text('目前沒有可接棒的樹伴成員。')
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: candidates
+                    .map(
+                      (member) => ListTile(
+                        leading: const CircleAvatar(
+                          child: Icon(Icons.eco_rounded),
+                        ),
+                        title: Text(member.displayName),
+                        subtitle: Text(member.relationship),
+                        onTap: () => Navigator.pop(context, member),
+                      ),
+                    )
+                    .toList(),
+              ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+        ],
+      ),
+    );
+    if (target != null) {
+      await controller.handoffCooperativeActionChapter(chapter, target);
+    }
+  }
+
   Future<void> _confirmCooperativeChapter(
     BuildContext context,
     AppController controller,
     CooperativeActionChapterModel chapter,
   ) async {
+    final usesAlternative = chapter.claim?.usingAlternative ?? false;
+    final selectedDescription = usesAlternative && chapter.alternative != null
+        ? chapter.alternative!.description
+        : chapter.description;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('留下「${chapter.elementName}」'),
-        content: Text('${chapter.description}\n\n確認後，接力棒會交給下一位樹伴。'),
+        content: Text('$selectedDescription\n\n確認後，接力棒會交給下一位樹伴。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -4783,14 +4978,28 @@ class _CooperativeActionChapterCard extends StatelessWidget {
   const _CooperativeActionChapterCard({
     required this.chapter,
     required this.isNext,
+    required this.currentMemberId,
   });
 
   final CooperativeActionChapterModel chapter;
   final bool isNext;
+  final String currentMemberId;
 
   @override
   Widget build(BuildContext context) {
     final completed = chapter.completed;
+    final claim = chapter.claim;
+    final claimExpired = claim?.expiredAt(DateTime.now()) ?? false;
+    final usesAlternative =
+        claim?.usingAlternative ??
+        chapter.contributor?.usedAlternative ??
+        false;
+    final visibleTitle = usesAlternative && chapter.alternative != null
+        ? chapter.alternative!.title
+        : chapter.title;
+    final visibleDescription = usesAlternative && chapter.alternative != null
+        ? chapter.alternative!.description
+        : chapter.description;
     final color = completed
         ? forest
         : isNext
@@ -4824,18 +5033,32 @@ class _CooperativeActionChapterCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    chapter.title,
+                    visibleTitle,
                     style: const TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
                   const SizedBox(height: 5),
-                  Text(chapter.description),
+                  Text(visibleDescription),
+                  if (isNext && !completed && chapter.alternative != null) ...[
+                    const SizedBox(height: 7),
+                    Text(
+                      usesAlternative ? '已選擇無障礙替代方案' : '另有無障礙替代方案可選',
+                      style: const TextStyle(
+                        color: Color(0xFF4C765C),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 7),
                   Text(
                     completed
-                        ? '${chapter.contributor!.displayName} 已留下真實足跡'
+                        ? '${chapter.contributor!.displayName} 已用「${chapter.contributor!.actionTitle}」留下真實足跡'
+                        : claimExpired
+                        ? '${claim!.displayName} 的認領已逾時'
+                        : claim != null
+                        ? '${claim.displayName}${claim.memberId == currentMemberId ? '（你）' : ''} 已認領'
                         : isNext
                         ? '現在輪到下一位樹伴'
                         : '等待前一棒完成',
