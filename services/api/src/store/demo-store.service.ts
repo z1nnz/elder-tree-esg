@@ -18,6 +18,7 @@ import type {
   VerificationDecision,
 } from "@elder-tree/contracts";
 import { randomUUID } from "node:crypto";
+import { ClockService } from "../time/clock.service";
 import { nextStageAt, stageForPoints } from "./tree-growth";
 
 const TASK_PHOTO_ID = "11111111-1111-4111-8111-111111111111";
@@ -33,11 +34,13 @@ const COOPERATIVE_CHAPTER_WATER_ID =
   "66666666-6666-4666-8666-000000000002";
 const COOPERATIVE_CHAPTER_SPROUT_ID =
   "66666666-6666-4666-8666-000000000003";
+const COOPERATIVE_CLAIM_DURATION_MS = 30 * 60 * 1000;
 
 const DEMO_CIRCLE_MEMBERS = [
   { id: "demo-daughter", displayName: "小晴", relationship: "女兒" },
   { id: "demo-neighbor", displayName: "美玲阿姨", relationship: "鄰居朋友" },
   { id: "demo-elder", displayName: "林阿公", relationship: "本人" },
+  { id: "demo-friend", displayName: "志明叔叔", relationship: "退休朋友" },
 ] as const;
 
 interface EvidenceRecord {
@@ -59,6 +62,8 @@ interface AuditRecord {
 
 @Injectable()
 export class DemoStoreService {
+  constructor(private readonly clock: ClockService = new ClockService()) {}
+
   private cooperativeAction: CooperativeActionSummary = {
     id: COOPERATIVE_ACTION_ID,
     runId: COOPERATIVE_ACTION_RUN_ID,
@@ -81,9 +86,17 @@ export class DemoStoreService {
         description: "到附近安全的戶外空間走一小段，感受今天的光。",
         elementName: "陽光",
         verificationMode: "SELF_CHECK",
+        alternative: {
+          title: "在窗邊找一束光",
+          description: "不方便外出時，在安全的窗邊坐一會兒，感受今天的光。",
+          verificationMode: "SELF_CHECK",
+        },
+        claim: null,
         contributor: {
           memberId: "demo-daughter",
           displayName: "小晴",
+          actionTitle: "找回陽光",
+          usedAlternative: false,
           witnessedAt: new Date(Date.now() - 70 * 60 * 1000).toISOString(),
           witnessTier: "SELF_CHECK",
         },
@@ -95,9 +108,17 @@ export class DemoStoreService {
         description: "跟著畫面完成三分鐘舒緩伸展或慢呼吸。",
         elementName: "水",
         verificationMode: "SELF_CHECK",
+        alternative: {
+          title: "坐著完成慢呼吸",
+          description: "不方便伸展時，坐穩後跟著畫面完成三分鐘慢呼吸。",
+          verificationMode: "SELF_CHECK",
+        },
+        claim: null,
         contributor: {
           memberId: "demo-neighbor",
           displayName: "美玲阿姨",
+          actionTitle: "喚醒水流",
+          usedAlternative: false,
           witnessedAt: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
           witnessTier: "SELF_CHECK",
         },
@@ -109,6 +130,12 @@ export class DemoStoreService {
         description: "到戶外找到一株讓你喜歡的植物，停下來看看它。",
         elementName: "新芽",
         verificationMode: "SELF_CHECK",
+        alternative: {
+          title: "在室內找一片綠",
+          description: "不方便外出時，在室內找一株植物或從窗邊觀察一片綠。",
+          verificationMode: "SELF_CHECK",
+        },
+        claim: null,
         contributor: null,
       },
     ],
@@ -238,6 +265,7 @@ export class DemoStoreService {
 
   private evidence = new Map<string, EvidenceRecord>();
   private idempotencyKeys = new Set<string>();
+  private cooperativeIdempotencyReceipts = new Map<string, string>();
   private deviceEventKeys = new Set<string>();
   private audits: AuditRecord[] = [];
 
@@ -261,6 +289,150 @@ export class DemoStoreService {
     };
   }
 
+  claimCooperativeActionChapter(
+    runId: string,
+    chapterId: string,
+    memberId: string,
+    useAlternative = false,
+  ): CircleOverview {
+    const action = this.cooperativeAction;
+    if (runId !== action.runId) {
+      throw new NotFoundException("Cooperative action run not found");
+    }
+    if (action.status !== "ACTIVE") {
+      throw new ConflictException("Cooperative action is not active");
+    }
+    const chapter = action.chapters.find((item) => item.id === chapterId);
+    if (!chapter) throw new NotFoundException("Cooperative action chapter not found");
+    if (chapter.contributor) {
+      throw new ConflictException(
+        "Cooperative action chapter is already complete",
+      );
+    }
+    const nextChapter = action.chapters.find((item) => !item.contributor);
+    if (nextChapter?.id !== chapterId) {
+      throw new ConflictException("Previous relay chapter is not complete");
+    }
+    const member = DEMO_CIRCLE_MEMBERS.find((item) => item.id === memberId);
+    if (!member) throw new NotFoundException("Circle member not found");
+    const memberContributionCount = action.chapters.filter(
+      (item) => item.contributor?.memberId === memberId,
+    ).length;
+    if (memberContributionCount >= action.maxChaptersPerMember) {
+      throw new ConflictException("Each member can complete only one chapter");
+    }
+    if (useAlternative && !chapter.alternative) {
+      throw new ConflictException("Alternative action is not available");
+    }
+    const now = this.clock.now();
+    if (chapter.claim) {
+      const claimIsActive =
+        new Date(chapter.claim.expiresAt).getTime() > now.getTime();
+      if (
+        claimIsActive &&
+        chapter.claim.memberId === memberId &&
+        chapter.claim.usingAlternative === useAlternative
+      ) {
+        return this.getCircleOverview();
+      }
+      throw new ConflictException(
+        claimIsActive
+          ? "Relay chapter is already claimed"
+          : "Expired relay claim must be released",
+      );
+    }
+    chapter.claim = {
+      memberId: member.id,
+      displayName: member.displayName,
+      claimedAt: now.toISOString(),
+      expiresAt: new Date(
+        now.getTime() + COOPERATIVE_CLAIM_DURATION_MS,
+      ).toISOString(),
+      usingAlternative: useAlternative,
+    };
+    return this.getCircleOverview();
+  }
+
+  handoffCooperativeActionChapter(
+    runId: string,
+    chapterId: string,
+    memberId: string,
+    targetMemberId: string,
+  ): CircleOverview {
+    const action = this.cooperativeAction;
+    if (runId !== action.runId) {
+      throw new NotFoundException("Cooperative action run not found");
+    }
+    if (action.status !== "ACTIVE") {
+      throw new ConflictException("Cooperative action is not active");
+    }
+    const chapter = action.chapters.find((item) => item.id === chapterId);
+    if (!chapter)
+      throw new NotFoundException("Cooperative action chapter not found");
+    const now = this.clock.now();
+    if (
+      !chapter.claim ||
+      chapter.claim.memberId !== memberId ||
+      new Date(chapter.claim.expiresAt).getTime() <= now.getTime()
+    ) {
+      throw new ConflictException(
+        "Only the current claimant can hand off this chapter",
+      );
+    }
+    if (memberId === targetMemberId) {
+      throw new ConflictException("Choose another circle member for handoff");
+    }
+    const target = DEMO_CIRCLE_MEMBERS.find(
+      (item) => item.id === targetMemberId,
+    );
+    if (!target) throw new NotFoundException("Circle member not found");
+    const targetContributionCount = action.chapters.filter(
+      (item) => item.contributor?.memberId === targetMemberId,
+    ).length;
+    if (targetContributionCount >= action.maxChaptersPerMember) {
+      throw new ConflictException(
+        "Target member already completed their chapter",
+      );
+    }
+    chapter.claim = {
+      ...chapter.claim,
+      memberId: target.id,
+      displayName: target.displayName,
+      claimedAt: now.toISOString(),
+      expiresAt: new Date(
+        now.getTime() + COOPERATIVE_CLAIM_DURATION_MS,
+      ).toISOString(),
+    };
+    return this.getCircleOverview();
+  }
+
+  releaseExpiredCooperativeActionClaim(
+    runId: string,
+    chapterId: string,
+    memberId: string,
+  ): CircleOverview {
+    const action = this.cooperativeAction;
+    if (runId !== action.runId) {
+      throw new NotFoundException("Cooperative action run not found");
+    }
+    const chapter = action.chapters.find((item) => item.id === chapterId);
+    if (!chapter)
+      throw new NotFoundException("Cooperative action chapter not found");
+    if (!DEMO_CIRCLE_MEMBERS.some((member) => member.id === memberId)) {
+      throw new NotFoundException("Circle member not found");
+    }
+    if (!chapter.claim) {
+      throw new ConflictException("No relay claim to release");
+    }
+    if (
+      new Date(chapter.claim.expiresAt).getTime() > this.clock.now().getTime()
+    ) {
+      throw new ConflictException("Relay claim has not expired");
+    }
+    chapter.claim = null;
+    return this.getCircleOverview();
+  }
+
   completeCooperativeActionChapter(
     runId: string,
     chapterId: string,
@@ -276,6 +448,17 @@ export class DemoStoreService {
     if (action.status === "COMPLETED") return this.getCircleOverview();
     if (chapter.contributor) return this.getCircleOverview();
 
+    const now = this.clock.now();
+    if (
+      !chapter.claim ||
+      chapter.claim.memberId !== memberId ||
+      new Date(chapter.claim.expiresAt).getTime() <= now.getTime()
+    ) {
+      throw new ConflictException(
+        "Claim the relay chapter before completing it",
+      );
+    }
+
     const nextChapter = action.chapters.find((item) => !item.contributor);
     if (nextChapter?.id !== chapterId) {
       throw new ConflictException("Previous relay chapter is not complete");
@@ -290,12 +473,21 @@ export class DemoStoreService {
     }
 
     const key = idempotencyKey ?? `cooperative:${action.runId}:${chapterId}:${memberId}`;
-    if (this.idempotencyKeys.has(key)) return this.getCircleOverview();
-    this.idempotencyKeys.add(key);
+    const receiptScope = `${action.runId}:${chapterId}:${memberId}`;
+    const existingReceiptScope = this.cooperativeIdempotencyReceipts.get(key);
+    if (existingReceiptScope) {
+      if (existingReceiptScope === receiptScope) return this.getCircleOverview();
+      throw new ConflictException("Idempotency key is already in use");
+    }
+    this.cooperativeIdempotencyReceipts.set(key, receiptScope);
     chapter.contributor = {
       memberId: member.id,
       displayName: member.displayName,
-      witnessedAt: new Date().toISOString(),
+      actionTitle: chapter.claim.usingAlternative
+        ? chapter.alternative!.title
+        : chapter.title,
+      usedAlternative: chapter.claim.usingAlternative,
+      witnessedAt: now.toISOString(),
       witnessTier: "SELF_CHECK",
     };
     action.completedChapterCount += 1;
@@ -304,6 +496,7 @@ export class DemoStoreService {
         item.contributor ? [item.contributor.memberId] : [],
       ),
     ).size;
+    chapter.claim = null;
 
     if (
       action.completedChapterCount === action.totalChapterCount &&

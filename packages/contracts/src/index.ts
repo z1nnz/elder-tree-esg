@@ -552,8 +552,24 @@ export interface CircleMemberSummary {
 export interface CooperativeActionContributor {
   memberId: string;
   displayName: string;
+  actionTitle: string;
+  usedAlternative: boolean;
   witnessedAt: string;
   witnessTier: ActionWitnessTier;
+}
+
+export interface CooperativeActionAlternativeSummary {
+  title: string;
+  description: string;
+  verificationMode: TaskVerificationMode;
+}
+
+export interface CooperativeActionClaimSummary {
+  memberId: string;
+  displayName: string;
+  claimedAt: string;
+  expiresAt: string;
+  usingAlternative: boolean;
 }
 
 export interface CooperativeActionChapterSummary {
@@ -563,6 +579,8 @@ export interface CooperativeActionChapterSummary {
   description: string;
   elementName: string;
   verificationMode: TaskVerificationMode;
+  alternative: CooperativeActionAlternativeSummary | null;
+  claim: CooperativeActionClaimSummary | null;
   contributor: CooperativeActionContributor | null;
 }
 

@@ -112,25 +112,40 @@ describeWithDatabase("PersistentStoreService", () => {
       expect(action?.runId).toBeTruthy();
       expect(action?.chapters).toHaveLength(3);
 
-      await store.completeCooperativeActionChapter(
+      await store.claimCooperativeActionChapter(
         ownerUid,
         action!.runId!,
+        action.chapters[0]!.id,
+      );
+      await store.completeCooperativeActionChapter(
+        ownerUid,
+        action.runId!,
         action.chapters[0]!.id,
         "circle-owner-first",
       );
       await expect(
-        store.completeCooperativeActionChapter(
+        store.claimCooperativeActionChapter(
           ownerUid,
           action.runId!,
           action.chapters[1]!.id,
-          "circle-owner-second",
         ),
       ).rejects.toThrow("Each member can complete only one chapter");
+      await store.claimCooperativeActionChapter(
+        secondUid,
+        action.runId!,
+        action.chapters[1]!.id,
+      );
       await store.completeCooperativeActionChapter(
         secondUid,
         action.runId!,
         action.chapters[1]!.id,
         "circle-second-member",
+      );
+      await store.claimCooperativeActionChapter(
+        thirdUid,
+        action.runId!,
+        action.chapters[2]!.id,
+        true,
       );
       const completed = await store.completeCooperativeActionChapter(
         thirdUid,
@@ -147,9 +162,75 @@ describeWithDatabase("PersistentStoreService", () => {
 
       expect(completed.activeAction?.status).toBe("COMPLETED");
       expect(completed.activeAction?.contributorCount).toBe(3);
+      expect(completed.activeAction?.chapters[2]?.contributor).toMatchObject({
+        actionTitle: "在室內找一片綠",
+        usedAlternative: true,
+      });
       expect((await store.getTree(ownerUid)).growthPoints).toBe(
         before.growthPoints + action.growthPoints,
       );
+    },
+    120_000,
+  );
+
+  it(
+    "hands an alternative relay action to another member and releases it only after expiry",
+    async () => {
+      const ownerUid = `integration-relay-handoff-owner-${randomUUID()}`;
+      const friendUid = `integration-relay-handoff-friend-${randomUUID()}`;
+      createdFirebaseUids.add(ownerUid);
+      createdFirebaseUids.add(friendUid);
+      let now = new Date("2026-08-22T01:00:00.000Z");
+      const relayStore = new PersistentStoreService(prisma, {
+        now: () => now,
+      } as ClockService);
+
+      await relayStore.getContext(ownerUid);
+      const invite = await relayStore.createHouseholdInvite(ownerUid);
+      await relayStore.joinHousehold(friendUid, invite.code, "朋友");
+
+      const ownerCircle = await relayStore.getCircleOverview(ownerUid);
+      const friendCircle = await relayStore.getCircleOverview(friendUid);
+      const action = ownerCircle.activeAction!;
+      const chapter = action.chapters[0]!;
+
+      const claimed = await relayStore.claimCooperativeActionChapter(
+        ownerUid,
+        action.runId!,
+        chapter.id,
+        true,
+      );
+      expect(claimed.activeAction?.chapters[0]?.alternative).not.toBeNull();
+      expect(claimed.activeAction?.chapters[0]?.claim).toMatchObject({
+        memberId: ownerCircle.currentMemberId,
+        usingAlternative: true,
+      });
+
+      const handedOff = await relayStore.handoffCooperativeActionChapter(
+        ownerUid,
+        action.runId!,
+        chapter.id,
+        friendCircle.currentMemberId,
+      );
+      expect(handedOff.activeAction?.chapters[0]?.claim).toMatchObject({
+        memberId: friendCircle.currentMemberId,
+        usingAlternative: true,
+      });
+      await expect(
+        relayStore.releaseExpiredCooperativeActionClaim(
+          ownerUid,
+          action.runId!,
+          chapter.id,
+        ),
+      ).rejects.toThrow("Relay claim has not expired");
+
+      now = new Date("2026-08-22T01:31:00.000Z");
+      const released = await relayStore.releaseExpiredCooperativeActionClaim(
+        ownerUid,
+        action.runId!,
+        chapter.id,
+      );
+      expect(released.activeAction?.chapters[0]?.claim).toBeNull();
     },
     120_000,
   );

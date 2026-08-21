@@ -1,6 +1,10 @@
 import { Body, Controller, Get, Param, Post, Req } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
-import { CompleteCooperativeActionChapterDto } from "../dto/api.dto";
+import {
+  ClaimCooperativeActionChapterDto,
+  CompleteCooperativeActionChapterDto,
+  HandoffCooperativeActionChapterDto,
+} from "../dto/api.dto";
 import type { AuthenticatedRequest } from "../security/api-auth.guard";
 import { DemoStoreService } from "../store/demo-store.service";
 import { PersistentStoreService } from "../store/persistent-store.service";
@@ -47,6 +51,84 @@ export class CirclesController {
         runId,
         chapterId,
         dto.idempotencyKey,
+      ),
+    };
+  }
+
+  @Post("current/actions/:runId/chapters/:chapterId/claim")
+  async claimChapter(
+    @Req() request: AuthenticatedRequest,
+    @Param("runId") runId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() dto: ClaimCooperativeActionChapterDto,
+  ) {
+    if (process.env.DEMO_MODE !== "false") {
+      return {
+        data: this.demoStore.claimCooperativeActionChapter(
+          runId,
+          chapterId,
+          request.user!.uid,
+          dto.useAlternative ?? false,
+        ),
+      };
+    }
+    return {
+      data: await this.persistentStore.claimCooperativeActionChapter(
+        request.user!.uid,
+        runId,
+        chapterId,
+        dto.useAlternative ?? false,
+      ),
+    };
+  }
+
+  @Post("current/actions/:runId/chapters/:chapterId/handoff")
+  async handoffChapter(
+    @Req() request: AuthenticatedRequest,
+    @Param("runId") runId: string,
+    @Param("chapterId") chapterId: string,
+    @Body() dto: HandoffCooperativeActionChapterDto,
+  ) {
+    if (process.env.DEMO_MODE !== "false") {
+      return {
+        data: this.demoStore.handoffCooperativeActionChapter(
+          runId,
+          chapterId,
+          request.user!.uid,
+          dto.memberId,
+        ),
+      };
+    }
+    return {
+      data: await this.persistentStore.handoffCooperativeActionChapter(
+        request.user!.uid,
+        runId,
+        chapterId,
+        dto.memberId,
+      ),
+    };
+  }
+
+  @Post("current/actions/:runId/chapters/:chapterId/release-expired")
+  async releaseExpiredClaim(
+    @Req() request: AuthenticatedRequest,
+    @Param("runId") runId: string,
+    @Param("chapterId") chapterId: string,
+  ) {
+    if (process.env.DEMO_MODE !== "false") {
+      return {
+        data: this.demoStore.releaseExpiredCooperativeActionClaim(
+          runId,
+          chapterId,
+          request.user!.uid,
+        ),
+      };
+    }
+    return {
+      data: await this.persistentStore.releaseExpiredCooperativeActionClaim(
+        request.user!.uid,
+        runId,
+        chapterId,
       ),
     };
   }

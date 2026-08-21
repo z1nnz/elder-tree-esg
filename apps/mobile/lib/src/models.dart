@@ -40,12 +40,16 @@ class CooperativeActionContributorModel {
   const CooperativeActionContributorModel({
     required this.memberId,
     required this.displayName,
+    required this.actionTitle,
+    required this.usedAlternative,
     required this.witnessedAt,
     required this.witnessTier,
   });
 
   final String memberId;
   final String displayName;
+  final String actionTitle;
+  final bool usedAlternative;
   final DateTime witnessedAt;
   final ActionWitnessTier witnessTier;
 
@@ -54,6 +58,8 @@ class CooperativeActionContributorModel {
   ) => CooperativeActionContributorModel(
     memberId: json['memberId'] as String,
     displayName: json['displayName'] as String,
+    actionTitle: json['actionTitle'] as String,
+    usedAlternative: json['usedAlternative'] as bool,
     witnessedAt: DateTime.parse(json['witnessedAt'] as String),
     witnessTier: switch (json['witnessTier']) {
       'PROCESS' => ActionWitnessTier.process,
@@ -64,6 +70,53 @@ class CooperativeActionContributorModel {
   );
 }
 
+class CooperativeActionAlternativeModel {
+  const CooperativeActionAlternativeModel({
+    required this.title,
+    required this.description,
+    required this.verificationMode,
+  });
+
+  final String title;
+  final String description;
+  final VerificationMode verificationMode;
+
+  factory CooperativeActionAlternativeModel.fromJson(
+    Map<String, dynamic> json,
+  ) => CooperativeActionAlternativeModel(
+    title: json['title'] as String,
+    description: json['description'] as String,
+    verificationMode: _verificationModeFromJson(json['verificationMode']),
+  );
+}
+
+class CooperativeActionClaimModel {
+  const CooperativeActionClaimModel({
+    required this.memberId,
+    required this.displayName,
+    required this.claimedAt,
+    required this.expiresAt,
+    required this.usingAlternative,
+  });
+
+  final String memberId;
+  final String displayName;
+  final DateTime claimedAt;
+  final DateTime expiresAt;
+  final bool usingAlternative;
+
+  bool expiredAt(DateTime now) => !expiresAt.isAfter(now);
+
+  factory CooperativeActionClaimModel.fromJson(Map<String, dynamic> json) =>
+      CooperativeActionClaimModel(
+        memberId: json['memberId'] as String,
+        displayName: json['displayName'] as String,
+        claimedAt: DateTime.parse(json['claimedAt'] as String),
+        expiresAt: DateTime.parse(json['expiresAt'] as String),
+        usingAlternative: json['usingAlternative'] as bool,
+      );
+}
+
 class CooperativeActionChapterModel {
   const CooperativeActionChapterModel({
     required this.id,
@@ -72,6 +125,8 @@ class CooperativeActionChapterModel {
     required this.description,
     required this.elementName,
     required this.verificationMode,
+    required this.alternative,
+    required this.claim,
     required this.contributor,
   });
 
@@ -81,6 +136,8 @@ class CooperativeActionChapterModel {
   final String description;
   final String elementName;
   final VerificationMode verificationMode;
+  final CooperativeActionAlternativeModel? alternative;
+  final CooperativeActionClaimModel? claim;
   final CooperativeActionContributorModel? contributor;
 
   bool get completed => contributor != null;
@@ -92,14 +149,17 @@ class CooperativeActionChapterModel {
         title: json['title'] as String,
         description: json['description'] as String,
         elementName: json['elementName'] as String,
-        verificationMode: switch (json['verificationMode']) {
-          'PHOTO_AI' => VerificationMode.photoAi,
-          'TIMER' => VerificationMode.timer,
-          'STEP_COUNT' => VerificationMode.stepCount,
-          'LOCATION_CHECK_IN' => VerificationMode.locationCheckIn,
-          'DEVICE_CONFIRM' => VerificationMode.deviceConfirm,
-          _ => VerificationMode.selfCheck,
-        },
+        verificationMode: _verificationModeFromJson(json['verificationMode']),
+        alternative: json['alternative'] == null
+            ? null
+            : CooperativeActionAlternativeModel.fromJson(
+                json['alternative'] as Map<String, dynamic>,
+              ),
+        claim: json['claim'] == null
+            ? null
+            : CooperativeActionClaimModel.fromJson(
+                json['claim'] as Map<String, dynamic>,
+              ),
         contributor: json['contributor'] == null
             ? null
             : CooperativeActionContributorModel.fromJson(
@@ -107,6 +167,15 @@ class CooperativeActionChapterModel {
               ),
       );
 }
+
+VerificationMode _verificationModeFromJson(dynamic value) => switch (value) {
+  'PHOTO_AI' => VerificationMode.photoAi,
+  'TIMER' => VerificationMode.timer,
+  'STEP_COUNT' => VerificationMode.stepCount,
+  'LOCATION_CHECK_IN' => VerificationMode.locationCheckIn,
+  'DEVICE_CONFIRM' => VerificationMode.deviceConfirm,
+  _ => VerificationMode.selfCheck,
+};
 
 class CooperativeActionModel {
   const CooperativeActionModel({

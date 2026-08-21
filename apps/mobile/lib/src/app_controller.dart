@@ -310,18 +310,88 @@ class AppController extends ChangeNotifier {
     if (task.status == TaskStatus.completed) return;
     try {
       if (offlineDemo) {
-        _replaceTask(task.copyWith(status: TaskStatus.completed));
-        _applyLocalGrowth(task.growthPoints);
+        notice = '離線示範只能瀏覽，不會建立真實足跡或增加年輪進度。';
       } else {
         _replaceTask(await _api.completeTask(task.id));
         tree = await _api.getTree();
         await _refreshHomeSummary();
       }
-      lastGrowthAwardPoints = task.growthPoints;
-      lastGrowthAwardTitle = task.title;
-      notice = '生命樹長出新葉 +${task.growthPoints}：${task.title}';
+      if (!offlineDemo) {
+        lastGrowthAwardPoints = task.growthPoints;
+        lastGrowthAwardTitle = task.title;
+        notice = '生命樹長出新葉 +${task.growthPoints}：${task.title}';
+      }
     } catch (error) {
       notice = _friendlyActionError(error, fallback: '任務暫時無法完成，請確認網路後再試一次。');
+    }
+    notifyListeners();
+  }
+
+  Future<void> claimCooperativeActionChapter(
+    CooperativeActionChapterModel chapter, {
+    required bool useAlternative,
+  }) async {
+    final action = circle.activeAction;
+    if (action == null || action.runId == null || chapter.completed) return;
+    try {
+      if (offlineDemo) {
+        notice = '離線示範不會建立多人接力紀錄；請連上服務後再認領。';
+      } else {
+        circle = await _api.claimCooperativeActionChapter(
+          runId: action.runId!,
+          chapterId: chapter.id,
+          useAlternative: useAlternative,
+        );
+        notice = useAlternative
+            ? '你已認領無障礙替代方案，請在到期前完成或轉交。'
+            : '接力棒交到你手上了，請在到期前完成或轉交。';
+      }
+    } catch (error) {
+      notice = _friendlyActionError(error, fallback: '目前無法認領這一棒，請重新整理後再試一次。');
+    }
+    notifyListeners();
+  }
+
+  Future<void> handoffCooperativeActionChapter(
+    CooperativeActionChapterModel chapter,
+    CircleMemberModel target,
+  ) async {
+    final action = circle.activeAction;
+    if (action == null || action.runId == null || chapter.completed) return;
+    try {
+      if (offlineDemo) {
+        notice = '離線示範不會建立轉棒紀錄；請連上服務後再轉交。';
+      } else {
+        circle = await _api.handoffCooperativeActionChapter(
+          runId: action.runId!,
+          chapterId: chapter.id,
+          memberId: target.id,
+        );
+        notice = '接力棒已轉交給 ${target.displayName}，請對方在到期前完成。';
+      }
+    } catch (error) {
+      notice = _friendlyActionError(error, fallback: '目前無法轉交這一棒，請重新整理後再試一次。');
+    }
+    notifyListeners();
+  }
+
+  Future<void> releaseExpiredCooperativeActionClaim(
+    CooperativeActionChapterModel chapter,
+  ) async {
+    final action = circle.activeAction;
+    if (action == null || action.runId == null || chapter.completed) return;
+    try {
+      if (offlineDemo) {
+        notice = '離線示範不會變更接力狀態；請連上服務後再釋出。';
+      } else {
+        circle = await _api.releaseExpiredCooperativeActionClaim(
+          runId: action.runId!,
+          chapterId: chapter.id,
+        );
+        notice = '逾時的接力棒已釋出，樹伴成員可以重新認領。';
+      }
+    } catch (error) {
+      notice = _friendlyActionError(error, fallback: '目前無法釋出這一棒，請重新整理後再試一次。');
     }
     notifyListeners();
   }
@@ -411,9 +481,7 @@ class AppController extends ChangeNotifier {
             notice = '這張照片沒有通過驗證，可以讓主體更清楚後重新拍一次。';
         }
       } else {
-        _replaceTask(task.copyWith(status: TaskStatus.completed));
-        _applyLocalGrowth(task.growthPoints);
-        notice = '照片驗證已通過並完成「${task.title}」，陪伴樹獲得 ${task.growthPoints} 點成長值。';
+        notice = '離線示範不會假裝完成照片驗證，也不會增加年輪進度。';
       }
     } catch (error) {
       notice = _friendlyPhotoError(error);
@@ -694,20 +762,7 @@ class AppController extends ChangeNotifier {
     }
     try {
       if (offlineDemo) {
-        radar = RadarStateModel(
-          generatedAt: DateTime.now(),
-          missions: radar.missions
-              .map(
-                (item) => item.id == mission.id
-                    ? item.copyWith(
-                        status: 'COMPLETED',
-                        completedAt: DateTime.now(),
-                      )
-                    : item,
-              )
-              .toList(),
-        );
-        _applyLocalGrowth(mission.growthPoints);
+        notice = '離線示範只能瀏覽，不會完成雷達旅程或增加年輪進度。';
       } else {
         radar = await _api.completeRadarMission(mission.id);
         tree = await _api.getTree();
@@ -720,11 +775,11 @@ class AppController extends ChangeNotifier {
             ) ??
             companionPrompts;
         await _refreshHomeSummary();
+        lastGrowthAwardPoints = mission.growthPoints;
+        lastGrowthAwardTitle = mission.title;
+        notice =
+            '生命樹長出新葉 +${mission.growthPoints}：${mission.title}。生活片段已整理，可分享給家人/陪伴者。';
       }
-      lastGrowthAwardPoints = mission.growthPoints;
-      lastGrowthAwardTitle = mission.title;
-      notice =
-          '生命樹長出新葉 +${mission.growthPoints}：${mission.title}。生活片段已整理，可分享給家人/陪伴者。';
     } catch (error) {
       notice = _friendlyActionError(error, fallback: '雷達任務暫時無法完成，請稍後再試一次。');
     }
@@ -809,31 +864,6 @@ class AppController extends ChangeNotifier {
     tasks = tasks
         .map((task) => task.id == updated.id ? updated : task)
         .toList();
-  }
-
-  void _applyLocalGrowth(int points) {
-    final nextPoints = tree.growthPoints + points;
-    final stage = switch (nextPoints) {
-      >= 1000 => 'MATURE',
-      >= 500 => 'YOUNG_TREE',
-      >= 250 => 'SEEDLING',
-      >= 100 => 'SPROUT',
-      _ => 'SEED',
-    };
-    final nextStage = switch (nextPoints) {
-      < 100 => 100,
-      < 250 => 250,
-      < 500 => 500,
-      < 1000 => 1000,
-      _ => null,
-    };
-    tree = TreeSummary(
-      name: tree.name,
-      householdName: tree.householdName,
-      stage: stage,
-      growthPoints: nextPoints,
-      nextStageAt: nextStage,
-    );
   }
 
   int? _distanceToMission(RadarMissionModel mission) {
@@ -1281,6 +1311,12 @@ final _fallbackCircle = CircleOverviewModel(
         description: '到附近安全的戶外空間走一小段，感受今天的光。',
         elementName: '陽光',
         verificationMode: VerificationMode.selfCheck,
+        alternative: CooperativeActionAlternativeModel(
+          title: '在窗邊找一束光',
+          description: '不方便外出時，在安全的窗邊坐一會兒，感受今天的光。',
+          verificationMode: VerificationMode.selfCheck,
+        ),
+        claim: null,
         contributor: null,
       ),
       CooperativeActionChapterModel(
@@ -1290,6 +1326,12 @@ final _fallbackCircle = CircleOverviewModel(
         description: '跟著畫面完成三分鐘舒緩伸展或慢呼吸。',
         elementName: '水',
         verificationMode: VerificationMode.selfCheck,
+        alternative: CooperativeActionAlternativeModel(
+          title: '坐著完成慢呼吸',
+          description: '不方便伸展時，坐穩後跟著畫面完成三分鐘慢呼吸。',
+          verificationMode: VerificationMode.selfCheck,
+        ),
+        claim: null,
         contributor: null,
       ),
       CooperativeActionChapterModel(
@@ -1299,6 +1341,12 @@ final _fallbackCircle = CircleOverviewModel(
         description: '到戶外找到一株讓你喜歡的植物，停下來看看它。',
         elementName: '新芽',
         verificationMode: VerificationMode.selfCheck,
+        alternative: CooperativeActionAlternativeModel(
+          title: '在室內找一片綠',
+          description: '不方便外出時，在室內找一株植物或從窗邊觀察一片綠。',
+          verificationMode: VerificationMode.selfCheck,
+        ),
+        claim: null,
         contributor: null,
       ),
     ],
