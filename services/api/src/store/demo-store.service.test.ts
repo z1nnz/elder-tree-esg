@@ -48,11 +48,13 @@ describe("DemoStoreService", () => {
     const chapterId = "66666666-6666-4666-8666-000000000003";
 
     const completed = store.completeCooperativeActionChapter(
+      "77777777-7777-4777-8777-777777777777",
       chapterId,
       "demo-elder",
       "relay-completion-123",
     );
     store.completeCooperativeActionChapter(
+      "77777777-7777-4777-8777-777777777777",
       chapterId,
       "demo-elder",
       "relay-completion-123",
@@ -67,6 +69,7 @@ describe("DemoStoreService", () => {
     const store = new DemoStoreService();
     expect(() =>
       store.completeCooperativeActionChapter(
+        "77777777-7777-4777-8777-777777777777",
         "66666666-6666-4666-8666-000000000003",
         "demo-daughter",
         "relay-completion-456",

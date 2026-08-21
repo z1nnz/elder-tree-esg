@@ -11,6 +11,12 @@ enum TaskStatus { available, inProgress, verifying, completed, rejected }
 
 enum EvidenceDecision { pass, review, fail }
 
+enum CooperativeActionKind { collection, relay }
+
+enum CooperativeActionStatus { available, active, completed, expired }
+
+enum ActionWitnessTier { selfCheck, process, composite, partner }
+
 class CircleMemberModel {
   const CircleMemberModel({
     required this.id,
@@ -41,7 +47,7 @@ class CooperativeActionContributorModel {
   final String memberId;
   final String displayName;
   final DateTime witnessedAt;
-  final String witnessTier;
+  final ActionWitnessTier witnessTier;
 
   factory CooperativeActionContributorModel.fromJson(
     Map<String, dynamic> json,
@@ -49,7 +55,12 @@ class CooperativeActionContributorModel {
     memberId: json['memberId'] as String,
     displayName: json['displayName'] as String,
     witnessedAt: DateTime.parse(json['witnessedAt'] as String),
-    witnessTier: json['witnessTier'] as String,
+    witnessTier: switch (json['witnessTier']) {
+      'PROCESS' => ActionWitnessTier.process,
+      'COMPOSITE' => ActionWitnessTier.composite,
+      'PARTNER' => ActionWitnessTier.partner,
+      _ => ActionWitnessTier.selfCheck,
+    },
   );
 }
 
@@ -119,8 +130,8 @@ class CooperativeActionModel {
   final String? runId;
   final String title;
   final String description;
-  final String kind;
-  final String status;
+  final CooperativeActionKind kind;
+  final CooperativeActionStatus status;
   final int minimumContributors;
   final int maxChaptersPerMember;
   final int contributorCount;
@@ -130,7 +141,7 @@ class CooperativeActionModel {
   final String keepsakeName;
   final List<CooperativeActionChapterModel> chapters;
 
-  bool get completed => status == 'COMPLETED';
+  bool get completed => status == CooperativeActionStatus.completed;
   double get progress =>
       totalChapterCount == 0 ? 0 : completedChapterCount / totalChapterCount;
   CooperativeActionChapterModel? get nextChapter {
@@ -146,8 +157,15 @@ class CooperativeActionModel {
         runId: json['runId'] as String?,
         title: json['title'] as String,
         description: json['description'] as String,
-        kind: json['kind'] as String,
-        status: json['status'] as String,
+        kind: json['kind'] == 'RELAY'
+            ? CooperativeActionKind.relay
+            : CooperativeActionKind.collection,
+        status: switch (json['status']) {
+          'AVAILABLE' => CooperativeActionStatus.available,
+          'COMPLETED' => CooperativeActionStatus.completed,
+          'EXPIRED' => CooperativeActionStatus.expired,
+          _ => CooperativeActionStatus.active,
+        },
         minimumContributors: json['minimumContributors'] as int,
         maxChaptersPerMember: json['maxChaptersPerMember'] as int,
         contributorCount: json['contributorCount'] as int,

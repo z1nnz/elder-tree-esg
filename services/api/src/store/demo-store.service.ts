@@ -262,11 +262,15 @@ export class DemoStoreService {
   }
 
   completeCooperativeActionChapter(
+    runId: string,
     chapterId: string,
     memberId: string,
     idempotencyKey?: string,
   ): CircleOverview {
     const action = this.cooperativeAction;
+    if (runId !== action.runId) {
+      throw new NotFoundException("Cooperative action run not found");
+    }
     const chapter = action.chapters.find((item) => item.id === chapterId);
     if (!chapter) throw new NotFoundException("Cooperative action chapter not found");
     if (action.status === "COMPLETED") return this.getCircleOverview();

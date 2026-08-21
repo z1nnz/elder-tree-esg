@@ -34,6 +34,7 @@ export class CirclesController {
     if (process.env.DEMO_MODE !== "false") {
       return {
         data: this.demoStore.completeCooperativeActionChapter(
+          runId,
           chapterId,
           request.user!.uid,
           dto.idempotencyKey,

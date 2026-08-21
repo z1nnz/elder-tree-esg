@@ -1114,6 +1114,9 @@ export class PersistentStoreService {
   ): Promise<CircleOverview> {
     const active = await this.getActiveUser(firebaseUid);
     await this.prisma.$transaction(async (transaction) => {
+      await transaction.$executeRaw`
+        SELECT pg_advisory_xact_lock(hashtext(${runId}))
+      `;
       const run = await transaction.cooperativeActionRun.findFirst({
         where: { id: runId, householdId: active.activeHouseholdId },
         include: {
@@ -1122,6 +1125,16 @@ export class PersistentStoreService {
       });
       if (!run) throw new NotFoundException("Cooperative action run not found");
       if (run.status === "COMPLETED") return;
+      if (run.status !== "ACTIVE" || run.action.status !== "PUBLISHED") {
+        throw new ConflictException("Cooperative action is not active");
+      }
+      const now = this.clock.now();
+      if (
+        (run.action.startsAt && run.action.startsAt.getTime() > now.getTime()) ||
+        (run.action.endsAt && run.action.endsAt.getTime() <= now.getTime())
+      ) {
+        throw new ConflictException("Cooperative action is outside its active period");
+      }
       const chapter = run.action.chapters.find((item) => item.id === chapterId);
       if (!chapter) throw new NotFoundException("Cooperative action chapter not found");
 
@@ -1157,7 +1170,16 @@ export class PersistentStoreService {
         await transaction.cooperativeActionContribution.findUnique({
           where: { idempotencyKey },
         });
-      if (duplicateReceipt) return;
+      if (duplicateReceipt) {
+        if (
+          duplicateReceipt.runId === runId &&
+          duplicateReceipt.chapterId === chapterId &&
+          duplicateReceipt.userId === active.id
+        ) {
+          return;
+        }
+        throw new ConflictException("Idempotency key is already in use");
+      }
       await transaction.cooperativeActionContribution.create({
         data: {
           runId,
@@ -1165,7 +1187,7 @@ export class PersistentStoreService {
           userId: active.id,
           idempotencyKey,
           witnessTier: "SELF_CHECK",
-          witnessedAt: this.clock.now(),
+          witnessedAt: now,
         },
       });
 
@@ -1187,7 +1209,7 @@ export class PersistentStoreService {
         );
         await transaction.cooperativeActionRun.update({
           where: { id: run.id },
-          data: { status: "COMPLETED", completedAt: this.clock.now() },
+          data: { status: "COMPLETED", completedAt: now },
         });
       }
     });
@@ -3964,12 +3986,10 @@ export class PersistentStoreService {
           title: COOPERATIVE_ACTION_SEED.title,
           description: COOPERATIVE_ACTION_SEED.description,
           kind: "RELAY",
-          status: "PUBLISHED",
           minimumContributors: COOPERATIVE_ACTION_SEED.minimumContributors,
           maxChaptersPerMember: COOPERATIVE_ACTION_SEED.maxChaptersPerMember,
           growthPoints: COOPERATIVE_ACTION_SEED.growthPoints,
           keepsakeName: COOPERATIVE_ACTION_SEED.keepsakeName,
-          publishedAt: this.clock.now(),
         },
         create: {
           id: COOPERATIVE_ACTION_SEED.id,
