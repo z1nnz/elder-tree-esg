@@ -2065,6 +2065,12 @@ class _MapMainMenuOverlay extends StatelessWidget {
         index: 5,
       ),
       _MapMenuItemData(
+        title: '樹伴圈',
+        subtitle: '和夥伴一起完成共行旅程',
+        icon: Icons.diversity_1_rounded,
+        index: 7,
+      ),
+      _MapMenuItemData(
         title: '家人',
         subtitle: '訊息、覆核與 LINE',
         icon: Icons.family_restroom_rounded,
@@ -4541,6 +4547,306 @@ class _InfoPill extends StatelessWidget {
       backgroundColor: const Color(0xFFF4F7F5),
       side: const BorderSide(color: Color(0xFFDCE5DF)),
       labelStyle: const TextStyle(fontWeight: FontWeight.w800),
+    );
+  }
+}
+
+class CircleScreen extends StatelessWidget {
+  const CircleScreen({required this.controller, super.key});
+
+  final AppController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final circle = controller.circle;
+    final action = circle.activeAction;
+    if (action == null) {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
+        children: const [
+          _PageHeading(title: '樹伴圈', subtitle: '和你在意的人，一起把真實行動留在生命樹上。'),
+          SizedBox(height: 20),
+          _EmptyBlock(
+            icon: Icons.diversity_1_rounded,
+            title: '新的共行旅程正在準備',
+            text: '旅程開放後，每位樹伴都能接下一段篇章。',
+          ),
+        ],
+      );
+    }
+
+    final currentMemberContributionCount = action.chapters
+        .where(
+          (chapter) => chapter.contributor?.memberId == circle.currentMemberId,
+        )
+        .length;
+    final nextChapter = action.nextChapter;
+    final canComplete =
+        !action.completed &&
+        nextChapter != null &&
+        currentMemberContributionCount < action.maxChaptersPerMember;
+
+    return RefreshIndicator(
+      onRefresh: controller.refresh,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
+        children: [
+          const _PageHeading(title: '樹伴圈', subtitle: '不是各做各的，而是每個人接住彼此的一棒。'),
+          const SizedBox(height: 14),
+          Card(
+            color: const Color(0xFFF0F8ED),
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const CircleAvatar(
+                        backgroundColor: lime,
+                        foregroundColor: forestDark,
+                        child: Icon(Icons.groups_rounded),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              circle.name,
+                              style: const TextStyle(
+                                fontSize: 19,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            Text(
+                              '${circle.memberCount} 位樹伴 · ${action.contributorCount} 位已留下真實足跡',
+                              style: const TextStyle(
+                                color: Color(0xFF5E6C63),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: circle.members
+                        .map(
+                          (member) => Chip(
+                            avatar: Icon(
+                              member.id == circle.currentMemberId
+                                  ? Icons.person_rounded
+                                  : Icons.eco_rounded,
+                              size: 18,
+                            ),
+                            label: Text(
+                              member.id == circle.currentMemberId
+                                  ? '${member.displayName}（你）'
+                                  : member.displayName,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(26),
+              gradient: const LinearGradient(
+                colors: [Color(0xFF123E2D), Color(0xFF3B7D57)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  action.completed ? '這趟旅程已完成' : '接力旅程進行中',
+                  style: const TextStyle(
+                    color: lime,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  action.title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  action.description,
+                  style: const TextStyle(color: Colors.white, height: 1.5),
+                ),
+                const SizedBox(height: 16),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: LinearProgressIndicator(
+                    value: action.progress,
+                    minHeight: 12,
+                    backgroundColor: Colors.white24,
+                    color: lime,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${action.completedChapterCount}／${action.totalChapterCount} 篇章 · 完成後獲得「${action.keepsakeName}」',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          const _SectionTitle(title: '旅程篇章', subtitle: '前一棒完成後，下一棒才會亮起'),
+          const SizedBox(height: 10),
+          for (final chapter in action.chapters) ...[
+            _CooperativeActionChapterCard(
+              chapter: chapter,
+              isNext: nextChapter?.id == chapter.id,
+            ),
+            const SizedBox(height: 10),
+          ],
+          if (action.completed)
+            _NoticeBand(
+              icon: Icons.auto_awesome_rounded,
+              text:
+                  '你們共同解鎖了「${action.keepsakeName}」。這次成長來自 ${action.contributorCount} 位樹伴通過行動見證的真實足跡。',
+            )
+          else if (canComplete)
+            FilledButton.icon(
+              onPressed: () =>
+                  _confirmCooperativeChapter(context, controller, nextChapter),
+              icon: const Icon(Icons.sync_alt_rounded),
+              label: Text('接下「${nextChapter.elementName}」這一棒'),
+            )
+          else
+            const _NoticeBand(
+              icon: Icons.hourglass_top_rounded,
+              text: '你已完成這趟旅程的一棒。現在把舞台留給下一位樹伴。',
+            ),
+          const SizedBox(height: 10),
+          const Text(
+            '目前篇章採「自我確認」行動見證，只累積基本年輪進度；商家回饋、公益時數與真實植樹會要求更強的見證方式。',
+            style: TextStyle(color: Color(0xFF66706A), height: 1.5),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmCooperativeChapter(
+    BuildContext context,
+    AppController controller,
+    CooperativeActionChapterModel chapter,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('留下「${chapter.elementName}」'),
+        content: Text('${chapter.description}\n\n確認後，接力棒會交給下一位樹伴。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('還沒有'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('我完成了'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await controller.completeCooperativeActionChapter(chapter);
+    }
+  }
+}
+
+class _CooperativeActionChapterCard extends StatelessWidget {
+  const _CooperativeActionChapterCard({
+    required this.chapter,
+    required this.isNext,
+  });
+
+  final CooperativeActionChapterModel chapter;
+  final bool isNext;
+
+  @override
+  Widget build(BuildContext context) {
+    final completed = chapter.completed;
+    final color = completed
+        ? forest
+        : isNext
+        ? const Color(0xFFC97A16)
+        : const Color(0xFF87918B);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(15),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              backgroundColor: color.withValues(alpha: 0.14),
+              foregroundColor: color,
+              child: Icon(
+                completed
+                    ? Icons.check_rounded
+                    : isNext
+                    ? Icons.sync_alt_rounded
+                    : Icons.lock_outline_rounded,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '第 ${chapter.sequence} 棒 · ${chapter.elementName}',
+                    style: TextStyle(color: color, fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    chapter.title,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(chapter.description),
+                  const SizedBox(height: 7),
+                  Text(
+                    completed
+                        ? '${chapter.contributor!.displayName} 已留下真實足跡'
+                        : isNext
+                        ? '現在輪到下一位樹伴'
+                        : '等待前一棒完成',
+                    style: TextStyle(color: color, fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

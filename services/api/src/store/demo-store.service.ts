@@ -5,6 +5,8 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type {
+  CircleOverview,
+  CooperativeActionSummary,
   DashboardSnapshot,
   DeviceDesiredState,
   DeviceReportedState,
@@ -23,6 +25,20 @@ const TASK_HYDRATION_PHOTO_ID = "55555555-5555-4555-8555-555555555555";
 const TASK_WATER_ID = "22222222-2222-4222-8222-222222222222";
 const TASK_WALK_ID = "33333333-3333-4333-8333-333333333333";
 const DEVICE_ID = "44444444-4444-4444-8444-444444444444";
+const COOPERATIVE_ACTION_ID = "66666666-6666-4666-8666-666666666666";
+const COOPERATIVE_ACTION_RUN_ID = "77777777-7777-4777-8777-777777777777";
+const COOPERATIVE_CHAPTER_SUNLIGHT_ID =
+  "66666666-6666-4666-8666-000000000001";
+const COOPERATIVE_CHAPTER_WATER_ID =
+  "66666666-6666-4666-8666-000000000002";
+const COOPERATIVE_CHAPTER_SPROUT_ID =
+  "66666666-6666-4666-8666-000000000003";
+
+const DEMO_CIRCLE_MEMBERS = [
+  { id: "demo-daughter", displayName: "小晴", relationship: "女兒" },
+  { id: "demo-neighbor", displayName: "美玲阿姨", relationship: "鄰居朋友" },
+  { id: "demo-elder", displayName: "林阿公", relationship: "本人" },
+] as const;
 
 interface EvidenceRecord {
   id: string;
@@ -43,6 +59,61 @@ interface AuditRecord {
 
 @Injectable()
 export class DemoStoreService {
+  private cooperativeAction: CooperativeActionSummary = {
+    id: COOPERATIVE_ACTION_ID,
+    runId: COOPERATIVE_ACTION_RUN_ID,
+    title: "讓春天回到生命樹",
+    description: "三位樹伴輪流找回陽光、水與新芽，完成後一起留下春日紀念枝。",
+    kind: "RELAY",
+    status: "ACTIVE",
+    minimumContributors: 3,
+    maxChaptersPerMember: 1,
+    contributorCount: 2,
+    completedChapterCount: 2,
+    totalChapterCount: 3,
+    growthPoints: 120,
+    keepsakeName: "春日紀念枝",
+    chapters: [
+      {
+        id: COOPERATIVE_CHAPTER_SUNLIGHT_ID,
+        sequence: 1,
+        title: "找回陽光",
+        description: "到附近安全的戶外空間走一小段，感受今天的光。",
+        elementName: "陽光",
+        verificationMode: "SELF_CHECK",
+        contributor: {
+          memberId: "demo-daughter",
+          displayName: "小晴",
+          witnessedAt: new Date(Date.now() - 70 * 60 * 1000).toISOString(),
+          witnessTier: "SELF_CHECK",
+        },
+      },
+      {
+        id: COOPERATIVE_CHAPTER_WATER_ID,
+        sequence: 2,
+        title: "喚醒水流",
+        description: "跟著畫面完成三分鐘舒緩伸展或慢呼吸。",
+        elementName: "水",
+        verificationMode: "SELF_CHECK",
+        contributor: {
+          memberId: "demo-neighbor",
+          displayName: "美玲阿姨",
+          witnessedAt: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
+          witnessTier: "SELF_CHECK",
+        },
+      },
+      {
+        id: COOPERATIVE_CHAPTER_SPROUT_ID,
+        sequence: 3,
+        title: "迎接新芽",
+        description: "到戶外找到一株讓你喜歡的植物，停下來看看它。",
+        elementName: "新芽",
+        verificationMode: "SELF_CHECK",
+        contributor: null,
+      },
+    ],
+  };
+
   private tasks: TaskSummary[] = [
     {
       id: TASK_PHOTO_ID,
@@ -176,6 +247,68 @@ export class DemoStoreService {
 
   getTree(): TreeSummary {
     return structuredClone(this.tree);
+  }
+
+  getCircleOverview(): CircleOverview {
+    return {
+      id: "aaaaaaaa-0000-4000-8000-aaaaaaaaaaaa",
+      name: "林家與好朋友",
+      kind: "FAMILY",
+      currentMemberId: "demo-elder",
+      memberCount: DEMO_CIRCLE_MEMBERS.length,
+      members: structuredClone([...DEMO_CIRCLE_MEMBERS]),
+      activeAction: structuredClone(this.cooperativeAction),
+    };
+  }
+
+  completeCooperativeActionChapter(
+    chapterId: string,
+    memberId: string,
+    idempotencyKey?: string,
+  ): CircleOverview {
+    const action = this.cooperativeAction;
+    const chapter = action.chapters.find((item) => item.id === chapterId);
+    if (!chapter) throw new NotFoundException("Cooperative action chapter not found");
+    if (action.status === "COMPLETED") return this.getCircleOverview();
+    if (chapter.contributor) return this.getCircleOverview();
+
+    const nextChapter = action.chapters.find((item) => !item.contributor);
+    if (nextChapter?.id !== chapterId) {
+      throw new ConflictException("Previous relay chapter is not complete");
+    }
+    const member = DEMO_CIRCLE_MEMBERS.find((item) => item.id === memberId);
+    if (!member) throw new NotFoundException("Circle member not found");
+    const memberContributionCount = action.chapters.filter(
+      (item) => item.contributor?.memberId === memberId,
+    ).length;
+    if (memberContributionCount >= action.maxChaptersPerMember) {
+      throw new ConflictException("Each member can complete only one chapter");
+    }
+
+    const key = idempotencyKey ?? `cooperative:${action.runId}:${chapterId}:${memberId}`;
+    if (this.idempotencyKeys.has(key)) return this.getCircleOverview();
+    this.idempotencyKeys.add(key);
+    chapter.contributor = {
+      memberId: member.id,
+      displayName: member.displayName,
+      witnessedAt: new Date().toISOString(),
+      witnessTier: "SELF_CHECK",
+    };
+    action.completedChapterCount += 1;
+    action.contributorCount = new Set(
+      action.chapters.flatMap((item) =>
+        item.contributor ? [item.contributor.memberId] : [],
+      ),
+    ).size;
+
+    if (
+      action.completedChapterCount === action.totalChapterCount &&
+      action.contributorCount >= action.minimumContributors
+    ) {
+      action.status = "COMPLETED";
+      this.addGrowth(action.growthPoints, `cooperative-action:${action.runId}`);
+    }
+    return this.getCircleOverview();
   }
 
   startTask(id: string): TaskSummary {

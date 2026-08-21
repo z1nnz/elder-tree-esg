@@ -1,6 +1,7 @@
 import type {
   AppContext,
   AdminLineBindingSummary,
+  CircleOverview,
   CompanionPromptSummary,
   CompanionDeviceSummary,
   DashboardSnapshot,
@@ -108,6 +109,40 @@ const TASK_SEEDS = [
     growthPoints: 60,
   },
 ] as const;
+
+const COOPERATIVE_ACTION_SEED = {
+  id: "66666666-6666-4666-8666-666666666666",
+  slug: "spring-returns-to-life-tree",
+  title: "讓春天回到生命樹",
+  description: "三位樹伴輪流找回陽光、水與新芽，完成後一起留下春日紀念枝。",
+  minimumContributors: 3,
+  maxChaptersPerMember: 1,
+  growthPoints: 120,
+  keepsakeName: "春日紀念枝",
+  chapters: [
+    {
+      taskId: "66666666-6666-4666-8666-000000000001",
+      sequence: 1,
+      title: "找回陽光",
+      description: "到附近安全的戶外空間走一小段，感受今天的光。",
+      elementName: "陽光",
+    },
+    {
+      taskId: "66666666-6666-4666-8666-000000000002",
+      sequence: 2,
+      title: "喚醒水流",
+      description: "跟著畫面完成三分鐘舒緩伸展或慢呼吸。",
+      elementName: "水",
+    },
+    {
+      taskId: "66666666-6666-4666-8666-000000000003",
+      sequence: 3,
+      title: "迎接新芽",
+      description: "到戶外找到一株讓你喜歡的植物，停下來看看它。",
+      elementName: "新芽",
+    },
+  ],
+} as const;
 
 type AssignmentWithTask = Prisma.TaskAssignmentGetPayload<{
   include: { task: true };
@@ -950,6 +985,213 @@ export class PersistentStoreService {
       growthPoints: tree.growthPoints,
       nextStageAt: nextStageAt(tree.growthPoints),
     };
+  }
+
+  async getCircleOverview(firebaseUid: string): Promise<CircleOverview> {
+    const active = await this.getActiveUser(firebaseUid);
+    await this.ensureCooperativeActionSeed();
+    const household = await this.prisma.household.findUnique({
+      where: { id: active.activeHouseholdId },
+      include: {
+        members: {
+          include: { user: true },
+          orderBy: { userId: "asc" },
+        },
+      },
+    });
+    if (!household) throw new NotFoundException("Circle not found");
+
+    const now = this.clock.now();
+    const action = await this.prisma.cooperativeAction.findFirst({
+      where: {
+        status: "PUBLISHED",
+        AND: [
+          { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+          { OR: [{ endsAt: null }, { endsAt: { gt: now } }] },
+        ],
+      },
+      orderBy: { publishedAt: "asc" },
+    });
+    if (!action) {
+      return {
+        id: household.id,
+        name: household.name,
+        kind: household.circleKind,
+        currentMemberId: active.id,
+        memberCount: household.members.length,
+        members: household.members.map((membership) => ({
+          id: membership.userId,
+          displayName: membership.user.displayName,
+          relationship: membership.relationship,
+        })),
+        activeAction: null,
+      };
+    }
+
+    const run = await this.prisma.cooperativeActionRun.upsert({
+      where: {
+        actionId_householdId: {
+          actionId: action.id,
+          householdId: household.id,
+        },
+      },
+      update: {},
+      create: { actionId: action.id, householdId: household.id },
+      include: {
+        action: {
+          include: {
+            chapters: {
+              include: { task: true },
+              orderBy: { sequence: "asc" },
+            },
+          },
+        },
+        contributions: { include: { user: true } },
+      },
+    });
+    const contributionsByChapter = new Map(
+      run.contributions.map((contribution) => [
+        contribution.chapterId,
+        contribution,
+      ]),
+    );
+    const contributorCount = new Set(
+      run.contributions.map((contribution) => contribution.userId),
+    ).size;
+    return {
+      id: household.id,
+      name: household.name,
+      kind: household.circleKind,
+      currentMemberId: active.id,
+      memberCount: household.members.length,
+      members: household.members.map((membership) => ({
+        id: membership.userId,
+        displayName: membership.user.displayName,
+        relationship: membership.relationship,
+      })),
+      activeAction: {
+        id: run.action.id,
+        runId: run.id,
+        title: run.action.title,
+        description: run.action.description,
+        kind: run.action.kind,
+        status: run.status,
+        minimumContributors: run.action.minimumContributors,
+        maxChaptersPerMember: run.action.maxChaptersPerMember,
+        contributorCount,
+        completedChapterCount: run.contributions.length,
+        totalChapterCount: run.action.chapters.length,
+        growthPoints: run.action.growthPoints,
+        keepsakeName: run.action.keepsakeName,
+        chapters: run.action.chapters.map((chapter) => {
+          const contribution = contributionsByChapter.get(chapter.id);
+          return {
+            id: chapter.id,
+            sequence: chapter.sequence,
+            title: chapter.task.title,
+            description: chapter.task.description,
+            elementName: chapter.elementName,
+            verificationMode: chapter.task.verificationMode,
+            contributor: contribution
+              ? {
+                  memberId: contribution.userId,
+                  displayName: contribution.user.displayName,
+                  witnessedAt: contribution.witnessedAt.toISOString(),
+                  witnessTier: contribution.witnessTier,
+                }
+              : null,
+          };
+        }),
+      },
+    };
+  }
+
+  async completeCooperativeActionChapter(
+    firebaseUid: string,
+    runId: string,
+    chapterId: string,
+    requestIdempotencyKey?: string,
+  ): Promise<CircleOverview> {
+    const active = await this.getActiveUser(firebaseUid);
+    await this.prisma.$transaction(async (transaction) => {
+      const run = await transaction.cooperativeActionRun.findFirst({
+        where: { id: runId, householdId: active.activeHouseholdId },
+        include: {
+          action: { include: { chapters: { orderBy: { sequence: "asc" } } } },
+        },
+      });
+      if (!run) throw new NotFoundException("Cooperative action run not found");
+      if (run.status === "COMPLETED") return;
+      const chapter = run.action.chapters.find((item) => item.id === chapterId);
+      if (!chapter) throw new NotFoundException("Cooperative action chapter not found");
+
+      const existing = await transaction.cooperativeActionContribution.findUnique({
+        where: { runId_chapterId: { runId, chapterId } },
+      });
+      if (existing) return;
+      const completedChapterIds = new Set(
+        (
+          await transaction.cooperativeActionContribution.findMany({
+            where: { runId },
+            select: { chapterId: true },
+          })
+        ).map((item) => item.chapterId),
+      );
+      const missingPrevious = run.action.chapters.some(
+        (item) => item.sequence < chapter.sequence && !completedChapterIds.has(item.id),
+      );
+      if (missingPrevious) {
+        throw new ConflictException("Previous relay chapter is not complete");
+      }
+      const memberContributionCount =
+        await transaction.cooperativeActionContribution.count({
+          where: { runId, userId: active.id },
+        });
+      if (memberContributionCount >= run.action.maxChaptersPerMember) {
+        throw new ConflictException("Each member can complete only one chapter");
+      }
+
+      const idempotencyKey =
+        requestIdempotencyKey ?? `cooperative:${runId}:${chapterId}:${active.id}`;
+      const duplicateReceipt =
+        await transaction.cooperativeActionContribution.findUnique({
+          where: { idempotencyKey },
+        });
+      if (duplicateReceipt) return;
+      await transaction.cooperativeActionContribution.create({
+        data: {
+          runId,
+          chapterId,
+          userId: active.id,
+          idempotencyKey,
+          witnessTier: "SELF_CHECK",
+          witnessedAt: this.clock.now(),
+        },
+      });
+
+      const contributions =
+        await transaction.cooperativeActionContribution.findMany({
+          where: { runId },
+          select: { userId: true },
+        });
+      const enoughChapters = contributions.length === run.action.chapters.length;
+      const enoughMembers =
+        new Set(contributions.map((item) => item.userId)).size >=
+        run.action.minimumContributors;
+      if (enoughChapters && enoughMembers) {
+        await this.awardCooperativeActionGrowth(
+          transaction,
+          run.id,
+          run.action.growthPoints,
+          active.activeHouseholdId,
+        );
+        await transaction.cooperativeActionRun.update({
+          where: { id: run.id },
+          data: { status: "COMPLETED", completedAt: this.clock.now() },
+        });
+      }
+    });
+    return this.getCircleOverview(firebaseUid);
   }
 
   async startTask(
@@ -3456,6 +3698,39 @@ export class PersistentStoreService {
     });
   }
 
+  private async awardCooperativeActionGrowth(
+    transaction: Prisma.TransactionClient,
+    runId: string,
+    growthPoints: number,
+    householdId: string,
+  ): Promise<void> {
+    const tree = await transaction.tree.findFirst({
+      where: { householdId },
+      orderBy: { createdAt: "asc" },
+    });
+    if (!tree) throw new NotFoundException("Companion tree not found");
+    const idempotencyKey = `cooperative-action:${runId}`;
+    const inserted = await transaction.$executeRaw`
+      INSERT INTO "GrowthEntry"
+        ("id", "treeId", "idempotencyKey", "points", "reason", "sourceId", "createdAt")
+      VALUES
+        (${randomUUID()}, ${tree.id}, ${idempotencyKey},
+         ${growthPoints}, 'COOPERATIVE_ACTION_COMPLETED', ${runId}, NOW())
+      ON CONFLICT ("idempotencyKey") DO NOTHING
+    `;
+    if (inserted !== 1) return;
+    const updatedTree = await transaction.tree.update({
+      where: { id: tree.id },
+      data: { growthPoints: { increment: growthPoints } },
+    });
+    await transaction.tree.update({
+      where: { id: tree.id },
+      data: {
+        stage: stageForPoints(updatedTree.growthPoints) as PrismaTreeStage,
+      },
+    });
+  }
+
   private async awardCompletedRouteBadge(
     transaction: Prisma.TransactionClient,
     userId: string,
@@ -3678,5 +3953,76 @@ export class PersistentStoreService {
         }),
       ),
     );
+  }
+
+  private async ensureCooperativeActionSeed(): Promise<void> {
+    await this.prisma.$transaction(async (transaction) => {
+      const action = await transaction.cooperativeAction.upsert({
+        where: { id: COOPERATIVE_ACTION_SEED.id },
+        update: {
+          slug: COOPERATIVE_ACTION_SEED.slug,
+          title: COOPERATIVE_ACTION_SEED.title,
+          description: COOPERATIVE_ACTION_SEED.description,
+          kind: "RELAY",
+          status: "PUBLISHED",
+          minimumContributors: COOPERATIVE_ACTION_SEED.minimumContributors,
+          maxChaptersPerMember: COOPERATIVE_ACTION_SEED.maxChaptersPerMember,
+          growthPoints: COOPERATIVE_ACTION_SEED.growthPoints,
+          keepsakeName: COOPERATIVE_ACTION_SEED.keepsakeName,
+          publishedAt: this.clock.now(),
+        },
+        create: {
+          id: COOPERATIVE_ACTION_SEED.id,
+          slug: COOPERATIVE_ACTION_SEED.slug,
+          title: COOPERATIVE_ACTION_SEED.title,
+          description: COOPERATIVE_ACTION_SEED.description,
+          kind: "RELAY",
+          status: "PUBLISHED",
+          minimumContributors: COOPERATIVE_ACTION_SEED.minimumContributors,
+          maxChaptersPerMember: COOPERATIVE_ACTION_SEED.maxChaptersPerMember,
+          growthPoints: COOPERATIVE_ACTION_SEED.growthPoints,
+          keepsakeName: COOPERATIVE_ACTION_SEED.keepsakeName,
+          publishedAt: this.clock.now(),
+        },
+      });
+      for (const chapter of COOPERATIVE_ACTION_SEED.chapters) {
+        await transaction.task.upsert({
+          where: { id: chapter.taskId },
+          update: {
+            title: chapter.title,
+            description: chapter.description,
+            verificationMode: "SELF_CHECK",
+            verificationRule: { confirmationRequired: true },
+            growthPoints: 0,
+          },
+          create: {
+            id: chapter.taskId,
+            title: chapter.title,
+            description: chapter.description,
+            verificationMode: "SELF_CHECK",
+            verificationRule: { confirmationRequired: true },
+            growthPoints: 0,
+          },
+        });
+        await transaction.cooperativeActionChapter.upsert({
+          where: {
+            actionId_sequence: {
+              actionId: action.id,
+              sequence: chapter.sequence,
+            },
+          },
+          update: {
+            taskId: chapter.taskId,
+            elementName: chapter.elementName,
+          },
+          create: {
+            actionId: action.id,
+            taskId: chapter.taskId,
+            sequence: chapter.sequence,
+            elementName: chapter.elementName,
+          },
+        });
+      }
+    });
   }
 }

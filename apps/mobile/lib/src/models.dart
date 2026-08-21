@@ -11,6 +11,195 @@ enum TaskStatus { available, inProgress, verifying, completed, rejected }
 
 enum EvidenceDecision { pass, review, fail }
 
+class CircleMemberModel {
+  const CircleMemberModel({
+    required this.id,
+    required this.displayName,
+    required this.relationship,
+  });
+
+  final String id;
+  final String displayName;
+  final String relationship;
+
+  factory CircleMemberModel.fromJson(Map<String, dynamic> json) =>
+      CircleMemberModel(
+        id: json['id'] as String,
+        displayName: json['displayName'] as String,
+        relationship: json['relationship'] as String,
+      );
+}
+
+class CooperativeActionContributorModel {
+  const CooperativeActionContributorModel({
+    required this.memberId,
+    required this.displayName,
+    required this.witnessedAt,
+    required this.witnessTier,
+  });
+
+  final String memberId;
+  final String displayName;
+  final DateTime witnessedAt;
+  final String witnessTier;
+
+  factory CooperativeActionContributorModel.fromJson(
+    Map<String, dynamic> json,
+  ) => CooperativeActionContributorModel(
+    memberId: json['memberId'] as String,
+    displayName: json['displayName'] as String,
+    witnessedAt: DateTime.parse(json['witnessedAt'] as String),
+    witnessTier: json['witnessTier'] as String,
+  );
+}
+
+class CooperativeActionChapterModel {
+  const CooperativeActionChapterModel({
+    required this.id,
+    required this.sequence,
+    required this.title,
+    required this.description,
+    required this.elementName,
+    required this.verificationMode,
+    required this.contributor,
+  });
+
+  final String id;
+  final int sequence;
+  final String title;
+  final String description;
+  final String elementName;
+  final VerificationMode verificationMode;
+  final CooperativeActionContributorModel? contributor;
+
+  bool get completed => contributor != null;
+
+  factory CooperativeActionChapterModel.fromJson(Map<String, dynamic> json) =>
+      CooperativeActionChapterModel(
+        id: json['id'] as String,
+        sequence: json['sequence'] as int,
+        title: json['title'] as String,
+        description: json['description'] as String,
+        elementName: json['elementName'] as String,
+        verificationMode: switch (json['verificationMode']) {
+          'PHOTO_AI' => VerificationMode.photoAi,
+          'TIMER' => VerificationMode.timer,
+          'STEP_COUNT' => VerificationMode.stepCount,
+          'LOCATION_CHECK_IN' => VerificationMode.locationCheckIn,
+          'DEVICE_CONFIRM' => VerificationMode.deviceConfirm,
+          _ => VerificationMode.selfCheck,
+        },
+        contributor: json['contributor'] == null
+            ? null
+            : CooperativeActionContributorModel.fromJson(
+                json['contributor'] as Map<String, dynamic>,
+              ),
+      );
+}
+
+class CooperativeActionModel {
+  const CooperativeActionModel({
+    required this.id,
+    required this.runId,
+    required this.title,
+    required this.description,
+    required this.kind,
+    required this.status,
+    required this.minimumContributors,
+    required this.maxChaptersPerMember,
+    required this.contributorCount,
+    required this.completedChapterCount,
+    required this.totalChapterCount,
+    required this.growthPoints,
+    required this.keepsakeName,
+    required this.chapters,
+  });
+
+  final String id;
+  final String? runId;
+  final String title;
+  final String description;
+  final String kind;
+  final String status;
+  final int minimumContributors;
+  final int maxChaptersPerMember;
+  final int contributorCount;
+  final int completedChapterCount;
+  final int totalChapterCount;
+  final int growthPoints;
+  final String keepsakeName;
+  final List<CooperativeActionChapterModel> chapters;
+
+  bool get completed => status == 'COMPLETED';
+  double get progress =>
+      totalChapterCount == 0 ? 0 : completedChapterCount / totalChapterCount;
+  CooperativeActionChapterModel? get nextChapter {
+    for (final chapter in chapters) {
+      if (!chapter.completed) return chapter;
+    }
+    return null;
+  }
+
+  factory CooperativeActionModel.fromJson(Map<String, dynamic> json) =>
+      CooperativeActionModel(
+        id: json['id'] as String,
+        runId: json['runId'] as String?,
+        title: json['title'] as String,
+        description: json['description'] as String,
+        kind: json['kind'] as String,
+        status: json['status'] as String,
+        minimumContributors: json['minimumContributors'] as int,
+        maxChaptersPerMember: json['maxChaptersPerMember'] as int,
+        contributorCount: json['contributorCount'] as int,
+        completedChapterCount: json['completedChapterCount'] as int,
+        totalChapterCount: json['totalChapterCount'] as int,
+        growthPoints: json['growthPoints'] as int,
+        keepsakeName: json['keepsakeName'] as String,
+        chapters: (json['chapters'] as List)
+            .cast<Map<String, dynamic>>()
+            .map(CooperativeActionChapterModel.fromJson)
+            .toList(),
+      );
+}
+
+class CircleOverviewModel {
+  const CircleOverviewModel({
+    required this.id,
+    required this.name,
+    required this.kind,
+    required this.currentMemberId,
+    required this.memberCount,
+    required this.members,
+    required this.activeAction,
+  });
+
+  final String id;
+  final String name;
+  final String kind;
+  final String currentMemberId;
+  final int memberCount;
+  final List<CircleMemberModel> members;
+  final CooperativeActionModel? activeAction;
+
+  factory CircleOverviewModel.fromJson(Map<String, dynamic> json) =>
+      CircleOverviewModel(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        kind: json['kind'] as String,
+        currentMemberId: json['currentMemberId'] as String,
+        memberCount: json['memberCount'] as int,
+        members: (json['members'] as List)
+            .cast<Map<String, dynamic>>()
+            .map(CircleMemberModel.fromJson)
+            .toList(),
+        activeAction: json['activeAction'] == null
+            ? null
+            : CooperativeActionModel.fromJson(
+                json['activeAction'] as Map<String, dynamic>,
+              ),
+      );
+}
+
 class DailyTask {
   const DailyTask({
     required this.id,

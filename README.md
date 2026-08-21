@@ -1,8 +1,8 @@
-# Elder Tree ESG
+# 愛要即樹
 
-Elder Tree ESG is a connected companion-tree platform that turns verified daily
-activities into visible tree growth, family interaction, and transparent
-simulated ESG impact batches.
+愛要即樹是一個以「樹伴圈」為群體單位的真實世界共行旅程平台。樹伴成員透過分級行動見證留下真實足跡，共同培養樹伴生命樹；在資金、種植名額與合作責任都確認後，再連結真實生命樹與世界共生林。
+
+家庭與高齡陪伴仍是第一個重要場景，但產品核心不限制為家庭，也不把一般任務點數直接宣稱為真實植樹成果。中文共同語言見 [`CONTEXT.md`](CONTEXT.md)，多人玩法範圍見 [`docs/product/circle-cooperative-action-mvp.md`](docs/product/circle-cooperative-action-mvp.md)，共同開發方式見 [`CONTRIBUTING.md`](CONTRIBUTING.md)。
 
 ## Repository layout
 

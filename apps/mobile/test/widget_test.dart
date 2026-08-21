@@ -1,5 +1,8 @@
 import 'package:elder_tree_mobile/main.dart';
 import 'package:elder_tree_mobile/src/auth_service.dart';
+import 'package:elder_tree_mobile/src/app_controller.dart';
+import 'package:elder_tree_mobile/src/screens.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class FakeAuthService implements AuthService {
@@ -59,5 +62,34 @@ void main() {
 
     expect(find.text('生命樹'), findsWidgets);
     expect(find.text('生命樹成長路徑'), findsOneWidget);
+  });
+
+  testWidgets('shows the cooperative circle relay journey', (tester) async {
+    final controller = AppController();
+    await tester.pumpWidget(
+      MaterialApp(home: CircleScreen(controller: controller)),
+    );
+
+    expect(find.text('樹伴圈'), findsOneWidget);
+    expect(find.text('讓春天回到生命樹'), findsOneWidget);
+    await tester.dragUntilVisible(
+      find.text('找回陽光'),
+      find.byType(ListView),
+      const Offset(0, -260),
+    );
+    expect(find.text('找回陽光'), findsOneWidget);
+    await tester.dragUntilVisible(
+      find.text('喚醒水流'),
+      find.byType(ListView),
+      const Offset(0, -220),
+    );
+    expect(find.text('喚醒水流'), findsOneWidget);
+    await tester.dragUntilVisible(
+      find.text('迎接新芽'),
+      find.byType(ListView),
+      const Offset(0, -220),
+    );
+    expect(find.text('迎接新芽'), findsOneWidget);
+    controller.dispose();
   });
 }

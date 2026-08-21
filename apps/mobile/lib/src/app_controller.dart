@@ -24,6 +24,7 @@ class AppController extends ChangeNotifier {
     if (!allowOfflineDemo) {
       tasks = [];
       tree = _emptyTree;
+      circle = _emptyCircle;
       messages = [];
       devices = [];
     }
@@ -48,6 +49,7 @@ class AppController extends ChangeNotifier {
   AppContextModel? context;
   List<DailyTask> tasks = _fallbackTasks;
   TreeSummary tree = _fallbackTree;
+  CircleOverviewModel circle = _fallbackCircle;
   List<FamilyMessageModel> messages = _fallbackMessages;
   List<CompanionPromptModel> companionPrompts = [];
   List<CompanionDevice> devices = _fallbackDevices;
@@ -141,6 +143,7 @@ class AppController extends ChangeNotifier {
         _safeRefresh('tree', _api.getTree()),
         _safeRefresh('exploration', _api.getExplorationState()),
         _safeRefresh('radar', _api.getRadarState()),
+        _safeRefresh('circle', _api.getCircleOverview()),
       ]);
       final homeResult = results[0] as HomeSummaryModel?;
       final contextResult = results[1] as AppContextModel?;
@@ -148,6 +151,7 @@ class AppController extends ChangeNotifier {
       final treeResult = results[3] as TreeSummary?;
       final explorationResult = results[4] as ExplorationStateModel?;
       final radarResult = results[5] as RadarStateModel?;
+      final circleResult = results[6] as CircleOverviewModel?;
       final hasCoreUpdate = results.any((result) => result != null);
       if (!hasCoreUpdate) {
         throw TimeoutException('Core App data unavailable');
@@ -158,6 +162,7 @@ class AppController extends ChangeNotifier {
       tree = treeResult ?? tree;
       exploration = explorationResult ?? exploration;
       radar = radarResult ?? radar;
+      circle = circleResult ?? circle;
       offlineDemo = false;
       loading = false;
       notifyListeners();
@@ -317,6 +322,36 @@ class AppController extends ChangeNotifier {
       notice = '生命樹長出新葉 +${task.growthPoints}：${task.title}';
     } catch (error) {
       notice = _friendlyActionError(error, fallback: '任務暫時無法完成，請確認網路後再試一次。');
+    }
+    notifyListeners();
+  }
+
+  Future<void> completeCooperativeActionChapter(
+    CooperativeActionChapterModel chapter,
+  ) async {
+    final action = circle.activeAction;
+    if (action == null || action.runId == null || chapter.completed) return;
+    try {
+      if (offlineDemo) {
+        notice = '離線示範不會假裝完成多人見證；請連上 API 後再接棒。';
+      } else {
+        circle = await _api.completeCooperativeActionChapter(
+          runId: action.runId!,
+          chapterId: chapter.id,
+        );
+        final completedAction = circle.activeAction;
+        if (completedAction?.completed ?? false) {
+          tree = await _api.getTree();
+          lastGrowthAwardPoints = completedAction!.growthPoints;
+          lastGrowthAwardTitle = completedAction.keepsakeName;
+          notice =
+              '大家完成接力了！生命樹長出「${completedAction.keepsakeName}」，年輪進度 +${completedAction.growthPoints}。';
+        } else {
+          notice = '你的真實足跡已留下，接力棒已交給下一位樹伴。';
+        }
+      }
+    } catch (error) {
+      notice = _friendlyActionError(error, fallback: '這一棒暫時無法送出，請重新整理後再試一次。');
     }
     notifyListeners();
   }
@@ -1128,6 +1163,16 @@ const _emptyTree = TreeSummary(
   nextStageAt: 100,
 );
 
+const _emptyCircle = CircleOverviewModel(
+  id: 'empty-circle',
+  name: '我的樹伴圈',
+  kind: 'FAMILY',
+  currentMemberId: 'current-member',
+  memberCount: 1,
+  members: [],
+  activeAction: null,
+);
+
 const _emptyImpact = ImpactSummaryModel(
   householdName: '我的家庭',
   treeStage: 'SEED',
@@ -1193,6 +1238,71 @@ const _fallbackTree = TreeSummary(
   stage: 'SPROUT',
   growthPoints: 180,
   nextStageAt: 250,
+);
+
+final _fallbackCircle = CircleOverviewModel(
+  id: 'demo-circle',
+  name: '林家與好朋友',
+  kind: 'FAMILY',
+  currentMemberId: 'demo-elder',
+  memberCount: 3,
+  members: const [
+    CircleMemberModel(
+      id: 'demo-daughter',
+      displayName: '小晴',
+      relationship: '女兒',
+    ),
+    CircleMemberModel(
+      id: 'demo-neighbor',
+      displayName: '美玲阿姨',
+      relationship: '鄰居朋友',
+    ),
+    CircleMemberModel(id: 'demo-elder', displayName: '林阿公', relationship: '本人'),
+  ],
+  activeAction: CooperativeActionModel(
+    id: 'demo-action',
+    runId: 'demo-run',
+    title: '讓春天回到生命樹',
+    description: '三位樹伴輪流找回陽光、水與新芽，完成後一起留下春日紀念枝。',
+    kind: 'RELAY',
+    status: 'ACTIVE',
+    minimumContributors: 3,
+    maxChaptersPerMember: 1,
+    contributorCount: 0,
+    completedChapterCount: 0,
+    totalChapterCount: 3,
+    growthPoints: 120,
+    keepsakeName: '春日紀念枝',
+    chapters: [
+      CooperativeActionChapterModel(
+        id: 'demo-sunlight',
+        sequence: 1,
+        title: '找回陽光',
+        description: '到附近安全的戶外空間走一小段，感受今天的光。',
+        elementName: '陽光',
+        verificationMode: VerificationMode.selfCheck,
+        contributor: null,
+      ),
+      CooperativeActionChapterModel(
+        id: 'demo-water',
+        sequence: 2,
+        title: '喚醒水流',
+        description: '跟著畫面完成三分鐘舒緩伸展或慢呼吸。',
+        elementName: '水',
+        verificationMode: VerificationMode.selfCheck,
+        contributor: null,
+      ),
+      CooperativeActionChapterModel(
+        id: 'demo-sprout',
+        sequence: 3,
+        title: '迎接新芽',
+        description: '到戶外找到一株讓你喜歡的植物，停下來看看它。',
+        elementName: '新芽',
+        verificationMode: VerificationMode.selfCheck,
+        contributor: null,
+      ),
+    ],
+  ),
 );
 
 final _fallbackMessages = [

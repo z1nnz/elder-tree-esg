@@ -55,6 +55,14 @@ export class CompleteTaskDto {
   idempotencyKey?: string;
 }
 
+export class CompleteCooperativeActionChapterDto {
+  @ApiPropertyOptional({ description: "Prevents duplicate chapter submissions" })
+  @IsOptional()
+  @IsString()
+  @Length(8, 120)
+  idempotencyKey?: string;
+}
+
 export class InitializeEvidenceDto {
   @ApiProperty()
   @IsUUID()
