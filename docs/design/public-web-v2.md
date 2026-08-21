@@ -1,8 +1,8 @@
-# 綠伴 Public Web V2 Design Spec
+# 同行成林公開網站第二版設計規格
 
 ## Direction
 
-綠伴前台 V2 是「電影感自然科技網站」，不是一般功能型 landing page。第一眼由世界樹影片承擔情緒，後續用 scroll storytelling、任務地圖與互動面板把產品講清楚。
+同行成林公開網站第二版是「電影感自然科技網站」，不是一般功能型宣傳頁。第一眼由世界樹影片承擔情緒，後續用捲動敘事、旅程地圖與互動面板把產品講清楚。
 
 ## Reference Grammar
 

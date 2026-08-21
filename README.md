@@ -1,8 +1,12 @@
-# 愛要即樹
+# 同行成林
 
-愛要即樹是一個以「樹伴圈」為群體單位的真實世界共行旅程平台。樹伴成員透過分級行動見證留下真實足跡，共同培養樹伴生命樹；在資金、種植名額與合作責任都確認後，再連結真實生命樹與世界共生林。
+同行成林是一個以「樹伴圈」為群體單位的真實世界共行旅程平台。樹伴成員透過分級行動見證留下真實足跡，共同培養樹伴生命樹；在資金、種植名額與合作責任都確認後，再連結真實生命樹與世界共生林。
+
+> 讓每一次真實行動，長成我們共同留下的森林。
 
 家庭與高齡陪伴仍是第一個重要場景，但產品核心不限制為家庭，也不把一般任務點數直接宣稱為真實植樹成果。中文共同語言見 [`CONTEXT.md`](CONTEXT.md)，多人玩法範圍見 [`docs/product/circle-cooperative-action-mvp.md`](docs/product/circle-cooperative-action-mvp.md)，共同開發方式見 [`CONTRIBUTING.md`](CONTRIBUTING.md)。
+
+產品定位與品牌使用見 [`docs/brand-guidelines.md`](docs/brand-guidelines.md)，加速交付計畫見 [`docs/roadmap/tongxing-chenglin-delivery-plan.md`](docs/roadmap/tongxing-chenglin-delivery-plan.md)，專案責任與可核驗貢獻方式見 [`PROJECT_LEADERSHIP.md`](PROJECT_LEADERSHIP.md)。
 
 ## Repository layout
 

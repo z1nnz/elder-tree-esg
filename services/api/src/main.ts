@@ -20,7 +20,7 @@ async function bootstrap() {
   );
 
   const swaggerConfig = new DocumentBuilder()
-    .setTitle("Elder Tree ESG API")
+    .setTitle("同行成林服務介面")
     .setDescription("Daily tasks, companion tree, family, IoT, and simulated ESG impact")
     .setVersion("0.1.0")
     .addBearerAuth()
@@ -29,7 +29,7 @@ async function bootstrap() {
 
   const port = Number(process.env.PORT ?? 4100);
   await app.listen(port, "0.0.0.0");
-  console.log(`Elder Tree API listening on http://localhost:${port}/api/v1`);
+  console.log(`同行成林服務已啟動：http://localhost:${port}/api/v1`);
 }
 
 void bootstrap();

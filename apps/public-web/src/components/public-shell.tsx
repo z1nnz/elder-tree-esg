@@ -6,11 +6,11 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <header className="site-header">
-        <Link className="brand" href="/" aria-label="綠伴首頁">
+        <Link className="brand" href="/" aria-label="同行成林首頁">
           <span>
             <Sprout size={21} />
           </span>
-          綠伴 Elder Tree
+          同行成林
         </Link>
         <nav aria-label="主要導覽">
           {navItems.map((item) => (
@@ -19,7 +19,7 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
             </Link>
           ))}
         </nav>
-        <a className="header-cta" href={contactHref("綠伴合作與陪伴計畫")}>
+        <a className="header-cta" href={contactHref("同行成林合作與陪伴計畫")}>
           合作洽詢 <ArrowUpRight size={16} />
         </a>
       </header>
@@ -29,7 +29,7 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
           <span>
             <Sprout size={18} />
           </span>
-          綠伴 Elder Tree
+          同行成林
         </Link>
         <p>城市探索、陪伴與永續行動平台</p>
         <small>

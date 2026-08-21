@@ -109,7 +109,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        '綠伴',
+                        '同行成林',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w900,

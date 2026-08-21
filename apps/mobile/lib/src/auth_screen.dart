@@ -92,7 +92,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         ),
                         const SizedBox(height: 20),
                         Text(
-                          registering ? '建立綠伴帳號' : '登入綠伴',
+                          registering ? '建立同行成林帳號' : '登入同行成林',
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.headlineSmall,
                         ),

@@ -68,7 +68,7 @@ export class LineController {
         );
         const result = await this.line.reply(
           replyToken,
-          `綁定完成：${binding.householdName}。之後綠伴會用 LINE 提醒重要任務與待覆核通知。`,
+          `綁定完成：${binding.householdName}。之後同行成林會用 LINE 提醒重要旅程與待覆核通知。`,
           ["打開 App", "晚點提醒我", "我需要幫忙"],
         );
         await this.store.logLineNotification({
@@ -135,14 +135,14 @@ export class LineController {
     if (text.includes("APP") || text.includes("打開")) {
       return {
         type: "OPEN_APP_REPLY",
-        message: "請打開綠伴 App，今天的任務與生命樹都在那裡。",
+        message: "請打開同行成林 App，今天的旅程與生命樹都在那裡。",
         quickReplies: ["我完成了", "我需要幫忙"],
       };
     }
     return {
       type: "GENERAL_REPLY",
       message:
-        "這裡是綠伴 LINE 陪伴入口。你可以輸入綁定碼，或回覆：我完成了、晚點提醒我、我需要幫忙、打開 App。",
+        "這裡是同行成林 LINE 陪伴入口。你可以輸入綁定碼，或回覆：我完成了、晚點提醒我、我需要幫忙、打開 App。",
       quickReplies: ["我完成了", "晚點提醒我", "我需要幫忙", "打開 App"],
     };
   }

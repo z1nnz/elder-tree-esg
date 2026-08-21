@@ -233,7 +233,7 @@ export function OperationsDashboard() {
             <Sprout size={22} strokeWidth={2.4} />
           </div>
           <div>
-            <strong>綠伴</strong>
+            <strong>同行成林</strong>
             <span>永續共創營運台</span>
           </div>
           <button
@@ -582,7 +582,7 @@ function Overview({
       <section className="ops-hero" aria-label="App V2 營運總控台">
         <div className="ops-hero-copy">
           <span>GREEN COMPANION OPS</span>
-          <h2>綠伴營運總控台</h2>
+          <h2>同行成林營運總控台</h2>
           <p>
             把 App 驗收、城市雷達、照片 AI、家人覆核與互動樹裝置放在同一個畫面。
             這裡只顯示真實狀態，不用假數字撐場面。

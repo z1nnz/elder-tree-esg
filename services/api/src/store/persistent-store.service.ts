@@ -744,7 +744,7 @@ export class PersistentStoreService {
       code,
       expiresAt: expiresAt.toISOString(),
       qrPayload: `eldertree://line-bind?code=${code}`,
-      instructions: "請在綠伴 LINE 官方帳號輸入此 8 碼綁定碼；10 分鐘內有效且只能使用一次。",
+      instructions: "請在同行成林 LINE 官方帳號輸入此 8 碼綁定碼；10 分鐘內有效且只能使用一次。",
     };
   }
 
@@ -1679,7 +1679,7 @@ export class PersistentStoreService {
         householdId: active.activeHouseholdId,
         excludeUserId: active.id,
         type: "PHOTO_REVIEW_REQUEST",
-        message: `綠伴提醒：「${evidence.assignment.task.title}」照片需要家人覆核。請回 App 查看。`,
+        message: `同行成林提醒：「${evidence.assignment.task.title}」照片需要家人覆核。請回 App 查看。`,
         quickReplies: ["打開 App", "晚點提醒我"],
       });
     }
@@ -1889,7 +1889,7 @@ export class PersistentStoreService {
       householdId: active.activeHouseholdId,
       excludeUserId: active.id,
       type: "FAMILY_MESSAGE",
-      message: `綠伴家庭訊息：${message.author.displayName} 留了一段話：「${message.body.slice(
+      message: `同行成林家庭訊息：${message.author.displayName} 留了一段話：「${message.body.slice(
         0,
         48,
       )}${message.body.length > 48 ? "…" : ""}」`,
@@ -2708,7 +2708,7 @@ export class PersistentStoreService {
         householdId: active.activeHouseholdId,
         excludeUserId: active.id,
         type: "COMPANION_RESPONSE_READY",
-        message: `綠伴生活片段：「${companionNotification.sourceTitle}」已完成，生命樹長出新葉 +${companionNotification.growthPoints}。可以自然回應：${companionNotification.companionReply}`,
+        message: `同行成林生活片段：「${companionNotification.sourceTitle}」已完成，生命樹長出新葉 +${companionNotification.growthPoints}。可以自然回應：${companionNotification.companionReply}`,
         quickReplies: ["打開 App", "晚點提醒我", "我需要幫忙"],
       });
     }
@@ -3882,7 +3882,7 @@ export class PersistentStoreService {
         update: {},
         create: {
           firebaseUid,
-          displayName: "綠伴使用者",
+          displayName: "同行成林使用者",
           role: UserRole.PARTICIPANT,
         },
       });
