@@ -58,6 +58,8 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
         onOpenTasks: () => _selectIndex(1),
         onOpenExploration: () => _selectIndex(2),
         onOpenFamily: () => _selectIndex(3),
+        onOpenCircle: () => _selectIndex(7),
+        onOpenTree: () => _selectIndex(5),
       ),
       TasksScreen(controller: widget.controller),
       ExplorationScreen(
@@ -85,8 +87,6 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       appBar: immersiveExploration
           ? null
           : AppBar(
-              backgroundColor: Colors.white,
-              surfaceTintColor: Colors.white,
               titleSpacing: 18,
               leading: IconButton(
                 tooltip: '回到地圖',
@@ -95,16 +95,8 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
               ),
               title: Row(
                 children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: lime,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.spa_rounded, color: forestDark),
-                  ),
-                  const SizedBox(width: 10),
+                  const Icon(Icons.eco_outlined, color: forest, size: 24),
+                  const SizedBox(width: 8),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -112,7 +104,8 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
                         '同行成林',
                         style: TextStyle(
                           fontSize: 18,
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.4,
                         ),
                       ),
                       Text(
@@ -160,14 +153,21 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
                         )
                         .toList(),
                   ),
-                Row(
-                  children: [
-                    const Icon(Icons.text_fields_rounded, size: 19),
-                    Switch(
-                      value: widget.controller.elderMode,
-                      onChanged: widget.controller.toggleElderMode,
+                Semantics(
+                  label: '長者友善顯示',
+                  toggled: widget.controller.elderMode,
+                  child: TextButton(
+                    onPressed: () => widget.controller.toggleElderMode(
+                      !widget.controller.elderMode,
                     ),
-                  ],
+                    style: TextButton.styleFrom(
+                      foregroundColor: widget.controller.elderMode
+                          ? forest
+                          : mutedInk,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                    ),
+                    child: Text(widget.controller.elderMode ? '大字 ✓' : '大字'),
+                  ),
                 ),
                 IconButton(
                   onPressed: widget.controller.refresh,
@@ -185,7 +185,19 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
             ),
       body: Stack(
         children: [
-          KeyedSubtree(key: ValueKey(index), child: screens[index]),
+          Column(
+            children: [
+              if (widget.controller.offlineDemo && immersiveExploration)
+                SizedBox(height: safePadding.top),
+              if (widget.controller.offlineDemo) const _OfflineDemoStatusBar(),
+              Expanded(
+                child: KeyedSubtree(
+                  key: ValueKey(index),
+                  child: screens[index],
+                ),
+              ),
+            ],
+          ),
           if (widget.controller.notice != null)
             Positioned(
               right: 14,
@@ -223,6 +235,43 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
         ],
       ),
       bottomNavigationBar: null,
+    );
+  }
+}
+
+class _OfflineDemoStatusBar extends StatelessWidget {
+  const _OfflineDemoStatusBar();
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      label: '離線示範，不會建立真實足跡或增加年輪進度',
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: const BoxDecoration(
+          color: cream,
+          border: Border(bottom: BorderSide(color: Color(0xFFE4D39A))),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.cloud_off_rounded, color: forestDark, size: 20),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                '離線示範・不會建立真實足跡或增加年輪進度',
+                style: TextStyle(
+                  color: ink,
+                  height: 1.35,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
