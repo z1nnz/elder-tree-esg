@@ -234,8 +234,8 @@ export function SkyWorldArtHero() {
           </div>
         ) : null}
 
-        <div className="sky-video-intro" aria-label="綠伴公開前台入口">
-          <span>綠伴 Elder Tree · 城市探索 × 陪伴網絡 × 生命樹</span>
+        <div className="sky-video-intro" aria-label="同行成林公開前台入口">
+          <span>同行成林 · 城市探索 × 群體陪伴 × 生命樹</span>
           <strong>
             <span>追逐一個更願意生活的</span>
             <span>自己。</span>

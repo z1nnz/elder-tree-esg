@@ -46,7 +46,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 100));
 
-    expect(find.text('綠伴'), findsOneWidget);
+    expect(find.text('同行成林'), findsOneWidget);
     expect(find.text('帳號'), findsOneWidget);
     expect(find.text(FakeAuthService.account.email), findsOneWidget);
     expect(find.text('長者友善顯示'), findsOneWidget);

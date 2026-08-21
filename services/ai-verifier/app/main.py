@@ -7,7 +7,7 @@ from .verifier import verify_photo
 
 
 app = FastAPI(
-    title="Elder Tree AI Verifier",
+    title="同行成林照片見證服務",
     version="0.1.0",
     description="Privacy-conscious photo evidence classification and rule evaluation.",
 )

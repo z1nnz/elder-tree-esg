@@ -79,7 +79,7 @@ class LocalDebugAuthService implements AuthService {
     this.initialAccount = const AuthAccount(
       uid: 'debug-macos-demo',
       email: 'demo@elder-tree.local',
-      displayName: '綠伴 Demo',
+      displayName: '同行成林示範帳號',
     ),
   }) : _currentAccount = initialAccount;
 

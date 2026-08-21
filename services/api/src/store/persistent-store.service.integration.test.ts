@@ -1441,7 +1441,7 @@ describeWithDatabase("PersistentStoreService", () => {
       expect(prompts[0]).toMatchObject({
         sourceType: "RADAR_MISSION",
         householdId: radarContext.activeHouseholdId,
-        participantName: "綠伴使用者",
+        participantName: "同行成林使用者",
         sourceTitle: "華山綠意觀察",
         companionReply:
           "可以回覆：『看到你完成「華山綠意觀察」了，今天有做一件照顧自己的事，很棒。』",

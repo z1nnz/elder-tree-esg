@@ -1,1 +1,1 @@
-"""Elder Tree AI verification service."""
+"""同行成林照片見證服務。"""

@@ -136,7 +136,7 @@ export function AdminAuthShell() {
     return (
       <main className="auth-shell">
         <form className="auth-card" onSubmit={submit}>
-          <span className="eyebrow">綠伴營運後台</span>
+          <span className="eyebrow">同行成林共創夥伴台</span>
           <h1>平台管理員登入</h1>
           <p>Firebase 負責驗證身分，Neon 的 PLATFORM_ADMIN 角色決定管理權。</p>
           <label>

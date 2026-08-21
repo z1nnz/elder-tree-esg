@@ -411,7 +411,7 @@ const productPanels = [
 
 function CinematicStoryExperience() {
   return (
-    <section className="v2-story" aria-label="綠伴產品主流程">
+    <section className="v2-story" aria-label="同行成林產品主流程">
       <div className="v2-story-sticky">
         <div className="v2-story-copy" data-v2-reveal>
           <span>ADVENTURE V2</span>
@@ -441,7 +441,7 @@ function CinematicStoryExperience() {
               </button>
             ))}
             <div className="v2-phone-orbit">
-              <span>綠伴 Elder Tree</span>
+              <span>同行成林</span>
               <strong>探索地圖</strong>
               <small>玩家位置 · 任務半徑 · 生命樹回饋</small>
             </div>
@@ -569,7 +569,7 @@ function ImpactManifestoV2() {
   return (
     <section className="v2-impact-manifesto">
       <div className="section-shell">
-        <p data-v2-reveal>綠伴不把孤獨包裝成流量，也不把永續變成口號。</p>
+        <p data-v2-reveal>同行成林不把孤獨包裝成流量，也不把永續變成口號。</p>
         <h2 data-v2-reveal>我們做的是一個讓人願意再走出去一次的系統。</h2>
         <div className="v2-impact-principles">
           {impactPrinciples.map((item) => (
@@ -591,7 +591,7 @@ function InteractiveDemoShowcase() {
   return (
     <section
       className="demo-showcase section-shell"
-      aria-label="綠伴互動產品展示"
+      aria-label="同行成林互動產品展示"
     >
       <div className="demo-copy" data-reveal>
         <p className="eyebrow">APP V2 · 今日陪伴</p>
@@ -608,7 +608,7 @@ function InteractiveDemoShowcase() {
           <div className="demo-orbit-label demo-orbit-b">PHOTO AI</div>
           <div className="demo-orbit-label demo-orbit-c">生命樹</div>
           <div className="demo-device-top">
-            <span>綠伴 RADAR</span>
+            <span>同行成林旅程雷達</span>
             <b>{active.title}</b>
             <small>{active.body}</small>
           </div>
@@ -670,7 +670,7 @@ function BrandLineStrip({ variant = "light" }: { variant?: "light" | "dark" }) {
   return (
     <section
       className={`brand-lines brand-lines-${variant}`}
-      aria-label="綠伴品牌短句"
+      aria-label="同行成林品牌短句"
     >
       <div className="brand-lines-track">
         {[...brandLines, ...brandLines].map((line, index) => (
@@ -1047,7 +1047,7 @@ function ActionSection({ tone = "light" }: { tone?: "light" | "dark" }) {
           <span>給一般使用者：走進城市，讓今天長出一片新葉。</span>
           <ArrowRight size={22} />
         </Link>
-        <a href={contactHref("綠伴合作與陪伴計畫")}>
+        <a href={contactHref("同行成林合作與陪伴計畫")}>
           <HeartHandshake size={26} />
           <strong>成為合作夥伴／陪伴者</strong>
           <span>給社福、長照、志工與社區組織：一起讓需要的人有人能靠近。</span>
@@ -1088,7 +1088,7 @@ function PageHero({
             </Link>
             <a
               className="button ghost"
-              href={contactHref("綠伴合作與陪伴計畫")}
+              href={contactHref("同行成林合作與陪伴計畫")}
             >
               聯絡合作
             </a>
@@ -1209,7 +1209,7 @@ export function ProductPage() {
         <PageHero
           eyebrow="產品功能"
           title="任務陪你慢慢回到生活。"
-          body="從一杯水、一段路、一片葉子開始。綠伴把城市探索、生命樹與陪伴網絡接在一起，讓完成感留得下來。"
+          body="從一杯水、一段路、一片葉子開始。同行成林把城市探索、生命樹與陪伴網絡接在一起，讓完成感留得下來。"
           icon={Trees}
           variant="product"
         >

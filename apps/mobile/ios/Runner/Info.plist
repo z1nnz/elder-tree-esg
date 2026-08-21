@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>綠伴</string>
+	<string>同行成林</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -40,9 +40,9 @@
 	<key>NSHealthShareUsageDescription</key>
 	<string>取得你主動授權的步數與活動資料，以完成生活任務。</string>
 	<key>NSHealthUpdateUsageDescription</key>
-	<string>綠伴不會寫入醫療資料，系統需要此說明以啟用健康資料整合。</string>
+	<string>同行成林不會寫入醫療資料，系統需要此說明以啟用健康資料整合。</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>開發模式下連接同一網路中的綠伴 API 與陪伴樹。</string>
+	<string>開發模式下連接同一網路中的同行成林服務與陪伴樹。</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>只在你主動執行地點任務時確認所在區域，不會持續追蹤。</string>
 	<key>NSPhotoLibraryUsageDescription</key>

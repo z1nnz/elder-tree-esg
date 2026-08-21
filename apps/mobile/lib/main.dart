@@ -44,7 +44,7 @@ class _ElderTreeAppState extends State<ElderTreeApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '綠伴',
+      title: '同行成林',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(true),
       home: StreamBuilder<AuthAccount?>(

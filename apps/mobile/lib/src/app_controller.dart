@@ -120,7 +120,7 @@ class AppController extends ChangeNotifier {
     final preferences = await SharedPreferences.getInstance();
     elderMode = preferences.getBool('elderMode') ?? true;
     await refresh();
-    if (context?.displayName == '綠伴使用者' &&
+    if (context?.displayName == '同行成林使用者' &&
         (_initialDisplayName?.trim().isNotEmpty ?? false)) {
       try {
         context = await _api.updateDisplayName(_initialDisplayName!.trim());

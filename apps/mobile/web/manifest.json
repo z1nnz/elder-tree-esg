@@ -1,11 +1,11 @@
 {
-    "name": "elder_tree_mobile",
-    "short_name": "elder_tree_mobile",
+    "name": "同行成林",
+    "short_name": "同行成林",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "群體真實行動與可驗證影響平台。",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

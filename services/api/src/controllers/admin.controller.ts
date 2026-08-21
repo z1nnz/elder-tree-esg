@@ -60,7 +60,7 @@ export class AdminController {
     const binding = await this.store.getAdminLineBinding(dto.lineBindingId);
     const result = await this.line.push(
       binding.lineUserId,
-      dto.message ?? "綠伴測試推播：LINE 陪伴入口已連線。",
+      dto.message ?? "同行成林測試推播：LINE 陪伴入口已連線。",
     );
     return {
       data: await this.store.logLineNotification({

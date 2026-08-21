@@ -5128,7 +5128,7 @@ class _CompanionPromptSection extends StatelessWidget {
       children: [
         const _SectionTitle(
           title: '最近生活片段',
-          subtitle: '任務完成後，綠伴會整理成家人與陪伴者可以自然回應的話。',
+          subtitle: '旅程完成後，同行成林會整理成家人與陪伴者可以自然回應的話。',
         ),
         const SizedBox(height: 10),
         if (recent.isEmpty)
@@ -5360,7 +5360,7 @@ class _LineCompanionCard extends StatelessWidget {
             if (activeBindings.isEmpty)
               const _InfoPill(
                 icon: Icons.info_outline_rounded,
-                label: '尚未綁定 LINE。產生 8 碼綁定碼後，到綠伴 LINE 官方帳號輸入即可。',
+                label: '尚未綁定 LINE。產生 8 碼綁定碼後，到同行成林 LINE 官方帳號輸入即可。',
               )
             else
               ...activeBindings.map(
