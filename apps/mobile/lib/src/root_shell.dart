@@ -58,6 +58,8 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
         onOpenTasks: () => _selectIndex(1),
         onOpenExploration: () => _selectIndex(2),
         onOpenFamily: () => _selectIndex(3),
+        onOpenCircle: () => _selectIndex(7),
+        onOpenTree: () => _selectIndex(5),
       ),
       TasksScreen(controller: widget.controller),
       ExplorationScreen(
@@ -85,8 +87,6 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       appBar: immersiveExploration
           ? null
           : AppBar(
-              backgroundColor: Colors.white,
-              surfaceTintColor: Colors.white,
               titleSpacing: 18,
               leading: IconButton(
                 tooltip: '回到地圖',
@@ -100,7 +100,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
                     height: 38,
                     decoration: BoxDecoration(
                       color: lime,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(Icons.spa_rounded, color: forestDark),
                   ),
@@ -160,14 +160,18 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
                         )
                         .toList(),
                   ),
-                Row(
-                  children: [
-                    const Icon(Icons.text_fields_rounded, size: 19),
-                    Switch(
-                      value: widget.controller.elderMode,
-                      onChanged: widget.controller.toggleElderMode,
-                    ),
-                  ],
+                Semantics(
+                  label: '長者友善顯示',
+                  toggled: widget.controller.elderMode,
+                  child: Row(
+                    children: [
+                      const Icon(Icons.text_fields_rounded, size: 19),
+                      Switch(
+                        value: widget.controller.elderMode,
+                        onChanged: widget.controller.toggleElderMode,
+                      ),
+                    ],
+                  ),
                 ),
                 IconButton(
                   onPressed: widget.controller.refresh,

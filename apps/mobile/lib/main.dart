@@ -10,10 +10,17 @@ import 'src/auth_service.dart';
 import 'src/root_shell.dart';
 import 'src/theme.dart';
 
+const _localDemoAuth = bool.fromEnvironment('ELDER_TREE_LOCAL_DEMO_AUTH');
+const _legacyMacosDemoAuth = bool.fromEnvironment('ELDER_TREE_MACOS_DEMO_AUTH');
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  runApp(const ElderTreeApp());
+  if (!kDebugMode || !_localDemoAuth) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  }
+  runApp(ElderTreeApp(initialTab: _localDemoAuth ? 0 : 2));
 }
 
 class ElderTreeApp extends StatefulWidget {
@@ -35,8 +42,9 @@ class _ElderTreeAppState extends State<ElderTreeApp> {
     auth =
         widget.authService ??
         (kDebugMode &&
-                defaultTargetPlatform == TargetPlatform.macOS &&
-                const bool.fromEnvironment('ELDER_TREE_MACOS_DEMO_AUTH')
+                (_localDemoAuth ||
+                    (defaultTargetPlatform == TargetPlatform.macOS &&
+                        _legacyMacosDemoAuth))
             ? LocalDebugAuthService()
             : FirebaseAuthService());
   }

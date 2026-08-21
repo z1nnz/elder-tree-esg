@@ -38,6 +38,38 @@ class FakeAuthService implements AuthService {
 }
 
 void main() {
+  testWidgets('home prioritizes the active circle relay and opens it', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final controller = AppController();
+    var openedCircle = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: HomeScreen(
+            controller: controller,
+            onOpenTasks: () {},
+            onOpenExploration: () {},
+            onOpenFamily: () {},
+            onOpenCircle: () => openedCircle = true,
+            onOpenTree: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('樹伴圈・共行接力'), findsOneWidget);
+    expect(find.text('讓春天回到生命樹'), findsOneWidget);
+    expect(find.text('下一棒等人認領'), findsOneWidget);
+    await tester.tap(find.text('去認領下一棒'));
+    expect(openedCircle, isTrue);
+
+    controller.dispose();
+  });
+
   testWidgets('shows settings as a dedicated full-screen function page', (
     tester,
   ) async {

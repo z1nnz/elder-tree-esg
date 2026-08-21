@@ -26,6 +26,8 @@ class HomeScreen extends StatelessWidget {
     required this.onOpenTasks,
     required this.onOpenExploration,
     required this.onOpenFamily,
+    required this.onOpenCircle,
+    required this.onOpenTree,
     super.key,
   });
 
@@ -33,6 +35,8 @@ class HomeScreen extends StatelessWidget {
   final VoidCallback onOpenTasks;
   final VoidCallback onOpenExploration;
   final VoidCallback onOpenFamily;
+  final VoidCallback onOpenCircle;
+  final VoidCallback onOpenTree;
 
   @override
   Widget build(BuildContext context) {
@@ -46,12 +50,12 @@ class HomeScreen extends StatelessWidget {
     return RefreshIndicator(
       onRefresh: controller.refresh,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: [
           if (controller.offlineDemo)
             const _NoticeBand(
               icon: Icons.cloud_off_rounded,
-              text: '離線示範模式：操作仍可體驗，連線後會改用真實 API。',
+              text: '離線示範：可瀏覽完整畫面，但不會建立真實足跡或增加生命樹年輪。',
             ),
           _TodayCompanionHero(
             controller: controller,
@@ -59,15 +63,21 @@ class HomeScreen extends StatelessWidget {
             onOpenTasks: onOpenTasks,
             onOpenExploration: onOpenExploration,
             onOpenFamily: onOpenFamily,
+            onOpenTree: onOpenTree,
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+          _CircleJourneyPreview(
+            circle: controller.circle,
+            onPressed: onOpenCircle,
+          ),
+          const SizedBox(height: 22),
           if (home?.alerts.isNotEmpty ?? false) ...[
             _HomeAlertStrip(alerts: home!.alerts),
             const SizedBox(height: 18),
           ],
           _SectionTitle(
-            title: '任務卡堆疊',
-            subtitle: '可開始、進行中、待覆核都放在這裡',
+            title: '今天的小行動',
+            subtitle: '依照身體狀況選一件舒服的事',
             action: TextButton(
               onPressed: onOpenTasks,
               child: const Text('查看全部'),
@@ -184,6 +194,7 @@ class _TodayCompanionHero extends StatelessWidget {
     required this.onOpenTasks,
     required this.onOpenExploration,
     required this.onOpenFamily,
+    required this.onOpenTree,
   });
 
   final AppController controller;
@@ -191,6 +202,7 @@ class _TodayCompanionHero extends StatelessWidget {
   final VoidCallback onOpenTasks;
   final VoidCallback onOpenExploration;
   final VoidCallback onOpenFamily;
+  final VoidCallback onOpenTree;
 
   @override
   Widget build(BuildContext context) {
@@ -203,19 +215,9 @@ class _TodayCompanionHero extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(30),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0F3B2A), Color(0xFF2B6A4D)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: forestDark.withValues(alpha: 0.24),
-            blurRadius: 26,
-            offset: const Offset(0, 14),
-          ),
-        ],
+        color: warmWhite,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -230,17 +232,17 @@ class _TodayCompanionHero extends StatelessWidget {
                     Text(
                       home == null ? '今日陪伴' : '${home!.displayName}，今天慢慢來',
                       style: const TextStyle(
-                        color: Colors.white,
+                        color: ink,
                         fontSize: 25,
-                        height: 1.08,
+                        height: 1.12,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       home?.activeHouseholdName ?? tree.householdName,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.72),
+                      style: const TextStyle(
+                        color: mutedInk,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -251,8 +253,8 @@ class _TodayCompanionHero extends StatelessWidget {
                         vertical: 5,
                       ),
                       decoration: BoxDecoration(
-                        color: lime,
-                        borderRadius: BorderRadius.circular(999),
+                        color: skyMint,
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
                         _stageLabel(tree.stage),
@@ -274,6 +276,14 @@ class _TodayCompanionHero extends StatelessWidget {
             progress: progress,
             growthPoints: tree.growthPoints,
             nextStage: nextStage,
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: onOpenTree,
+              icon: const Icon(Icons.park_rounded),
+              label: const Text('查看生命樹'),
+            ),
           ),
           const SizedBox(height: 16),
           _HomeNextActionCard(
@@ -340,6 +350,210 @@ class _TodayCompanionHero extends StatelessWidget {
   }
 }
 
+class _CircleJourneyPreview extends StatelessWidget {
+  const _CircleJourneyPreview({required this.circle, required this.onPressed});
+
+  final CircleOverviewModel circle;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final action = circle.activeAction;
+    final nextChapter = action?.nextChapter;
+    final claim = nextChapter?.claim;
+    final isCurrentMemberClaim = claim?.memberId == circle.currentMemberId;
+    final statusLabel = switch ((
+      action?.completed,
+      claim,
+      isCurrentMemberClaim,
+    )) {
+      (true, _, _) => '這趟旅程完成了',
+      (_, CooperativeActionClaimModel(), true) => '現在輪到你',
+      (_, CooperativeActionClaimModel(), false) => '${claim!.displayName} 正在接棒',
+      _ => '下一棒等人認領',
+    };
+    final actionTitle = action?.title ?? '新的共行旅程正在準備';
+    final chapterTitle = nextChapter == null
+        ? (action?.completed == true ? '共同收藏已經解鎖' : '完成後會在這裡出現')
+        : '${nextChapter.elementName}・${nextChapter.title}';
+    final ctaLabel = switch ((action?.completed, isCurrentMemberClaim, claim)) {
+      (true, _, _) => '查看共同收藏',
+      (_, true, _) => '前往完成這一棒',
+      (_, _, null) => '去認領下一棒',
+      _ => '查看接力進度',
+    };
+
+    return Semantics(
+      container: true,
+      label: '樹伴圈共行旅程，$statusLabel，$actionTitle',
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: forestDark,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: const BoxDecoration(
+                    color: lime,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.diversity_1_rounded,
+                    color: forestDark,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '樹伴圈・共行接力',
+                        style: TextStyle(
+                          color: lime,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        circle.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.78),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _CircleMemberStack(members: circle.members),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Text(
+              statusLabel,
+              style: const TextStyle(
+                color: warmYellow,
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              actionTitle,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 23,
+                height: 1.2,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              chapterTitle,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.82),
+                height: 1.45,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            if (action != null) ...[
+              const SizedBox(height: 16),
+              Semantics(
+                label:
+                    '共行旅程已完成 ${action.completedChapterCount} 個篇章，共 ${action.totalChapterCount} 個',
+                value: '${(action.progress * 100).round()}%',
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: action.progress,
+                    minHeight: 10,
+                    color: lime,
+                    backgroundColor: Colors.white24,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${action.completedChapterCount}／${action.totalChapterCount} 篇章・完成後獲得「${action.keepsakeName}」',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.78),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onPressed,
+                style: FilledButton.styleFrom(
+                  backgroundColor: lime,
+                  foregroundColor: forestDark,
+                ),
+                icon: const Icon(Icons.arrow_forward_rounded),
+                label: Text(ctaLabel),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CircleMemberStack extends StatelessWidget {
+  const _CircleMemberStack({required this.members});
+
+  final List<CircleMemberModel> members;
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleMembers = members.take(3).toList();
+    return Semantics(
+      label: '${members.length} 位樹伴成員',
+      child: SizedBox(
+        width: (36 + (visibleMembers.length - 1).clamp(0, 2) * 20).toDouble(),
+        height: 36,
+        child: Stack(
+          children: [
+            for (var index = 0; index < visibleMembers.length; index++)
+              Positioned(
+                left: index * 20,
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: index.isEven ? warmYellow : skyMint,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: forestDark, width: 2),
+                  ),
+                  child: Text(
+                    visibleMembers[index].displayName.characters.first,
+                    style: const TextStyle(
+                      color: ink,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _CompanionSprite extends StatelessWidget {
   const _CompanionSprite({required this.sprite});
 
@@ -348,6 +562,7 @@ class _CompanionSprite extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mood = sprite?.mood ?? CompanionSpriteMood.ready;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
     final icon = switch (mood) {
       CompanionSpriteMood.walking => Icons.directions_walk_rounded,
       CompanionSpriteMood.waiting => Icons.hourglass_top_rounded,
@@ -359,7 +574,9 @@ class _CompanionSprite extends StatelessWidget {
       children: [
         TweenAnimationBuilder<double>(
           tween: Tween(begin: 0.92, end: 1),
-          duration: const Duration(milliseconds: 680),
+          duration: reduceMotion
+              ? Duration.zero
+              : const Duration(milliseconds: 680),
           curve: Curves.easeOutBack,
           builder: (context, value, child) =>
               Transform.scale(scale: value, child: child),
@@ -369,13 +586,7 @@ class _CompanionSprite extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: lime,
-              boxShadow: [
-                BoxShadow(
-                  color: lime.withValues(alpha: 0.38),
-                  blurRadius: 26,
-                  spreadRadius: 4,
-                ),
-              ],
+              border: Border.all(color: const Color(0xFF9FC44D), width: 2),
             ),
             child: Icon(icon, color: forestDark, size: 34),
           ),
@@ -389,7 +600,7 @@ class _CompanionSprite extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.76),
+              color: mutedInk,
               fontSize: 11,
               fontWeight: FontWeight.w700,
             ),
@@ -408,56 +619,79 @@ class _HomeNextActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.94),
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              color: Color(0xFFE7F66A),
-            ),
-            child: Icon(_homeActionIcon(action?.kind), color: forestDark),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  action?.title ?? '今天可以做一件小事',
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
-                  ),
+    final summary = Row(
+      children: [
+        Container(
+          width: 50,
+          height: 50,
+          decoration: const BoxDecoration(shape: BoxShape.circle, color: lime),
+          child: Icon(_homeActionIcon(action?.kind), color: forestDark),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                action?.title ?? '今天可以做一件小事',
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  action?.description ?? '選一件舒服的任務，讓生命樹慢慢長大。',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFF5E6A63),
-                    height: 1.4,
-                    fontWeight: FontWeight.w600,
-                  ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                action?.description ?? '選一件舒服的任務，讓生命樹慢慢長大。',
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: mutedInk,
+                  height: 1.4,
+                  fontWeight: FontWeight.w600,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const SizedBox(width: 10),
-          FilledButton(
-            onPressed: onPressed,
-            child: Text(action?.ctaLabel ?? '開始'),
+        ),
+      ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked =
+            constraints.maxWidth < 470 ||
+            MediaQuery.textScalerOf(context).scale(16) > 17;
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: skyMint,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFBFDCC8)),
           ),
-        ],
-      ),
+          child: stacked
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    summary,
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      onPressed: onPressed,
+                      child: Text(action?.ctaLabel ?? '開始'),
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    Expanded(child: summary),
+                    const SizedBox(width: 12),
+                    FilledButton(
+                      onPressed: onPressed,
+                      child: Text(action?.ctaLabel ?? '開始'),
+                    ),
+                  ],
+                ),
+        );
+      },
     );
   }
 }
@@ -567,58 +801,66 @@ class _AnimatedTreeProgress extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TweenAnimationBuilder<double>(
-          tween: Tween<double>(end: progress),
-          duration: const Duration(milliseconds: 850),
-          curve: Curves.easeOutCubic,
-          builder: (context, value, child) => Stack(
-            clipBehavior: Clip.none,
-            children: [
-              LinearProgressIndicator(
-                value: value,
-                minHeight: 11,
-                borderRadius: BorderRadius.circular(7),
-                backgroundColor: Colors.white24,
-                color: warmYellow,
-              ),
-              Positioned(
-                left: (MediaQuery.sizeOf(context).width - 72) * value,
-                top: -12,
-                child: Transform.scale(
-                  scale: 0.86 + (value * 0.18),
-                  child: Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: warmYellow,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: warmYellow.withValues(alpha: 0.45),
-                          blurRadius: 18,
-                          spreadRadius: 3,
-                        ),
-                      ],
+        LayoutBuilder(
+          builder: (context, constraints) => TweenAnimationBuilder<double>(
+            tween: Tween<double>(end: progress),
+            duration: reduceMotion
+                ? Duration.zero
+                : const Duration(milliseconds: 850),
+            curve: Curves.easeOutCubic,
+            builder: (context, value, child) => Stack(
+              clipBehavior: Clip.none,
+              children: [
+                LinearProgressIndicator(
+                  value: value,
+                  minHeight: 11,
+                  borderRadius: BorderRadius.circular(7),
+                  backgroundColor: const Color(0xFFE2E9E4),
+                  color: forest,
+                ),
+                Positioned(
+                  left: (constraints.maxWidth - 28) * value,
+                  top: -12,
+                  child: Transform.scale(
+                    scale: 0.86 + (value * 0.18),
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      decoration: const BoxDecoration(
+                        color: forest,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.eco_rounded,
+                        color: Colors.white,
+                        size: 17,
+                      ),
                     ),
-                    child: const Icon(Icons.eco_rounded, color: ink, size: 17),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 10),
         AnimatedSwitcher(
-          duration: const Duration(milliseconds: 320),
+          duration: reduceMotion
+              ? Duration.zero
+              : const Duration(milliseconds: 320),
           child: Text(
             nextStage == null
                 ? '這棵樹已經成熟'
                 : '再 ${(nextStage! - growthPoints).clamp(0, nextStage!)} 點進入下一階段',
             key: ValueKey('$growthPoints-$nextStage'),
-            style: const TextStyle(color: Colors.white, fontSize: 12),
+            style: const TextStyle(
+              color: mutedInk,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
       ],
