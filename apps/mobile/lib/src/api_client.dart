@@ -100,6 +100,22 @@ class ApiClient {
     return TreeSummary.fromJson(data);
   }
 
+  Future<CircleOverviewModel> getCircleOverview() async {
+    return CircleOverviewModel.fromJson(await _getMap('/circles/current'));
+  }
+
+  Future<CircleOverviewModel> completeCooperativeActionChapter({
+    required String runId,
+    required String chapterId,
+  }) async {
+    return CircleOverviewModel.fromJson(
+      await _post(
+        '/circles/current/actions/$runId/chapters/$chapterId/complete',
+        {'idempotencyKey': 'mobile-cooperative-$runId-$chapterId'},
+      ),
+    );
+  }
+
   Future<List<FamilyMessageModel>> getMessages() async {
     final data = await _getList('/family/messages');
     return data.map(FamilyMessageModel.fromJson).toList();

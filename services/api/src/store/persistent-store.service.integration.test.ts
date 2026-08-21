@@ -90,6 +90,71 @@ describeWithDatabase("PersistentStoreService", () => {
   );
 
   it(
+    "completes a cooperative relay with three members and awards growth once",
+    async () => {
+      const ownerUid = `integration-circle-owner-${randomUUID()}`;
+      const secondUid = `integration-circle-second-${randomUUID()}`;
+      const thirdUid = `integration-circle-third-${randomUUID()}`;
+      createdFirebaseUids.add(ownerUid);
+      createdFirebaseUids.add(secondUid);
+      createdFirebaseUids.add(thirdUid);
+
+      await store.getContext(ownerUid);
+      const secondInvite = await store.createHouseholdInvite(ownerUid);
+      await store.joinHousehold(secondUid, secondInvite.code, "朋友");
+      const thirdInvite = await store.createHouseholdInvite(ownerUid);
+      await store.joinHousehold(thirdUid, thirdInvite.code, "鄰居朋友");
+
+      const before = await store.getTree(ownerUid);
+      const circle = await store.getCircleOverview(ownerUid);
+      const action = circle.activeAction;
+      expect(circle.memberCount).toBe(3);
+      expect(action?.runId).toBeTruthy();
+      expect(action?.chapters).toHaveLength(3);
+
+      await store.completeCooperativeActionChapter(
+        ownerUid,
+        action!.runId!,
+        action.chapters[0]!.id,
+        "circle-owner-first",
+      );
+      await expect(
+        store.completeCooperativeActionChapter(
+          ownerUid,
+          action.runId!,
+          action.chapters[1]!.id,
+          "circle-owner-second",
+        ),
+      ).rejects.toThrow("Each member can complete only one chapter");
+      await store.completeCooperativeActionChapter(
+        secondUid,
+        action.runId!,
+        action.chapters[1]!.id,
+        "circle-second-member",
+      );
+      const completed = await store.completeCooperativeActionChapter(
+        thirdUid,
+        action.runId!,
+        action.chapters[2]!.id,
+        "circle-third-member",
+      );
+      await store.completeCooperativeActionChapter(
+        thirdUid,
+        action.runId!,
+        action.chapters[2]!.id,
+        "circle-third-member",
+      );
+
+      expect(completed.activeAction?.status).toBe("COMPLETED");
+      expect(completed.activeAction?.contributorCount).toBe(3);
+      expect((await store.getTree(ownerUid)).growthPoints).toBe(
+        before.growthPoints + action.growthPoints,
+      );
+    },
+    120_000,
+  );
+
+  it(
     "keeps tasks, messages, and tree growth isolated to the active household",
     async () => {
       const inviterUid = `integration-inviter-${randomUUID()}`;

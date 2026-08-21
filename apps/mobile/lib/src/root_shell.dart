@@ -72,6 +72,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
         accountEmail: widget.accountEmail,
         onSignOut: widget.onSignOut,
       ),
+      CircleScreen(controller: widget.controller),
     ];
     final immersiveExploration = index == 2;
     final safePadding = MediaQuery.paddingOf(context);

@@ -41,4 +41,39 @@ describe("DemoStoreService", () => {
     const store = new DemoStoreService();
     expect(() => store.createBatch("Real batch", 1000, false as true)).toThrow();
   });
+
+  it("completes the relay with a third member and awards growth once", () => {
+    const store = new DemoStoreService();
+    const before = store.getTree().growthPoints;
+    const chapterId = "66666666-6666-4666-8666-000000000003";
+
+    const completed = store.completeCooperativeActionChapter(
+      "77777777-7777-4777-8777-777777777777",
+      chapterId,
+      "demo-elder",
+      "relay-completion-123",
+    );
+    store.completeCooperativeActionChapter(
+      "77777777-7777-4777-8777-777777777777",
+      chapterId,
+      "demo-elder",
+      "relay-completion-123",
+    );
+
+    expect(completed.activeAction?.status).toBe("COMPLETED");
+    expect(completed.activeAction?.contributorCount).toBe(3);
+    expect(store.getTree().growthPoints).toBe(before + 120);
+  });
+
+  it("requires a different member for each relay chapter", () => {
+    const store = new DemoStoreService();
+    expect(() =>
+      store.completeCooperativeActionChapter(
+        "77777777-7777-4777-8777-777777777777",
+        "66666666-6666-4666-8666-000000000003",
+        "demo-daughter",
+        "relay-completion-456",
+      ),
+    ).toThrow("Each member can complete only one chapter");
+  });
 });

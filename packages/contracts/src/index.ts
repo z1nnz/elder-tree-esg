@@ -519,6 +519,80 @@ export interface ImpactBatchSummary {
   publishedAt: string | null;
 }
 
+export type CircleKind =
+  | "FAMILY"
+  | "FRIENDS"
+  | "COMMUNITY"
+  | "COMPANY"
+  | "SCHOOL"
+  | "CARE_SITE"
+  | "VOLUNTEER"
+  | "INTEREST";
+
+export type CooperativeActionKind = "COLLECTION" | "RELAY";
+
+export type CooperativeActionStatus =
+  | "AVAILABLE"
+  | "ACTIVE"
+  | "COMPLETED"
+  | "EXPIRED";
+
+export type ActionWitnessTier =
+  | "SELF_CHECK"
+  | "PROCESS"
+  | "COMPOSITE"
+  | "PARTNER";
+
+export interface CircleMemberSummary {
+  id: string;
+  displayName: string;
+  relationship: string;
+}
+
+export interface CooperativeActionContributor {
+  memberId: string;
+  displayName: string;
+  witnessedAt: string;
+  witnessTier: ActionWitnessTier;
+}
+
+export interface CooperativeActionChapterSummary {
+  id: string;
+  sequence: number;
+  title: string;
+  description: string;
+  elementName: string;
+  verificationMode: TaskVerificationMode;
+  contributor: CooperativeActionContributor | null;
+}
+
+export interface CooperativeActionSummary {
+  id: string;
+  runId: string | null;
+  title: string;
+  description: string;
+  kind: CooperativeActionKind;
+  status: CooperativeActionStatus;
+  minimumContributors: number;
+  maxChaptersPerMember: number;
+  contributorCount: number;
+  completedChapterCount: number;
+  totalChapterCount: number;
+  growthPoints: number;
+  keepsakeName: string;
+  chapters: CooperativeActionChapterSummary[];
+}
+
+export interface CircleOverview {
+  id: string;
+  name: string;
+  kind: CircleKind;
+  currentMemberId: string;
+  memberCount: number;
+  members: CircleMemberSummary[];
+  activeAction: CooperativeActionSummary | null;
+}
+
 export interface ApiEnvelope<T> {
   data: T;
   meta?: {

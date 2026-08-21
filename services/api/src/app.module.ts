@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
 import { AdminController } from "./controllers/admin.controller";
 import { CompanionPromptsController } from "./controllers/companion-prompts.controller";
+import { CirclesController } from "./controllers/circles.controller";
 import { DevicesController } from "./controllers/devices.controller";
 import { ExplorationController } from "./controllers/exploration.controller";
 import { FamilyController } from "./controllers/family.controller";
@@ -27,6 +28,7 @@ import { LineMessagingService } from "./line/line-messaging.service";
     TasksController,
     MeController,
     FamilyController,
+    CirclesController,
     CompanionPromptsController,
     ExplorationController,
     DevicesController,
