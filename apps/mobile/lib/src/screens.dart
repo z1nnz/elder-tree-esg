@@ -50,13 +50,8 @@ class HomeScreen extends StatelessWidget {
     return RefreshIndicator(
       onRefresh: controller.refresh,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
         children: [
-          if (controller.offlineDemo)
-            const _NoticeBand(
-              icon: Icons.cloud_off_rounded,
-              text: '離線示範：可瀏覽完整畫面，但不會建立真實足跡或增加生命樹年輪。',
-            ),
           _TodayCompanionHero(
             controller: controller,
             home: home,
@@ -65,7 +60,7 @@ class HomeScreen extends StatelessWidget {
             onOpenFamily: onOpenFamily,
             onOpenTree: onOpenTree,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 28),
           _CircleJourneyPreview(
             circle: controller.circle,
             onPressed: onOpenCircle,
@@ -212,13 +207,8 @@ class _TodayCompanionHero extends StatelessWidget {
         ? 1.0
         : (tree.growthPoints / nextStage).clamp(0.0, 1.0);
     final action = home?.nextAction;
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: warmWhite,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: outline),
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 4, 2, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -233,36 +223,20 @@ class _TodayCompanionHero extends StatelessWidget {
                       home == null ? '今日陪伴' : '${home!.displayName}，今天慢慢來',
                       style: const TextStyle(
                         color: ink,
-                        fontSize: 25,
-                        height: 1.12,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      home?.activeHouseholdName ?? tree.householdName,
-                      style: const TextStyle(
-                        color: mutedInk,
+                        fontSize: 28,
+                        height: 1.18,
                         fontWeight: FontWeight.w700,
+                        letterSpacing: -0.5,
                       ),
                     ),
                     const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: skyMint,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        _stageLabel(tree.stage),
-                        style: const TextStyle(
-                          color: forestDark,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w900,
-                        ),
+                    Text(
+                      '${home?.activeHouseholdName ?? tree.householdName}的生命樹  ·  ${_stageLabel(tree.stage)}',
+                      style: const TextStyle(
+                        color: mutedInk,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.2,
                       ),
                     ),
                   ],
@@ -271,7 +245,7 @@ class _TodayCompanionHero extends StatelessWidget {
               _CompanionSprite(sprite: home?.companionSprite),
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
           _AnimatedTreeProgress(
             progress: progress,
             growthPoints: tree.growthPoints,
@@ -279,13 +253,12 @@ class _TodayCompanionHero extends StatelessWidget {
           ),
           Align(
             alignment: Alignment.centerRight,
-            child: TextButton.icon(
+            child: TextButton(
               onPressed: onOpenTree,
-              icon: const Icon(Icons.park_rounded),
-              label: const Text('查看生命樹'),
+              child: const Text('查看生命樹成長  →'),
             ),
           ),
-          const SizedBox(height: 16),
+          const Divider(height: 26),
           _HomeNextActionCard(
             action: action,
             onPressed: () => _handleNextAction(context, action),
@@ -361,148 +334,107 @@ class _CircleJourneyPreview extends StatelessWidget {
     final action = circle.activeAction;
     final nextChapter = action?.nextChapter;
     final claim = nextChapter?.claim;
-    final isCurrentMemberClaim = claim?.memberId == circle.currentMemberId;
-    final statusLabel = switch ((
-      action?.completed,
-      claim,
-      isCurrentMemberClaim,
-    )) {
-      (true, _, _) => '這趟旅程完成了',
-      (_, CooperativeActionClaimModel(), true) => '現在輪到你',
-      (_, CooperativeActionClaimModel(), false) => '${claim!.displayName} 正在接棒',
-      _ => '下一棒等人認領',
-    };
+    final presentation = _circleJourneyPresentation(
+      action: action,
+      claim: claim,
+      currentMemberId: circle.currentMemberId,
+      now: DateTime.now(),
+    );
     final actionTitle = action?.title ?? '新的共行旅程正在準備';
     final chapterTitle = nextChapter == null
         ? (action?.completed == true ? '共同收藏已經解鎖' : '完成後會在這裡出現')
         : '${nextChapter.elementName}・${nextChapter.title}';
-    final ctaLabel = switch ((action?.completed, isCurrentMemberClaim, claim)) {
-      (true, _, _) => '查看共同收藏',
-      (_, true, _) => '前往完成這一棒',
-      (_, _, null) => '去認領下一棒',
-      _ => '查看接力進度',
-    };
 
     return Semantics(
       container: true,
-      label: '樹伴圈共行旅程，$statusLabel，$actionTitle',
+      label: '樹伴圈接力旅程，${presentation.statusLabel}，$actionTitle',
       child: Container(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
         decoration: BoxDecoration(
-          color: forestDark,
-          borderRadius: BorderRadius.circular(16),
+          color: const Color(0xFFF1F3E9),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFD9DECA)),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Stack(
           children: [
-            Row(
+            const Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(painter: _JourneyBranchPainter()),
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: const BoxDecoration(
-                    color: lime,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.diversity_1_rounded,
-                    color: forestDark,
+                Row(
+                  children: [
+                    const Text(
+                      '接力旅程',
+                      style: TextStyle(
+                        color: forestDark,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${circle.members.length} 位樹伴成員  ·  ${circle.name}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: mutedInk,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  actionTitle,
+                  style: const TextStyle(
+                    color: ink,
+                    fontSize: 24,
+                    height: 1.2,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.35,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        '樹伴圈・共行接力',
-                        style: TextStyle(
-                          color: lime,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        circle.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.78),
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
+                const SizedBox(height: 8),
+                Text(
+                  '${presentation.statusLabel}  ·  $chapterTitle',
+                  style: const TextStyle(
+                    color: mutedInk,
+                    height: 1.45,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-                _CircleMemberStack(members: circle.members),
+                if (action != null) ...[
+                  const SizedBox(height: 22),
+                  _JourneyChapterPath(action: action),
+                  const SizedBox(height: 12),
+                  Text(
+                    '${action.completedChapterCount}／${action.totalChapterCount} 篇章  ·  完成後收藏「${action.keepsakeName}」',
+                    style: const TextStyle(
+                      color: mutedInk,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: onPressed,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: forestDark,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: Text('${presentation.ctaLabel}  →'),
+                  ),
+                ),
               ],
-            ),
-            const SizedBox(height: 18),
-            Text(
-              statusLabel,
-              style: const TextStyle(
-                color: warmYellow,
-                fontSize: 13,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 5),
-            Text(
-              actionTitle,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 23,
-                height: 1.2,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              chapterTitle,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.82),
-                height: 1.45,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            if (action != null) ...[
-              const SizedBox(height: 16),
-              Semantics(
-                label:
-                    '共行旅程已完成 ${action.completedChapterCount} 個篇章，共 ${action.totalChapterCount} 個',
-                value: '${(action.progress * 100).round()}%',
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: LinearProgressIndicator(
-                    value: action.progress,
-                    minHeight: 10,
-                    color: lime,
-                    backgroundColor: Colors.white24,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '${action.completedChapterCount}／${action.totalChapterCount} 篇章・完成後獲得「${action.keepsakeName}」',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.78),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: onPressed,
-                style: FilledButton.styleFrom(
-                  backgroundColor: lime,
-                  foregroundColor: forestDark,
-                ),
-                icon: const Icon(Icons.arrow_forward_rounded),
-                label: Text(ctaLabel),
-              ),
             ),
           ],
         ),
@@ -511,47 +443,177 @@ class _CircleJourneyPreview extends StatelessWidget {
   }
 }
 
-class _CircleMemberStack extends StatelessWidget {
-  const _CircleMemberStack({required this.members});
+class _JourneyChapterPath extends StatelessWidget {
+  const _JourneyChapterPath({required this.action});
 
-  final List<CircleMemberModel> members;
+  final CooperativeActionModel action;
 
   @override
   Widget build(BuildContext context) {
-    final visibleMembers = members.take(3).toList();
+    final chapters = action.chapters;
+    if (chapters.isEmpty) return const SizedBox.shrink();
     return Semantics(
-      label: '${members.length} 位樹伴成員',
-      child: SizedBox(
-        width: (36 + (visibleMembers.length - 1).clamp(0, 2) * 20).toDouble(),
-        height: 36,
-        child: Stack(
-          children: [
-            for (var index = 0; index < visibleMembers.length; index++)
-              Positioned(
-                left: index * 20,
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: index.isEven ? warmYellow : skyMint,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: forestDark, width: 2),
-                  ),
-                  child: Text(
-                    visibleMembers[index].displayName.characters.first,
-                    style: const TextStyle(
-                      color: ink,
-                      fontWeight: FontWeight.w900,
+      label:
+          '接力旅程已完成 ${action.completedChapterCount} 個篇章，共 ${action.totalChapterCount} 個',
+      value: '${(action.progress * 100).round()}%',
+      child: ExcludeSemantics(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final gap = chapters.length == 1
+                ? 0.0
+                : (constraints.maxWidth - 34) / (chapters.length - 1);
+            return SizedBox(
+              height: 58,
+              child: Stack(
+                children: [
+                  if (chapters.length > 1)
+                    Positioned(
+                      top: 16,
+                      left: 16,
+                      right: 16,
+                      child: Container(
+                        height: 1.5,
+                        color: const Color(0xFFC6CDB8),
+                      ),
                     ),
-                  ),
-                ),
+                  for (var index = 0; index < chapters.length; index++)
+                    Positioned(
+                      left: index * gap,
+                      top: 0,
+                      child: _JourneyNode(
+                        chapter: chapters[index],
+                        active: chapters[index].id == action.nextChapter?.id,
+                      ),
+                    ),
+                ],
               ),
-          ],
+            );
+          },
         ),
       ),
     );
   }
+}
+
+class _JourneyNode extends StatelessWidget {
+  const _JourneyNode({required this.chapter, required this.active});
+
+  final CooperativeActionChapterModel chapter;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final completed = chapter.completed;
+    final background = completed
+        ? forest
+        : active
+        ? warmYellow
+        : const Color(0xFFF8F8F2);
+    final foreground = completed || active ? forestDark : mutedInk;
+    return SizedBox(
+      width: 34,
+      child: Column(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: background,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: completed || active ? forest : const Color(0xFFC6CDB8),
+                width: active ? 2 : 1,
+              ),
+            ),
+            child: completed
+                ? const Icon(Icons.check_rounded, size: 18, color: Colors.white)
+                : Text(
+                    chapter.elementName.characters.first,
+                    style: TextStyle(
+                      color: foreground,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            chapter.elementName,
+            maxLines: 1,
+            overflow: TextOverflow.fade,
+            softWrap: false,
+            style: TextStyle(
+              color: active ? forestDark : mutedInk,
+              fontSize: 10,
+              fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _JourneyBranchPainter extends CustomPainter {
+  const _JourneyBranchPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFFCCD5BC).withValues(alpha: 0.42)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2
+      ..strokeCap = StrokeCap.round;
+    final path = Path()
+      ..moveTo(size.width * 0.74, -8)
+      ..cubicTo(
+        size.width * 0.78,
+        size.height * 0.12,
+        size.width * 0.95,
+        size.height * 0.16,
+        size.width + 10,
+        size.height * 0.34,
+      );
+    canvas.drawPath(path, paint);
+    canvas.save();
+    canvas.translate(size.width * 0.86, size.height * 0.09);
+    canvas.rotate(-0.55);
+    canvas.drawOval(const Rect.fromLTWH(0, 0, 24, 9), paint);
+    canvas.restore();
+    canvas.save();
+    canvas.translate(size.width * 0.93, size.height * 0.19);
+    canvas.rotate(0.32);
+    canvas.drawOval(const Rect.fromLTWH(0, 0, 20, 8), paint);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _JourneyBranchPainter oldDelegate) => false;
+}
+
+({String statusLabel, String ctaLabel}) _circleJourneyPresentation({
+  required CooperativeActionModel? action,
+  required CooperativeActionClaimModel? claim,
+  required String currentMemberId,
+  required DateTime now,
+}) {
+  if (action == null) {
+    return (statusLabel: '新的旅程正在準備', ctaLabel: '查看樹伴圈');
+  }
+  if (action.completed) {
+    return (statusLabel: '這趟旅程完成了', ctaLabel: '查看共同收藏');
+  }
+  if (claim?.expiredAt(now) ?? false) {
+    return (statusLabel: '接力棒已逾時', ctaLabel: '前往釋出接力棒');
+  }
+  if (claim == null) {
+    return (statusLabel: '下一棒等人認領', ctaLabel: '去認領下一棒');
+  }
+  if (claim.memberId == currentMemberId) {
+    return (statusLabel: '現在輪到你', ctaLabel: '前往完成這一棒');
+  }
+  return (statusLabel: '${claim.displayName} 正在接棒', ctaLabel: '查看接力進度');
 }
 
 class _CompanionSprite extends StatelessWidget {
@@ -563,13 +625,6 @@ class _CompanionSprite extends StatelessWidget {
   Widget build(BuildContext context) {
     final mood = sprite?.mood ?? CompanionSpriteMood.ready;
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    final icon = switch (mood) {
-      CompanionSpriteMood.walking => Icons.directions_walk_rounded,
-      CompanionSpriteMood.waiting => Icons.hourglass_top_rounded,
-      CompanionSpriteMood.resting => Icons.self_improvement_rounded,
-      CompanionSpriteMood.growing => Icons.eco_rounded,
-      CompanionSpriteMood.ready => Icons.auto_awesome_rounded,
-    };
     return Column(
       children: [
         TweenAnimationBuilder<double>(
@@ -580,18 +635,13 @@ class _CompanionSprite extends StatelessWidget {
           curve: Curves.easeOutBack,
           builder: (context, value, child) =>
               Transform.scale(scale: value, child: child),
-          child: Container(
+          child: SizedBox(
             width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: lime,
-              border: Border.all(color: const Color(0xFF9FC44D), width: 2),
-            ),
-            child: Icon(icon, color: forestDark, size: 34),
+            height: 66,
+            child: CustomPaint(painter: _CompanionBotanicalPainter(mood: mood)),
           ),
         ),
-        const SizedBox(height: 7),
+        const SizedBox(height: 4),
         SizedBox(
           width: 92,
           child: Text(
@@ -601,14 +651,81 @@ class _CompanionSprite extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: mutedInk,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ),
       ],
     );
   }
+}
+
+class _CompanionBotanicalPainter extends CustomPainter {
+  const _CompanionBotanicalPainter({required this.mood});
+
+  final CompanionSpriteMood mood;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final branch = Paint()
+      ..color = forestDark
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4
+      ..strokeCap = StrokeCap.round;
+    final stem = Path()
+      ..moveTo(size.width * 0.48, size.height * 0.92)
+      ..cubicTo(
+        size.width * 0.43,
+        size.height * 0.66,
+        size.width * 0.57,
+        size.height * 0.42,
+        size.width * 0.50,
+        size.height * 0.14,
+      );
+    canvas.drawPath(stem, branch);
+    _drawLeaf(canvas, const Offset(23, 39), -0.62, forest);
+    _drawLeaf(canvas, const Offset(39, 27), 0.52, const Color(0xFF719B52));
+    _drawLeaf(canvas, const Offset(26, 16), -0.35, lime);
+
+    final accent = switch (mood) {
+      CompanionSpriteMood.waiting => warmYellow,
+      CompanionSpriteMood.resting => const Color(0xFFD7B6A2),
+      CompanionSpriteMood.walking => const Color(0xFF85B8A0),
+      CompanionSpriteMood.growing => lime,
+      CompanionSpriteMood.ready => coral,
+    };
+    canvas.drawCircle(
+      Offset(size.width * 0.69, size.height * 0.18),
+      4.5,
+      Paint()..color = accent,
+    );
+    canvas.drawCircle(
+      Offset(size.width * 0.69, size.height * 0.18),
+      8,
+      Paint()
+        ..color = accent.withValues(alpha: 0.22)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.3,
+    );
+  }
+
+  void _drawLeaf(Canvas canvas, Offset center, double rotation, Color color) {
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.rotate(rotation);
+    final path = Path()
+      ..moveTo(-1, 0)
+      ..cubicTo(3, -11, 15, -11, 20, 0)
+      ..cubicTo(14, 9, 4, 9, -1, 0)
+      ..close();
+    canvas.drawPath(path, Paint()..color = color);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _CompanionBotanicalPainter oldDelegate) =>
+      oldDelegate.mood != mood;
 }
 
 class _HomeNextActionCard extends StatelessWidget {
@@ -620,35 +737,39 @@ class _HomeNextActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final summary = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 50,
-          height: 50,
-          decoration: const BoxDecoration(shape: BoxShape.circle, color: lime),
-          child: Icon(_homeActionIcon(action?.kind), color: forestDark),
-        ),
-        const SizedBox(width: 12),
+        Container(width: 3, height: 54, color: forest),
+        const SizedBox(width: 14),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                action?.title ?? '今天可以做一件小事',
+                '今天的一件小事',
                 style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w900,
+                  color: forestDark,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.1,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 5),
               Text(
-                action?.description ?? '選一件舒服的任務，讓生命樹慢慢長大。',
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
+                action?.title ?? '今天可以做一件小事',
                 style: const TextStyle(
-                  color: mutedInk,
-                  height: 1.4,
+                  color: ink,
+                  fontSize: 17,
+                  height: 1.35,
                   fontWeight: FontWeight.w600,
                 ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                action?.description ?? '選一件舒服的任務，讓生命樹慢慢長大。',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: mutedInk, height: 1.45),
               ),
             ],
           ),
@@ -661,22 +782,17 @@ class _HomeNextActionCard extends StatelessWidget {
         final stacked =
             constraints.maxWidth < 470 ||
             MediaQuery.textScalerOf(context).scale(16) > 17;
-        return Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: skyMint,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFBFDCC8)),
-          ),
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
           child: stacked
               ? Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     summary,
                     const SizedBox(height: 12),
-                    FilledButton(
+                    OutlinedButton(
                       onPressed: onPressed,
-                      child: Text(action?.ctaLabel ?? '開始'),
+                      child: Text('${action?.ctaLabel ?? '開始'}  →'),
                     ),
                   ],
                 )
@@ -684,9 +800,9 @@ class _HomeNextActionCard extends StatelessWidget {
                   children: [
                     Expanded(child: summary),
                     const SizedBox(width: 12),
-                    FilledButton(
+                    OutlinedButton(
                       onPressed: onPressed,
-                      child: Text(action?.ctaLabel ?? '開始'),
+                      child: Text('${action?.ctaLabel ?? '開始'}  →'),
                     ),
                   ],
                 ),
@@ -782,7 +898,7 @@ class _HomeRadarPreview extends StatelessWidget {
         subtitle: Text(
           '半徑 ${mission.radiusMeters}m · 生命樹 +${mission.growthPoints}',
         ),
-        trailing: FilledButton(onPressed: onPressed, child: const Text('查看')),
+        trailing: TextButton(onPressed: onPressed, child: const Text('查看  →')),
       ),
     );
   }

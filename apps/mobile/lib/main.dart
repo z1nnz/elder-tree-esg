@@ -119,7 +119,9 @@ class _AuthenticatedExperienceState extends State<_AuthenticatedExperience> {
           data: buildAppTheme(controller.elderMode),
           child: MediaQuery(
             data: media.copyWith(
-              textScaler: TextScaler.linear(controller.elderMode ? 1.12 : 1),
+              textScaler: controller.elderMode
+                  ? media.textScaler.clamp(minScaleFactor: 1.12)
+                  : media.textScaler,
             ),
             child: RootShell(
               controller: controller,

@@ -23,7 +23,7 @@ ThemeData buildAppTheme(bool elderMode) {
       surface: warmWhite,
       error: const Color(0xFFB74334),
     ),
-    scaffoldBackgroundColor: canvas,
+    scaffoldBackgroundColor: warmWhite,
     fontFamilyFallback: const [
       'PingFang TC',
       'Noto Sans TC',
@@ -42,12 +42,12 @@ ThemeData buildAppTheme(bool elderMode) {
         .apply(bodyColor: ink, displayColor: ink)
         .copyWith(
           headlineSmall: base.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.2,
           ),
           titleLarge: base.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.2,
           ),
           titleMedium: base.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w700,
