@@ -11,6 +11,7 @@
 node_modules/
 dist/
 .next/
+.next-venue-preview/
 coverage/
 build/
 DerivedData/

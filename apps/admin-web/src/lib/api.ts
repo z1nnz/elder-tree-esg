@@ -18,12 +18,24 @@ import type {
   PartnerOrganizationSummary,
   PartnerWorkspaceSummary,
   WorkspaceAccessSummary,
+  VenueCodeSummary,
+  VenueMetricsSummary,
+  VenueRedemptionResult,
 } from "@elder-tree/contracts";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4100/api/v1";
 
 let accessToken: string | null = null;
+
+export class ApiRequestError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
@@ -36,7 +48,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (!response.ok) {
-    throw new Error(`API request failed (${response.status})`);
+    const body: unknown = await response.json().catch(() => null);
+    const message =
+      body &&
+      typeof body === "object" &&
+      "message" in body &&
+      typeof body.message === "string"
+        ? body.message
+        : "Request failed";
+    throw new ApiRequestError(response.status, message);
   }
   return ((await response.json()) as ApiEnvelope<T>).data;
 }
@@ -53,6 +73,29 @@ export const api = {
   partnerWorkspace: (organizationId: string) =>
     request<PartnerWorkspaceSummary>(
       `/partners/organizations/${organizationId}/workspace`,
+    ),
+  venueCode: (organizationId: string, campaignId: string) =>
+    request<VenueCodeSummary>(
+      `/partners/organizations/${organizationId}/campaigns/${campaignId}/venue-code`,
+      { method: "POST", body: "{}", signal: AbortSignal.timeout(10_000) },
+    ),
+  venueMetrics: (organizationId: string, campaignId: string) =>
+    request<VenueMetricsSummary>(
+      `/partners/organizations/${organizationId}/campaigns/${campaignId}/venue-metrics`,
+      { signal: AbortSignal.timeout(10_000) },
+    ),
+  redeemVenueOffer: (
+    organizationId: string,
+    campaignId: string,
+    code: string,
+  ) =>
+    request<VenueRedemptionResult>(
+      `/partners/organizations/${organizationId}/campaigns/${campaignId}/redeem`,
+      {
+        method: "POST",
+        body: JSON.stringify({ code }),
+        signal: AbortSignal.timeout(10_000),
+      },
     ),
   createPartnerCampaign: (
     organizationId: string,

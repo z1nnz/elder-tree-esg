@@ -16,6 +16,7 @@ import {
   MapPin,
   Pencil,
   Plus,
+  QrCode,
   Send,
   Users,
 } from "lucide-react";
@@ -29,6 +30,7 @@ import {
   useState,
 } from "react";
 import { api } from "../lib/api";
+import { VenueStation } from "./venue-station";
 
 type CampaignForm = Omit<PartnerCampaignInput, "startsAt" | "endsAt"> & {
   startsAt: string;
@@ -60,6 +62,7 @@ function newCampaignForm(): CampaignForm {
     safetyNotes: "",
     optionalOffer: null,
     purchaseRequired: false,
+    requiresVenueWitness: false,
   };
 }
 
@@ -81,6 +84,7 @@ function campaignToForm(campaign: PartnerCampaignSummary): CampaignForm {
     safetyNotes: campaign.safetyNotes,
     optionalOffer: campaign.optionalOffer,
     purchaseRequired: false,
+    requiresVenueWitness: campaign.requiresVenueWitness ?? false,
   };
 }
 
@@ -94,11 +98,20 @@ export function PartnerWorkspace({
     null,
   );
   const [editing, setEditing] = useState<PartnerCampaignSummary | null>(null);
+  const [station, setStation] = useState<PartnerCampaignSummary | null>(null);
   const [form, setForm] = useState<CampaignForm | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const loadSequence = useRef(0);
+  const stationReturnFocus = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!station && stationReturnFocus.current) {
+      document.getElementById(stationReturnFocus.current)?.focus();
+      stationReturnFocus.current = null;
+    }
+  }, [station]);
 
   const load = useCallback(async () => {
     const sequence = ++loadSequence.current;
@@ -197,6 +210,7 @@ export function PartnerWorkspace({
                 setWorkspace(null);
                 setEditing(null);
                 setForm(null);
+                setStation(null);
                 setError(null);
               }}
             >
@@ -217,7 +231,7 @@ export function PartnerWorkspace({
             <h1>{workspace?.organization.name ?? "夥伴工作區"}</h1>
             <p>提出不必消費也能完成的共行旅程；平台核准後才會發布到 App。</p>
           </div>
-          {!form ? (
+          {!form && !station ? (
             <button
               className="primary-button"
               onClick={() => {
@@ -261,7 +275,17 @@ export function PartnerWorkspace({
           />
         </div>
 
-        {form ? (
+        {station ? (
+          <VenueStation
+            key={`${organizationId}:${station.id}`}
+            organizationId={organizationId}
+            campaign={station}
+            onClose={() => {
+              stationReturnFocus.current = `open-venue-${station.id}`;
+              setStation(null);
+            }}
+          />
+        ) : form ? (
           <CampaignEditor
             form={form}
             editing={editing}
@@ -303,6 +327,17 @@ export function PartnerWorkspace({
                     </p>
                   </div>
                   <div className="partner-campaign-actions">
+                    {campaign.status === "APPROVED" &&
+                    campaign.requiresVenueWitness ? (
+                      <button
+                        id={`open-venue-${campaign.id}`}
+                        className="secondary-button"
+                        type="button"
+                        onClick={() => setStation(campaign)}
+                      >
+                        <QrCode size={17} aria-hidden="true" /> 開啟現場工作台
+                      </button>
+                    ) : null}
                     {campaign.status === "DRAFT" ||
                     campaign.status === "REJECTED" ? (
                       <button
@@ -440,7 +475,8 @@ function CampaignEditor({
               onChange({
                 ...form,
                 verificationMode: mode,
-                minimumSeconds: mode === "TIMER" ? form.minimumSeconds ?? 180 : null,
+                minimumSeconds:
+                  mode === "TIMER" ? (form.minimumSeconds ?? 180) : null,
               });
             }}
           >
@@ -547,6 +583,22 @@ function CampaignEditor({
             onChange={(e) => set("optionalOffer", e.target.value || null)}
             placeholder="例如：完成後可自願領取飲水，不需消費"
           />
+        </PartnerField>
+        <PartnerField label="到場見證" wide>
+          <select
+            value={form.requiresVenueWitness ? "required" : "optional"}
+            onChange={(e) =>
+              set("requiresVenueWitness", e.target.value === "required")
+            }
+          >
+            <option value="optional">依上方見證方式完成，不需掃碼</option>
+            <option value="required">
+              完成條件後，另需掃描現場短效碼與定位
+            </option>
+          </select>
+          <small>
+            啟用後須由現場夥伴展示到場碼，並交由平台審核；有自願回饋時才開放領取碼核銷。
+          </small>
         </PartnerField>
       </div>
       <div className="partner-editor-note">
