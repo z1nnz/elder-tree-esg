@@ -358,6 +358,11 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('這段旅程沒有額外回饋，年輪進度仍已保留。'), findsOneWidget);
       expect(find.text('我想領取，顯示領取碼'), findsNothing);
+      expect(find.text('若這段旅程有回饋，讀取到場紀錄後即可查看。'), findsNothing);
+      await tester.scrollUntilVisible(find.text('更新到場紀錄'), 250);
+      await tester.pumpAndSettle();
+      expect(find.text('更新到場紀錄'), findsOneWidget);
+      expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
       controller.dispose();
     },
@@ -481,6 +486,42 @@ void main() {
     expect(writes, 0);
     expect(find.text('回饋已登記領取，請勿重複領取。'), findsOneWidget);
     expect(find.byType(QrImageView), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  });
+
+  testWidgets('record details are optional and show the limits when expanded', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final controller = AppController(
+      api: ApiClient(client: MockClient((_) async => envelope(receiptJson()))),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(true),
+        home: VenueWitnessScreen(
+          controller: controller,
+          mission: RadarMissionModel.fromJson(missionJson(status: 'COMPLETED')),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    const limits = '是否領取不影響年輪進度。此紀錄不等於購買、共同在場或已完成植樹。';
+    expect(find.text(limits), findsNothing);
+    final localDate = DateTime.utc(2026, 8, 28).toLocal();
+    expect(
+      find.textContaining(
+        '到場時間 ${localDate.year}/${localDate.month}/${localDate.day}',
+      ),
+      findsOneWidget,
+    );
+    await tester.ensureVisible(find.text('這份紀錄代表什麼？'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('這份紀錄代表什麼？'));
+    await tester.pumpAndSettle();
+    expect(find.text(limits), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
     controller.dispose();
   });

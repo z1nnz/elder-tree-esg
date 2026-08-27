@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
 import 'src/app_controller.dart';
+import 'src/app_locale.dart';
 import 'src/api_client.dart';
 import 'src/auth_screen.dart';
 import 'src/auth_service.dart';
@@ -55,6 +56,9 @@ class _ElderTreeAppState extends State<ElderTreeApp> {
       title: '同行成林',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(true),
+      locale: appLocale,
+      supportedLocales: appSupportedLocales,
+      localizationsDelegates: appLocalizationDelegates,
       home: StreamBuilder<AuthAccount?>(
         stream: auth.accountChanges,
         initialData: auth.currentAccount,

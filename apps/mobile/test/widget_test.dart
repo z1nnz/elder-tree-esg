@@ -185,6 +185,11 @@ void main() {
     expect(find.text('長者友善顯示'), findsOneWidget);
     expect(find.text('設定'), findsWidgets);
     expect(find.text('登出'), findsOneWidget);
+    final settingsContext = tester.element(find.text('帳號'));
+    expect(Localizations.localeOf(settingsContext).languageCode, 'zh');
+    expect(Localizations.localeOf(settingsContext).scriptCode, 'Hant');
+    expect(MaterialLocalizations.of(settingsContext).backButtonTooltip, '返回');
+    expect(MaterialLocalizations.of(settingsContext).copyButtonLabel, '複製');
   });
 
   testWidgets('elder mode preserves a larger operating-system text scale', (

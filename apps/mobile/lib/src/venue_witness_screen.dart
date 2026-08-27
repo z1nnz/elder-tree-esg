@@ -72,6 +72,7 @@ class _VenueWitnessScreenState extends State<VenueWitnessScreen>
   bool _busy = false;
   bool _scanning = false;
   bool _completed = false;
+  bool _codeExpired = false;
   bool _contextChanged = false;
   int _sequence = 0;
 
@@ -87,7 +88,10 @@ class _VenueWitnessScreenState extends State<VenueWitnessScreen>
       if (!mounted) return;
       if (_redemption != null) {
         setState(() {
-          if (_clock.elapsed >= _deadline) _redemption = null;
+          if (_clock.elapsed >= _deadline) {
+            _redemption = null;
+            _codeExpired = true;
+          }
         });
       }
     });
@@ -103,6 +107,7 @@ class _VenueWitnessScreenState extends State<VenueWitnessScreen>
     setState(() {
       _contextChanged = true;
       _redemption = null;
+      _codeExpired = false;
       _receipt = null;
       _scanning = false;
       _busy = false;
@@ -126,6 +131,7 @@ class _VenueWitnessScreenState extends State<VenueWitnessScreen>
     _input.clear();
     setState(() {
       _redemption = null;
+      _codeExpired = false;
       _scanning = false;
       _busy = false;
       _error = '畫面已收起。回到現場後，請重新掃碼或更新領取狀態。';
@@ -142,6 +148,7 @@ class _VenueWitnessScreenState extends State<VenueWitnessScreen>
       _busy = true;
       _error = null;
       _redemption = null;
+      _codeExpired = false;
     });
     try {
       final receipt = await widget.controller.getVenueReceipt(
@@ -212,6 +219,7 @@ class _VenueWitnessScreenState extends State<VenueWitnessScreen>
       _busy = true;
       _error = null;
       _redemption = null;
+      _codeExpired = false;
     });
     try {
       // Refresh first so a redeemed reward is not offered again from stale UI.
@@ -261,10 +269,23 @@ class _VenueWitnessScreenState extends State<VenueWitnessScreen>
   Widget build(BuildContext context) {
     final offline = widget.controller.offlineDemo;
     final available = !_busy && !_contextChanged && !offline;
-    final remaining = math.max(0, (_deadline - _clock.elapsed).inSeconds);
+    final remaining = math.max(
+      0,
+      ((_deadline - _clock.elapsed).inMilliseconds / 1000).ceil(),
+    );
+    final hasOffer = _receipt?.offer?.trim().isNotEmpty == true;
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F5),
-      appBar: AppBar(title: const Text('今天的到場足跡')),
+      backgroundColor: warmWhite,
+      appBar: AppBar(
+        title: const Text('到場足跡'),
+        leading: Navigator.of(context).canPop()
+            ? IconButton(
+                tooltip: '返回旅程',
+                onPressed: () => Navigator.of(context).maybePop(),
+                icon: const Icon(Icons.arrow_back),
+              )
+            : null,
+      ),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -285,10 +306,10 @@ class _VenueWitnessScreenState extends State<VenueWitnessScreen>
                   widget.mission.title,
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 const Text(
-                  '一起走過的路，留下可追溯的足跡。\n不需要消費，也不必領取回饋。',
-                  style: TextStyle(fontSize: 18, height: 1.7),
+                  '不需要消費，也不必領取回饋。',
+                  style: TextStyle(fontSize: 16, color: mutedInk, height: 1.6),
                 ),
                 const SizedBox(height: 24),
                 if (offline) const Text('目前是離線示範，不會完成到場見證或提供領取碼。'),
@@ -389,27 +410,90 @@ class _VenueWitnessScreenState extends State<VenueWitnessScreen>
                   ),
                 ],
                 if (_completed && !_contextChanged) ...[
-                  const Icon(
-                    Icons.check_circle_outline,
-                    color: forest,
-                    size: 40,
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFEEF4EF),
+                      border: Border(left: BorderSide(color: forest, width: 3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.check_circle_outline,
+                              color: forest,
+                              size: 28,
+                            ),
+                            SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                '這段旅程已完成',
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (_receipt != null) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            '到場時間 ${_witnessTime(_receipt!.witnessedAt)}',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              height: 1.6,
+                              color: mutedInk,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 10),
+                        const Text(
+                          '一起走過的路，已留在你們的年輪裡。',
+                          style: TextStyle(fontSize: 16, height: 1.6),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    '這段旅程已完成',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    _receipt?.redeemedAt != null
-                        ? '回饋已登記領取，請勿重複領取。'
-                        : _receipt?.offer ?? '若這段旅程有回饋，讀取到場紀錄後即可查看。',
-                    style: const TextStyle(fontSize: 18, height: 1.7),
-                  ),
-                  if (_receipt != null &&
-                      _receipt!.offer?.trim().isNotEmpty != true)
+                  const SizedBox(height: 24),
+                  if (hasOffer) ...[
+                    const Text(
+                      '現場的小心意',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: forest,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _receipt!.redeemedAt != null
+                          ? '回饋已登記領取，請勿重複領取。'
+                          : _receipt!.offer!,
+                      style: const TextStyle(fontSize: 18, height: 1.7),
+                    ),
+                  ] else if (_receipt != null)
                     const Text('這段旅程沒有額外回饋，年輪進度仍已保留。'),
+                  if (_receipt == null) const Text('讀取到場紀錄後，即可確認這段旅程是否提供回饋。'),
                   const SizedBox(height: 20),
+                  if (_codeExpired)
+                    Semantics(
+                      liveRegion: true,
+                      child: const Padding(
+                        padding: EdgeInsets.only(bottom: 16),
+                        child: Text(
+                          '領取碼已過期。若還在現場，可重新開啟；年輪進度不受影響。',
+                          style: TextStyle(
+                            fontSize: 16,
+                            height: 1.6,
+                            color: mutedInk,
+                          ),
+                        ),
+                      ),
+                    ),
                   if (_redemption != null && remaining > 0) ...[
                     Center(
                       child: ConstrainedBox(
@@ -430,9 +514,7 @@ class _VenueWitnessScreenState extends State<VenueWitnessScreen>
                       onPressed: () => setState(() => _redemption = null),
                       child: const Text('收起領取碼'),
                     ),
-                  ] else if (_receipt != null &&
-                      _receipt!.redeemedAt == null &&
-                      _receipt!.offer?.trim().isNotEmpty == true)
+                  ] else if (hasOffer && _receipt!.redeemedAt == null)
                     FilledButton.icon(
                       onPressed: available ? _issue : null,
                       icon: const Icon(Icons.redeem_outlined),
@@ -441,12 +523,19 @@ class _VenueWitnessScreenState extends State<VenueWitnessScreen>
                   const SizedBox(height: 12),
                   OutlinedButton(
                     onPressed: available ? _loadReceipt : null,
-                    child: const Text('更新領取狀態'),
+                    child: Text(hasOffer ? '更新領取狀態' : '更新到場紀錄'),
                   ),
                   const SizedBox(height: 16),
-                  const Text(
-                    '是否領取不影響年輪進度。此紀錄不等於購買、共同在場或已完成植樹。',
-                    style: TextStyle(fontSize: 16, height: 1.7),
+                  const ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    childrenPadding: EdgeInsets.only(bottom: 16),
+                    title: Text('這份紀錄代表什麼？', style: TextStyle(fontSize: 16)),
+                    children: [
+                      Text(
+                        '是否領取不影響年輪進度。此紀錄不等於購買、共同在場或已完成植樹。',
+                        style: TextStyle(fontSize: 16, height: 1.7),
+                      ),
+                    ],
                   ),
                 ],
               ],
@@ -456,6 +545,13 @@ class _VenueWitnessScreenState extends State<VenueWitnessScreen>
       ),
     );
   }
+}
+
+String _witnessTime(DateTime time) {
+  final local = time.toLocal();
+  final hour = local.hour.toString().padLeft(2, '0');
+  final minute = local.minute.toString().padLeft(2, '0');
+  return '${local.year}/${local.month}/${local.day} $hour:$minute';
 }
 
 class _ArrivalCamera extends StatefulWidget {
