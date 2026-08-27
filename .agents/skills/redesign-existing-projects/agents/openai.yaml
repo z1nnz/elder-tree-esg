@@ -1,0 +1,4 @@
+interface:
+  display_name: "視覺雕琢"
+  short_description: "從現有畫面修整構圖、字體、留白與視覺層級，減少制式模板感。"
+  default_prompt: "請用 $redesign-existing-projects 雕琢同行成林的介面，保留功能與中文品牌，提供修改前後的真實畫面。"

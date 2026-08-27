@@ -1,0 +1,4 @@
+interface:
+  display_name: "介面匠心"
+  short_description: "從產品內容建立有辨識度的視覺層級，兼顧美感、簡潔與可用性。"
+  default_prompt: "請用 $frontend-design 精修同行成林的介面，沿用品牌與中文命名，呈現真實群體旅程。"

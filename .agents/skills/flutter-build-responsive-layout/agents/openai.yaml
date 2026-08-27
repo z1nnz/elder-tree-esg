@@ -1,0 +1,4 @@
+interface:
+  display_name: "隨屏舒展"
+  short_description: "讓手機與平板版面依可用空間舒展，兼顧大字閱讀與清楚操作。"
+  default_prompt: "請用 $flutter-build-responsive-layout 改善同行成林的手機與平板排版，保留大字可用性。"
