@@ -8,6 +8,8 @@
 
 產品定位與品牌使用見 [`docs/brand-guidelines.md`](docs/brand-guidelines.md)，加速交付計畫見 [`docs/roadmap/tongxing-chenglin-delivery-plan.md`](docs/roadmap/tongxing-chenglin-delivery-plan.md)，專案責任與可核驗貢獻方式見 [`PROJECT_LEADERSHIP.md`](PROJECT_LEADERSHIP.md)。
 
+手機與網頁設計使用共用的[介面工藝庫](docs/design/skill-library.md)：包含已審查的開源技能、固定版本與授權，以及同行成林的大字、互動和真實畫面驗收方式。
+
 ## Repository layout
 
 - `apps/mobile`: Flutter app for participants, elders, and family members.

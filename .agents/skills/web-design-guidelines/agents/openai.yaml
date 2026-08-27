@@ -1,0 +1,4 @@
+interface:
+  display_name: "網頁體驗巡檢"
+  short_description: "檢查網頁的鍵盤操作、表單提示、字級縮放與互動細節是否清楚。"
+  default_prompt: "請用 $web-design-guidelines 檢查同行成林網頁的互動與無障礙問題，附上檔案位置與驗證限制。"

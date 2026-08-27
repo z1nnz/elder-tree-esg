@@ -1,0 +1,4 @@
+interface:
+  display_name: "版面修整"
+  short_description: "找出版面溢出與尺寸限制的根因，修正排列並保留長者閱讀體驗。"
+  default_prompt: "請用 $flutter-fix-layout-issues 修整同行成林的版面溢出，並驗證窄螢幕與大字情境。"
