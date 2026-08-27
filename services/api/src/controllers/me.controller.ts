@@ -1,4 +1,13 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import {
   JoinHouseholdDto,
@@ -22,6 +31,11 @@ export class MeController {
   @Get("me/home")
   async home(@Req() request: AuthenticatedRequest) {
     return { data: await this.store.getHomeSummary(request.user!.uid) };
+  }
+
+  @Get("me/workspace-access")
+  async workspaceAccess(@Req() request: AuthenticatedRequest) {
+    return { data: await this.store.getWorkspaceAccess(request.user!.uid) };
   }
 
   @Patch("me/profile")

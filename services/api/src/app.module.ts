@@ -12,6 +12,7 @@ import { LineController } from "./controllers/line.controller";
 import { MeController } from "./controllers/me.controller";
 import { TasksController } from "./controllers/tasks.controller";
 import { PublicController } from "./controllers/public.controller";
+import { PartnersController } from "./controllers/partners.controller";
 import { ApiAuthGuard } from "./security/api-auth.guard";
 import { DemoStoreService } from "./store/demo-store.service";
 import { PrismaService } from "./database/prisma.service";
@@ -36,6 +37,7 @@ import { LineMessagingService } from "./line/line-messaging.service";
     LineController,
     ImpactController,
     PublicController,
+    PartnersController,
   ],
   providers: [
     DemoStoreService,

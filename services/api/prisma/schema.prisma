@@ -123,6 +123,14 @@ enum ImpactBatchStatus {
   ARCHIVED
 }
 
+enum PartnerCampaignStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  ARCHIVED
+}
+
 model User {
   id                       String                          @id @default(uuid())
   firebaseUid              String                          @unique
@@ -148,6 +156,10 @@ model User {
   cooperativeContributions CooperativeActionContribution[]
   claimedCooperativeRuns   CooperativeActionRun[]          @relation("ClaimedCooperativeMember")
   auditLogs                AuditLog[]                      @relation("AuditActor")
+  organizationMemberships  OrganizationMember[]
+  createdPartnerCampaigns  Campaign[]                      @relation("PartnerCampaignCreator")
+  reviewedPartnerCampaigns Campaign[]                      @relation("PartnerCampaignReviewer")
+  campaignReaches          CampaignReach[]
   createdAt                DateTime                        @default(now())
   updatedAt                DateTime                        @updatedAt
 }
@@ -456,6 +468,10 @@ model RadarMission {
   minimumSeconds                 Int?
   growthPoints                   Int
   badgeName                      String?
+  venueName                      String?
+  accessibilityNotes             String?
+  safetyNotes                    String?
+  optionalOffer                  String?
   companionElderMessageTemplate  String?
   companionReplyTemplate         String?
   companionVolunteerNoteTemplate String?
@@ -463,6 +479,8 @@ model RadarMission {
   status                         RadarMissionPublicationStatus @default(DRAFT)
   publishedAt                    DateTime?
   archivedAt                     DateTime?
+  campaignId                     String?                       @unique
+  campaign                       Campaign?                     @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   progress                       RadarMissionProgress[]
   createdAt                      DateTime                      @default(now())
   updatedAt                      DateTime                      @updatedAt
@@ -691,18 +709,58 @@ model OrganizationMember {
   userId         String
   role           UserRole
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([organizationId, userId])
+  @@index([userId, role])
 }
 
 model Campaign {
-  id             String       @id @default(uuid())
-  organizationId String
-  title          String
-  startsAt       DateTime
-  endsAt         DateTime
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  createdAt      DateTime     @default(now())
+  id                 String                @id @default(uuid())
+  organizationId     String
+  title              String
+  description        String                @default("")
+  venueName          String                @default("")
+  latitude           Float                 @default(25.033)
+  longitude          Float                 @default(121.5654)
+  radiusMeters       Int                   @default(60)
+  startsAt           DateTime
+  endsAt             DateTime
+  verificationMode   VerificationMode      @default(SELF_CHECK)
+  minimumSeconds     Int?
+  growthPoints       Int                   @default(10)
+  badgeName          String?
+  accessibilityNotes String                @default("")
+  safetyNotes        String                @default("")
+  optionalOffer      String?
+  purchaseRequired   Boolean               @default(false)
+  status             PartnerCampaignStatus @default(DRAFT)
+  submittedAt        DateTime?
+  reviewedAt         DateTime?
+  reviewNote         String?
+  createdByUserId    String?
+  reviewedByUserId   String?
+  organization       Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy          User?                 @relation("PartnerCampaignCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  reviewedBy         User?                 @relation("PartnerCampaignReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  radarMission       RadarMission?
+  reaches            CampaignReach[]
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  @@index([organizationId, status, createdAt])
+  @@index([status, submittedAt])
+}
+
+model CampaignReach {
+  campaignId  String
+  userId      String
+  firstSeenAt DateTime @default(now())
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([campaignId, userId])
+  @@index([campaignId, firstSeenAt])
 }
 
 model ImpactPoolEntry {

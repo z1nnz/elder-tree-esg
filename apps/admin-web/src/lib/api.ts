@@ -13,6 +13,11 @@ import type {
   PhotoAiOperationalStatus,
   ReviewItem,
   LineNotificationStatus,
+  PartnerCampaignInput,
+  PartnerCampaignSummary,
+  PartnerOrganizationSummary,
+  PartnerWorkspaceSummary,
+  WorkspaceAccessSummary,
 } from "@elder-tree/contracts";
 
 const API_URL =
@@ -41,6 +46,48 @@ export const api = {
     accessToken = token;
   },
   dashboard: () => request<DashboardSnapshot>("/admin/dashboard"),
+  workspaceAccess: () =>
+    request<WorkspaceAccessSummary>("/me/workspace-access"),
+  partnerOrganizations: () =>
+    request<PartnerOrganizationSummary[]>("/partners/organizations"),
+  partnerWorkspace: (organizationId: string) =>
+    request<PartnerWorkspaceSummary>(
+      `/partners/organizations/${organizationId}/workspace`,
+    ),
+  createPartnerCampaign: (
+    organizationId: string,
+    input: PartnerCampaignInput,
+  ) =>
+    request<PartnerCampaignSummary>(
+      `/partners/organizations/${organizationId}/campaigns`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  updatePartnerCampaign: (
+    organizationId: string,
+    campaignId: string,
+    input: PartnerCampaignInput,
+  ) =>
+    request<PartnerCampaignSummary>(
+      `/partners/organizations/${organizationId}/campaigns/${campaignId}`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    ),
+  submitPartnerCampaign: (organizationId: string, campaignId: string) =>
+    request<PartnerCampaignSummary>(
+      `/partners/organizations/${organizationId}/campaigns/${campaignId}/submit`,
+      { method: "POST", body: JSON.stringify({}) },
+    ),
+  adminPartnerCampaigns: () =>
+    request<PartnerCampaignSummary[]>("/admin/partner-campaigns"),
+  approvePartnerCampaign: (campaignId: string, reviewNote: string) =>
+    request<PartnerCampaignSummary>(
+      `/admin/partner-campaigns/${campaignId}/approve`,
+      { method: "POST", body: JSON.stringify({ reviewNote }) },
+    ),
+  rejectPartnerCampaign: (campaignId: string, reviewNote: string) =>
+    request<PartnerCampaignSummary>(
+      `/admin/partner-campaigns/${campaignId}/reject`,
+      { method: "POST", body: JSON.stringify({ reviewNote }) },
+    ),
   photoAiStatus: () =>
     request<PhotoAiOperationalStatus>("/admin/photo-ai/status"),
   lineBindings: () =>
@@ -83,10 +130,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  updateExplorationRoute: (
-    id: string,
-    input: Partial<ExplorationRouteInput>,
-  ) =>
+  updateExplorationRoute: (id: string, input: Partial<ExplorationRouteInput>) =>
     request<ExplorationRouteSummary>(`/admin/exploration/routes/${id}`, {
       method: "PATCH",
       body: JSON.stringify(input),

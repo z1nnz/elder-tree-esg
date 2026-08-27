@@ -30,6 +30,15 @@ export const impactBatchStatuses = [
 ] as const;
 export type ImpactBatchStatus = (typeof impactBatchStatuses)[number];
 
+export const partnerCampaignStatuses = [
+  "DRAFT",
+  "SUBMITTED",
+  "APPROVED",
+  "REJECTED",
+  "ARCHIVED",
+] as const;
+export type PartnerCampaignStatus = (typeof partnerCampaignStatuses)[number];
+
 export const assignmentStatuses = [
   "AVAILABLE",
   "IN_PROGRESS",
@@ -308,6 +317,60 @@ export interface ImpactSummary {
   contributedPoints: number;
 }
 
+export interface PartnerOrganizationSummary {
+  id: string;
+  name: string;
+  role: "ORG_ADMIN";
+}
+
+export interface PartnerCampaignInput {
+  title: string;
+  description: string;
+  venueName: string;
+  latitude: number;
+  longitude: number;
+  radiusMeters: number;
+  startsAt: string;
+  endsAt: string;
+  verificationMode: "SELF_CHECK" | "TIMER";
+  minimumSeconds?: number | null;
+  growthPoints: number;
+  badgeName?: string | null;
+  accessibilityNotes: string;
+  safetyNotes: string;
+  optionalOffer?: string | null;
+  purchaseRequired: false;
+}
+
+export interface PartnerCampaignSummary extends PartnerCampaignInput {
+  id: string;
+  organizationId: string;
+  organizationName: string;
+  status: PartnerCampaignStatus;
+  submittedAt: string | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  radarMissionId: string | null;
+  metrics: {
+    deliveredToAppCount: number;
+    arrivedCount: number;
+    completedCount: number;
+    completionRate: number;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PartnerWorkspaceSummary {
+  organization: PartnerOrganizationSummary;
+  campaigns: PartnerCampaignSummary[];
+}
+
+export interface WorkspaceAccessSummary {
+  role: "PARTICIPANT" | "FAMILY" | "REVIEWER" | "ORG_ADMIN" | "PLATFORM_ADMIN";
+  organizations: PartnerOrganizationSummary[];
+}
+
 export interface CompanionDeviceSummary {
   id: string;
   serialNumber: string;
@@ -379,11 +442,7 @@ export interface ExplorationEventResult extends ExplorationState {
 }
 
 export type RadarMissionStatus =
-  | "UPCOMING"
-  | "LOCKED"
-  | "UNLOCKED"
-  | "COMPLETED"
-  | "EXPIRED";
+  "UPCOMING" | "LOCKED" | "UNLOCKED" | "COMPLETED" | "EXPIRED";
 
 export interface RadarMissionSummary {
   id: string;
@@ -401,6 +460,10 @@ export interface RadarMissionSummary {
   minimumSeconds: number | null;
   growthPoints: number;
   badgeName: string | null;
+  venueName: string | null;
+  accessibilityNotes: string | null;
+  safetyNotes: string | null;
+  optionalOffer: string | null;
   publicationStatus: "DRAFT" | "PUBLISHED" | "ARCHIVED";
   status: RadarMissionStatus;
   unlockedAt: string | null;
@@ -532,16 +595,10 @@ export type CircleKind =
 export type CooperativeActionKind = "COLLECTION" | "RELAY";
 
 export type CooperativeActionStatus =
-  | "AVAILABLE"
-  | "ACTIVE"
-  | "COMPLETED"
-  | "EXPIRED";
+  "AVAILABLE" | "ACTIVE" | "COMPLETED" | "EXPIRED";
 
 export type ActionWitnessTier =
-  | "SELF_CHECK"
-  | "PROCESS"
-  | "COMPOSITE"
-  | "PARTNER";
+  "SELF_CHECK" | "PROCESS" | "COMPOSITE" | "PARTNER";
 
 export interface CircleMemberSummary {
   id: string;

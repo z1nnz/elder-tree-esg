@@ -4390,20 +4390,14 @@ class _RadarMissionCardState extends State<_RadarMissionCard> {
     final canComplete = mission.canCompleteAt(_now);
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        gradient: LinearGradient(
-          colors: completed
-              ? const [Color(0xFFE8F6DF), Color(0xFFFFFFFF)]
-              : [accent.withValues(alpha: 0.14), Colors.white],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: completed ? const Color(0xFFF2F8EF) : const Color(0xFFFFFDF7),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: accent.withValues(alpha: 0.22)),
         boxShadow: [
           BoxShadow(
-            color: accent.withValues(alpha: 0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            color: const Color(0xFF163524).withValues(alpha: 0.06),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -4419,22 +4413,9 @@ class _RadarMissionCardState extends State<_RadarMissionCard> {
                   width: 50,
                   height: 50,
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: completed
-                          ? [forest, accent]
-                          : [Colors.white, accent.withValues(alpha: 0.22)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2),
-                    boxShadow: [
-                      BoxShadow(
-                        color: accent.withValues(alpha: 0.22),
-                        blurRadius: 16,
-                        offset: const Offset(0, 7),
-                      ),
-                    ],
+                    color: completed ? forest : accent.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: accent.withValues(alpha: 0.22)),
                   ),
                   child: Icon(
                     _radarIcon(mission),
@@ -4477,6 +4458,24 @@ class _RadarMissionCardState extends State<_RadarMissionCard> {
                 ),
               ],
             ),
+            if (mission.venueName != null) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(Icons.place_outlined, size: 18, color: accent),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Text(
+                      mission.venueName!,
+                      style: const TextStyle(
+                        color: Color(0xFF35483D),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
@@ -4520,6 +4519,43 @@ class _RadarMissionCardState extends State<_RadarMissionCard> {
                   ),
               ],
             ),
+            if (mission.accessibilityNotes != null ||
+                mission.safetyNotes != null ||
+                mission.optionalOffer != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F2),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFDCE6DF)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (mission.accessibilityNotes != null)
+                      _MissionGuidanceLine(
+                        icon: Icons.accessible_forward_rounded,
+                        label: '無障礙',
+                        value: mission.accessibilityNotes!,
+                      ),
+                    if (mission.safetyNotes != null)
+                      _MissionGuidanceLine(
+                        icon: Icons.health_and_safety_outlined,
+                        label: '安全提醒',
+                        value: mission.safetyNotes!,
+                      ),
+                    if (mission.optionalOffer != null)
+                      _MissionGuidanceLine(
+                        icon: Icons.redeem_outlined,
+                        label: '自願回饋',
+                        value: mission.optionalOffer!,
+                      ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
@@ -4582,6 +4618,50 @@ class _RadarMissionCardState extends State<_RadarMissionCard> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _MissionGuidanceLine extends StatelessWidget {
+  const _MissionGuidanceLine({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 17, color: forest),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: '$label　',
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  TextSpan(text: value),
+                ],
+              ),
+              style: const TextStyle(
+                color: Color(0xFF45564D),
+                height: 1.45,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

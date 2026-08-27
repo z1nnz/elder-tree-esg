@@ -16,6 +16,7 @@ import {
   CreateRadarMissionDto,
   LineTestPushDto,
   ReorderExplorationQuestsDto,
+  ReviewPartnerCampaignDto,
   UpdateRadarMissionDto,
   UpdateExplorationQuestDto,
   UpdateExplorationRouteDto,
@@ -76,6 +77,41 @@ export class AdminController {
   @Get("reviews")
   async reviews() {
     return { data: await this.store.listAdminReviews() };
+  }
+
+  @Get("partner-campaigns")
+  async partnerCampaigns() {
+    return { data: await this.store.listAdminPartnerCampaigns() };
+  }
+
+  @Post("partner-campaigns/:id/approve")
+  async approvePartnerCampaign(
+    @Req() request: AuthenticatedRequest,
+    @Param("id") id: string,
+    @Body() dto: ReviewPartnerCampaignDto,
+  ) {
+    return {
+      data: await this.store.approvePartnerCampaign(
+        request.user!.uid,
+        id,
+        dto.reviewNote,
+      ),
+    };
+  }
+
+  @Post("partner-campaigns/:id/reject")
+  async rejectPartnerCampaign(
+    @Req() request: AuthenticatedRequest,
+    @Param("id") id: string,
+    @Body() dto: ReviewPartnerCampaignDto,
+  ) {
+    return {
+      data: await this.store.rejectPartnerCampaign(
+        request.user!.uid,
+        id,
+        dto.reviewNote,
+      ),
+    };
   }
 
   @Get("exploration/routes")

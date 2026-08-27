@@ -26,6 +26,10 @@ import type {
   LineBindingSummary,
   LineNotificationStatus,
   LineOperationalStatus,
+  PartnerCampaignInput,
+  PartnerCampaignSummary,
+  PartnerOrganizationSummary,
+  PartnerWorkspaceSummary,
   RadarMissionInput,
   RadarMissionSummary,
   RadarMissionStatus,
@@ -34,10 +38,12 @@ import type {
   TaskSummary,
   TreeSummary,
   VerificationResult,
+  WorkspaceAccessSummary,
 } from "@elder-tree/contracts";
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -168,6 +174,23 @@ type RouteWithTasks = Prisma.ExplorationRouteGetPayload<{
 type RadarMissionWithProgress = Prisma.RadarMissionGetPayload<{
   include: { progress: true };
 }>;
+
+type PartnerCampaignRecord = Prisma.CampaignGetPayload<{
+  include: {
+    organization: true;
+    reaches: { select: { userId: true } };
+    radarMission: {
+      include: { progress: { select: { userId: true; completedAt: true } } };
+    };
+  };
+}>;
+
+type PartnerCampaignValidationInput = Omit<
+  PartnerCampaignInput,
+  "purchaseRequired"
+> & {
+  purchaseRequired: boolean;
+};
 
 interface RadarMissionPromptSource {
   title: string;
@@ -484,12 +507,9 @@ export class PersistentStoreService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly clock: ClockService = new ClockService(),
-    private readonly evidenceStorage: EvidenceStorageService =
-      new EvidenceStorageService(),
-    private readonly photoVerifier: PhotoVerifierService =
-      new PhotoVerifierService(),
-    private readonly lineMessaging: LineMessagingService =
-      new LineMessagingService(),
+    private readonly evidenceStorage: EvidenceStorageService = new EvidenceStorageService(),
+    private readonly photoVerifier: PhotoVerifierService = new PhotoVerifierService(),
+    private readonly lineMessaging: LineMessagingService = new LineMessagingService(),
   ) {}
 
   async getContext(firebaseUid: string): Promise<AppContext> {
@@ -757,7 +777,8 @@ export class PersistentStoreService {
       code,
       expiresAt: expiresAt.toISOString(),
       qrPayload: `eldertree://line-bind?code=${code}`,
-      instructions: "請在同行成林 LINE 官方帳號輸入此 8 碼綁定碼；10 分鐘內有效且只能使用一次。",
+      instructions:
+        "請在同行成林 LINE 官方帳號輸入此 8 碼綁定碼；10 分鐘內有效且只能使用一次。",
     };
   }
 
@@ -807,9 +828,15 @@ export class PersistentStoreService {
         where: { codeHash },
         include: { household: true },
       });
-      if (!bindingCode) throw new NotFoundException("LINE binding code not found");
-      if (bindingCode.usedAt || bindingCode.expiresAt.getTime() <= now.getTime()) {
-        throw new ConflictException("LINE binding code is expired or already used");
+      if (!bindingCode)
+        throw new NotFoundException("LINE binding code not found");
+      if (
+        bindingCode.usedAt ||
+        bindingCode.expiresAt.getTime() <= now.getTime()
+      ) {
+        throw new ConflictException(
+          "LINE binding code is expired or already used",
+        );
       }
       const consumed = await transaction.lineBindingCode.updateMany({
         where: {
@@ -820,7 +847,9 @@ export class PersistentStoreService {
         data: { usedAt: now, lineUserId },
       });
       if (consumed.count !== 1) {
-        throw new ConflictException("LINE binding code is expired or already used");
+        throw new ConflictException(
+          "LINE binding code is expired or already used",
+        );
       }
       return transaction.lineBinding.upsert({
         where: {
@@ -2719,6 +2748,22 @@ export class PersistentStoreService {
       },
       orderBy: [{ endsAt: "asc" }, { createdAt: "asc" }],
     });
+    const campaignIds = [
+      ...new Set(
+        missions
+          .map((mission) => mission.campaignId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    if (campaignIds.length > 0) {
+      await this.prisma.campaignReach.createMany({
+        data: campaignIds.map((campaignId) => ({
+          campaignId,
+          userId: active.id,
+        })),
+        skipDuplicates: true,
+      });
+    }
     return {
       generatedAt: now.toISOString(),
       missions: missions.map((mission) =>
@@ -2755,6 +2800,350 @@ export class PersistentStoreService {
     return missions.map((mission) =>
       this.toRadarMissionSummary({ ...mission, progress: [] }, now),
     );
+  }
+
+  async listPartnerOrganizations(
+    firebaseUid: string,
+  ): Promise<PartnerOrganizationSummary[]> {
+    const user = await this.prisma.user.findUnique({
+      where: { firebaseUid },
+      select: {
+        organizationMemberships: {
+          where: { role: UserRole.ORG_ADMIN },
+          include: { organization: true },
+          orderBy: { organization: { name: "asc" } },
+        },
+      },
+    });
+    if (!user || user.organizationMemberships.length === 0) {
+      throw new ForbiddenException("Journey partner access required");
+    }
+    return user.organizationMemberships.map((membership) => ({
+      id: membership.organization.id,
+      name: membership.organization.name,
+      role: "ORG_ADMIN",
+    }));
+  }
+
+  async getWorkspaceAccess(
+    firebaseUid: string,
+  ): Promise<WorkspaceAccessSummary> {
+    const user = await this.prisma.user.findUnique({
+      where: { firebaseUid },
+      select: {
+        role: true,
+        organizationMemberships: {
+          where: { role: UserRole.ORG_ADMIN },
+          include: { organization: true },
+          orderBy: { organization: { name: "asc" } },
+        },
+      },
+    });
+    if (!user) throw new ForbiddenException("Workspace access required");
+    return {
+      role: user.role,
+      organizations: user.organizationMemberships.map((membership) => ({
+        id: membership.organization.id,
+        name: membership.organization.name,
+        role: "ORG_ADMIN",
+      })),
+    };
+  }
+
+  async getPartnerWorkspace(
+    firebaseUid: string,
+    organizationId: string,
+  ): Promise<PartnerWorkspaceSummary> {
+    const membership = await this.getPartnerMembership(
+      firebaseUid,
+      organizationId,
+    );
+    const campaigns = await this.prisma.campaign.findMany({
+      where: { organizationId },
+      include: {
+        organization: true,
+        reaches: { select: { userId: true } },
+        radarMission: {
+          include: {
+            progress: { select: { userId: true, completedAt: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    return {
+      organization: {
+        id: membership.organization.id,
+        name: membership.organization.name,
+        role: "ORG_ADMIN",
+      },
+      campaigns: campaigns.map((campaign) =>
+        this.toPartnerCampaignSummary(campaign),
+      ),
+    };
+  }
+
+  async createPartnerCampaign(
+    firebaseUid: string,
+    organizationId: string,
+    input: PartnerCampaignInput,
+  ): Promise<PartnerCampaignSummary> {
+    const membership = await this.getPartnerMembership(
+      firebaseUid,
+      organizationId,
+    );
+    this.assertValidPartnerCampaignInput(input);
+    const campaign = await this.prisma.campaign.create({
+      data: {
+        organizationId,
+        createdByUserId: membership.user.id,
+        ...this.toPartnerCampaignData(input),
+      },
+      include: {
+        organization: true,
+        reaches: { select: { userId: true } },
+        radarMission: {
+          include: {
+            progress: { select: { userId: true, completedAt: true } },
+          },
+        },
+      },
+    });
+    return this.toPartnerCampaignSummary(campaign);
+  }
+
+  async updatePartnerCampaign(
+    firebaseUid: string,
+    organizationId: string,
+    campaignId: string,
+    input: PartnerCampaignInput,
+  ): Promise<PartnerCampaignSummary> {
+    this.assertValidPartnerCampaignInput(input);
+    const campaign = await this.prisma.$transaction(async (transaction) => {
+      await transaction.$executeRaw`
+        SELECT pg_advisory_xact_lock(hashtext(${`partner-campaign:${campaignId}`}))
+      `;
+      const membership = await transaction.organizationMember.findFirst({
+        where: {
+          organizationId,
+          role: UserRole.ORG_ADMIN,
+          user: { firebaseUid },
+        },
+      });
+      if (!membership) {
+        throw new ForbiddenException("Journey partner access required");
+      }
+      const existing = await transaction.campaign.findFirst({
+        where: { id: campaignId, organizationId },
+      });
+      if (!existing) throw new NotFoundException("Partner campaign not found");
+      if (!["DRAFT", "REJECTED"].includes(existing.status)) {
+        throw new ConflictException("Submitted campaigns are read-only");
+      }
+      return transaction.campaign.update({
+        where: { id: campaignId },
+        data: {
+          ...this.toPartnerCampaignData(input),
+          status: "DRAFT",
+          submittedAt: null,
+          reviewedAt: null,
+          reviewedByUserId: null,
+          reviewNote: null,
+        },
+        include: {
+          organization: true,
+          reaches: { select: { userId: true } },
+          radarMission: {
+            include: {
+              progress: { select: { userId: true, completedAt: true } },
+            },
+          },
+        },
+      });
+    });
+    return this.toPartnerCampaignSummary(campaign);
+  }
+
+  async submitPartnerCampaign(
+    firebaseUid: string,
+    organizationId: string,
+    campaignId: string,
+  ): Promise<PartnerCampaignSummary> {
+    const campaign = await this.prisma.$transaction(async (transaction) => {
+      await transaction.$executeRaw`
+        SELECT pg_advisory_xact_lock(hashtext(${`partner-campaign:${campaignId}`}))
+      `;
+      const membership = await transaction.organizationMember.findFirst({
+        where: {
+          organizationId,
+          role: UserRole.ORG_ADMIN,
+          user: { firebaseUid },
+        },
+      });
+      if (!membership) {
+        throw new ForbiddenException("Journey partner access required");
+      }
+      const existing = await transaction.campaign.findFirst({
+        where: { id: campaignId, organizationId },
+      });
+      if (!existing) throw new NotFoundException("Partner campaign not found");
+      if (existing.status !== "DRAFT") {
+        throw new ConflictException("Only draft campaigns can be submitted");
+      }
+      this.assertValidStoredPartnerCampaign(existing);
+      return transaction.campaign.update({
+        where: { id: campaignId },
+        data: { status: "SUBMITTED", submittedAt: this.clock.now() },
+        include: {
+          organization: true,
+          reaches: { select: { userId: true } },
+          radarMission: {
+            include: {
+              progress: { select: { userId: true, completedAt: true } },
+            },
+          },
+        },
+      });
+    });
+    return this.toPartnerCampaignSummary(campaign);
+  }
+
+  async listAdminPartnerCampaigns(): Promise<PartnerCampaignSummary[]> {
+    const campaigns = await this.prisma.campaign.findMany({
+      include: {
+        organization: true,
+        reaches: { select: { userId: true } },
+        radarMission: {
+          include: {
+            progress: { select: { userId: true, completedAt: true } },
+          },
+        },
+      },
+      orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }],
+    });
+    return campaigns.map((campaign) => this.toPartnerCampaignSummary(campaign));
+  }
+
+  async approvePartnerCampaign(
+    firebaseUid: string,
+    campaignId: string,
+    reviewNote: string,
+  ): Promise<PartnerCampaignSummary> {
+    this.assertValidPartnerReviewNote(reviewNote);
+    const now = this.clock.now();
+    await this.prisma.$transaction(async (transaction) => {
+      await transaction.$executeRaw`
+        SELECT pg_advisory_xact_lock(hashtext(${`partner-campaign:${campaignId}`}))
+      `;
+      const reviewer = await transaction.user.findUnique({
+        where: { firebaseUid },
+      });
+      if (!reviewer || reviewer.role !== UserRole.PLATFORM_ADMIN) {
+        throw new ForbiddenException("Platform administrator required");
+      }
+      const campaign = await transaction.campaign.findUnique({
+        where: { id: campaignId },
+        include: { radarMission: true },
+      });
+      if (!campaign) throw new NotFoundException("Partner campaign not found");
+      if (campaign.status === "APPROVED" && campaign.radarMission) return;
+      if (campaign.status !== "SUBMITTED") {
+        throw new ConflictException("Campaign is not awaiting review");
+      }
+      this.assertValidStoredPartnerCampaign(campaign);
+      if (campaign.endsAt <= now) {
+        throw new ConflictException("Campaign end time has already passed");
+      }
+      const mission = await transaction.radarMission.create({
+        data: {
+          campaignId: campaign.id,
+          title: campaign.title,
+          description: campaign.description,
+          category: "PARTNER",
+          tag: "旅程共創",
+          latitude: campaign.latitude,
+          longitude: campaign.longitude,
+          radiusMeters: campaign.radiusMeters,
+          startsAt: campaign.startsAt,
+          endsAt: campaign.endsAt,
+          verificationMode: campaign.verificationMode,
+          minimumSeconds: campaign.minimumSeconds,
+          growthPoints: campaign.growthPoints,
+          badgeName: campaign.badgeName,
+          venueName: campaign.venueName,
+          accessibilityNotes: campaign.accessibilityNotes,
+          safetyNotes: campaign.safetyNotes,
+          optionalOffer: campaign.optionalOffer,
+          status: "PUBLISHED",
+          publishedAt: now,
+        },
+      });
+      await transaction.campaign.update({
+        where: { id: campaign.id },
+        data: {
+          status: "APPROVED",
+          reviewedAt: now,
+          reviewedByUserId: reviewer.id,
+          reviewNote: reviewNote.trim(),
+        },
+      });
+      await transaction.auditLog.create({
+        data: {
+          actorId: reviewer.id,
+          action: "PARTNER_CAMPAIGN_APPROVED",
+          entityType: "Campaign",
+          entityId: campaign.id,
+          after: { radarMissionId: mission.id, reviewNote: reviewNote.trim() },
+        },
+      });
+    });
+    return this.getAdminPartnerCampaign(campaignId);
+  }
+
+  async rejectPartnerCampaign(
+    firebaseUid: string,
+    campaignId: string,
+    reviewNote: string,
+  ): Promise<PartnerCampaignSummary> {
+    this.assertValidPartnerReviewNote(reviewNote);
+    await this.prisma.$transaction(async (transaction) => {
+      await transaction.$executeRaw`
+        SELECT pg_advisory_xact_lock(hashtext(${`partner-campaign:${campaignId}`}))
+      `;
+      const reviewer = await transaction.user.findUnique({
+        where: { firebaseUid },
+      });
+      if (!reviewer || reviewer.role !== UserRole.PLATFORM_ADMIN) {
+        throw new ForbiddenException("Platform administrator required");
+      }
+      const existing = await transaction.campaign.findUnique({
+        where: { id: campaignId },
+      });
+      if (!existing) throw new NotFoundException("Partner campaign not found");
+      if (existing.status !== "SUBMITTED") {
+        throw new ConflictException("Campaign is not awaiting review");
+      }
+      const reviewedAt = this.clock.now();
+      await transaction.campaign.update({
+        where: { id: campaignId },
+        data: {
+          status: "REJECTED",
+          reviewedAt,
+          reviewedByUserId: reviewer.id,
+          reviewNote: reviewNote.trim(),
+        },
+      });
+      await transaction.auditLog.create({
+        data: {
+          actorId: reviewer.id,
+          action: "PARTNER_CAMPAIGN_REJECTED",
+          entityType: "Campaign",
+          entityId: campaignId,
+          after: { reviewNote: reviewNote.trim() },
+        },
+      });
+    });
+    return this.getAdminPartnerCampaign(campaignId);
   }
 
   async getRecentCompanionPrompts(
@@ -2938,7 +3327,9 @@ export class PersistentStoreService {
     const active = await this.getActiveUser(firebaseUid);
     const now = this.clock.now();
     const companionNotification = await this.prisma.$transaction(
-      async (transaction): Promise<{
+      async (
+        transaction,
+      ): Promise<{
         sourceTitle: string;
         growthPoints: number;
         companionReply: string;
@@ -3730,6 +4121,206 @@ export class PersistentStoreService {
     }
   }
 
+  private async getPartnerMembership(
+    firebaseUid: string,
+    organizationId: string,
+  ) {
+    const membership = await this.prisma.organizationMember.findFirst({
+      where: {
+        organizationId,
+        role: UserRole.ORG_ADMIN,
+        user: { firebaseUid },
+      },
+      include: { organization: true, user: true },
+    });
+    if (!membership) {
+      throw new ForbiddenException("Journey partner access required");
+    }
+    return membership;
+  }
+
+  private async getAdminPartnerCampaign(
+    campaignId: string,
+  ): Promise<PartnerCampaignSummary> {
+    const campaign = await this.prisma.campaign.findUnique({
+      where: { id: campaignId },
+      include: {
+        organization: true,
+        reaches: { select: { userId: true } },
+        radarMission: {
+          include: {
+            progress: { select: { userId: true, completedAt: true } },
+          },
+        },
+      },
+    });
+    if (!campaign) throw new NotFoundException("Partner campaign not found");
+    return this.toPartnerCampaignSummary(campaign);
+  }
+
+  private assertValidPartnerCampaignInput(
+    input: PartnerCampaignValidationInput,
+  ): void {
+    if (input.purchaseRequired !== false) {
+      throw new BadRequestException(
+        "Partner journeys must be completable without a purchase",
+      );
+    }
+    if (
+      input.title.trim().length < 2 ||
+      input.title.trim().length > 100 ||
+      input.description.trim().length < 8 ||
+      input.description.trim().length > 500 ||
+      input.venueName.trim().length < 2 ||
+      input.venueName.trim().length > 120 ||
+      input.accessibilityNotes.trim().length < 4 ||
+      input.accessibilityNotes.trim().length > 500 ||
+      input.safetyNotes.trim().length < 4 ||
+      input.safetyNotes.trim().length > 500 ||
+      (input.badgeName != null &&
+        (input.badgeName.trim().length < 2 || input.badgeName.trim().length > 80)) ||
+      (input.optionalOffer?.trim().length ?? 0) > 240
+    ) {
+      throw new BadRequestException(
+        "Partner journey requires complete venue and safety information",
+      );
+    }
+    if (
+      !Number.isFinite(input.latitude) ||
+      input.latitude < -90 ||
+      input.latitude > 90 ||
+      !Number.isFinite(input.longitude) ||
+      input.longitude < -180 ||
+      input.longitude > 180 ||
+      !Number.isInteger(input.growthPoints) ||
+      input.growthPoints < 1 ||
+      input.growthPoints > 50 ||
+      !Number.isInteger(input.radiusMeters) ||
+      (input.verificationMode === "TIMER" && !Number.isInteger(input.minimumSeconds))
+    ) {
+      throw new BadRequestException(
+        "Partner journey requires valid coordinates and growth points",
+      );
+    }
+    this.assertValidRadarMissionInput({
+      title: input.title,
+      description: input.description,
+      category: "PARTNER",
+      tag: "旅程共創",
+      latitude: input.latitude,
+      longitude: input.longitude,
+      radiusMeters: input.radiusMeters,
+      startsAt: input.startsAt,
+      endsAt: input.endsAt,
+      verificationMode: input.verificationMode,
+      minimumSeconds: input.minimumSeconds,
+      growthPoints: input.growthPoints,
+      badgeName: input.badgeName,
+    });
+  }
+
+  private assertValidStoredPartnerCampaign(
+    campaign: Prisma.CampaignGetPayload<Record<string, never>>,
+  ): void {
+    this.assertValidPartnerCampaignInput({
+      title: campaign.title,
+      description: campaign.description,
+      venueName: campaign.venueName,
+      latitude: campaign.latitude,
+      longitude: campaign.longitude,
+      radiusMeters: campaign.radiusMeters,
+      startsAt: campaign.startsAt.toISOString(),
+      endsAt: campaign.endsAt.toISOString(),
+      verificationMode: campaign.verificationMode as "SELF_CHECK" | "TIMER",
+      minimumSeconds: campaign.minimumSeconds,
+      growthPoints: campaign.growthPoints,
+      badgeName: campaign.badgeName,
+      accessibilityNotes: campaign.accessibilityNotes,
+      safetyNotes: campaign.safetyNotes,
+      optionalOffer: campaign.optionalOffer,
+      purchaseRequired: campaign.purchaseRequired,
+    });
+  }
+
+  private assertValidPartnerReviewNote(reviewNote: string): void {
+    const length = reviewNote.trim().length;
+    if (length < 4 || length > 500) {
+      throw new BadRequestException(
+        "Review note must contain 4-500 characters",
+      );
+    }
+  }
+
+  private toPartnerCampaignData(input: PartnerCampaignInput) {
+    return {
+      title: input.title.trim(),
+      description: input.description.trim(),
+      venueName: input.venueName.trim(),
+      latitude: input.latitude,
+      longitude: input.longitude,
+      radiusMeters: input.radiusMeters,
+      startsAt: new Date(input.startsAt),
+      endsAt: new Date(input.endsAt),
+      verificationMode: input.verificationMode,
+      minimumSeconds:
+        input.verificationMode === "TIMER" ? input.minimumSeconds : null,
+      growthPoints: input.growthPoints,
+      badgeName: input.badgeName?.trim() || null,
+      accessibilityNotes: input.accessibilityNotes.trim(),
+      safetyNotes: input.safetyNotes.trim(),
+      optionalOffer: input.optionalOffer?.trim() || null,
+      purchaseRequired: false,
+    };
+  }
+
+  private toPartnerCampaignSummary(
+    campaign: PartnerCampaignRecord,
+  ): PartnerCampaignSummary {
+    const progress = campaign.radarMission?.progress ?? [];
+    const deliveredToAppCount = campaign.reaches.length;
+    const arrivedCount = new Set(progress.map((entry) => entry.userId)).size;
+    const completedCount = new Set(
+      progress
+        .filter((entry) => entry.completedAt !== null)
+        .map((entry) => entry.userId),
+    ).size;
+    return {
+      id: campaign.id,
+      organizationId: campaign.organizationId,
+      organizationName: campaign.organization.name,
+      title: campaign.title,
+      description: campaign.description,
+      venueName: campaign.venueName,
+      latitude: campaign.latitude,
+      longitude: campaign.longitude,
+      radiusMeters: campaign.radiusMeters,
+      startsAt: campaign.startsAt.toISOString(),
+      endsAt: campaign.endsAt.toISOString(),
+      verificationMode: campaign.verificationMode as "SELF_CHECK" | "TIMER",
+      minimumSeconds: campaign.minimumSeconds,
+      growthPoints: campaign.growthPoints,
+      badgeName: campaign.badgeName,
+      accessibilityNotes: campaign.accessibilityNotes,
+      safetyNotes: campaign.safetyNotes,
+      optionalOffer: campaign.optionalOffer,
+      purchaseRequired: false,
+      status: campaign.status,
+      submittedAt: campaign.submittedAt?.toISOString() ?? null,
+      reviewedAt: campaign.reviewedAt?.toISOString() ?? null,
+      reviewNote: campaign.reviewNote,
+      radarMissionId: campaign.radarMission?.id ?? null,
+      metrics: {
+        deliveredToAppCount,
+        arrivedCount,
+        completedCount,
+        completionRate:
+          deliveredToAppCount === 0 ? 0 : completedCount / deliveredToAppCount,
+      },
+      createdAt: campaign.createdAt.toISOString(),
+      updatedAt: campaign.updatedAt.toISOString(),
+    };
+  }
+
   private assertValidRadarMissionInput(input: RadarMissionInput): void {
     if (!["SELF_CHECK", "TIMER"].includes(input.verificationMode)) {
       throw new BadRequestException(
@@ -3825,6 +4416,10 @@ export class PersistentStoreService {
       minimumSeconds: mission.minimumSeconds,
       growthPoints: mission.growthPoints,
       badgeName: mission.badgeName,
+      venueName: mission.venueName,
+      accessibilityNotes: mission.accessibilityNotes,
+      safetyNotes: mission.safetyNotes,
+      optionalOffer: mission.optionalOffer,
       publicationStatus: mission.status,
       status,
       unlockedAt: progress?.unlockedAt.toISOString() ?? null,
