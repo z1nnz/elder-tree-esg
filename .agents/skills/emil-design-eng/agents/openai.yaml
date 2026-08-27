@@ -1,0 +1,4 @@
+interface:
+  display_name: "靈動細節"
+  short_description: "精修按壓回饋、轉場節奏與元件層次，讓介面細節自然且有質感。"
+  default_prompt: "請用 $emil-design-eng 精修同行成林的互動質感，展示前後差異並保留降低動態效果的模式。"
