@@ -3,6 +3,7 @@
 - 專案主要負責人：[@z1nnz](https://github.com/z1nnz)
 - 驗證日期：2026-08-27
 - 需求：[議題 #39](https://github.com/z1nnz/elder-tree-esg/issues/39)
+- 版本差異：[合併請求 #40](https://github.com/z1nnz/elder-tree-esg/pull/40)，實作提交 `a768253`。
 - 決策：[提案與發布權限分離](../adr/0002-separate-partner-proposals-from-platform-publishing.md)
 
 ## 本次交付
@@ -13,7 +14,9 @@
 
 ## 畫面證據
 
-以下畫面使用暫時的本機驗收頁與虛構資料，載入正式介面元件。沒有登入真實合作夥伴帳號，也沒有寫入正式資料庫。驗收頁已於提交前移除，不會隨產品發布。
+![正式工作區登入頁](screenshots/issue-39-workspace-login.png)
+
+上圖為本機正式登入頁；下列工作區畫面使用暫時的本機驗收頁與虛構資料，載入正式介面元件。沒有登入真實合作夥伴帳號，也沒有寫入正式資料庫。驗收頁已於提交前移除，不會隨產品發布。
 
 ![夥伴工作區，虛構驗收資料](screenshots/issue-39-partner-workspace.png)
 
