@@ -9,6 +9,7 @@ import type {
   LineNotificationStatus,
   LineOperationalStatus,
   PhotoAiOperationalStatus,
+  PartnerCampaignSummary,
   RadarMissionSummary,
   ReviewItem,
 } from "@elder-tree/contracts";
@@ -32,8 +33,6 @@ import {
   MapPinned,
   Plus,
   RefreshCw,
-  Search,
-  Settings,
   ShieldCheck,
   Sprout,
   MessageCircle,
@@ -55,6 +54,7 @@ if (typeof window !== "undefined") {
 type View =
   | "overview"
   | "reviews"
+  | "partners"
   | "exploration"
   | "line"
   | "impact"
@@ -93,6 +93,7 @@ const fallbackSnapshot: DashboardSnapshot = {
 const navItems = [
   { id: "overview" as const, label: "營運總覽", icon: Gauge },
   { id: "reviews" as const, label: "任務覆核", icon: ClipboardCheck },
+  { id: "partners" as const, label: "夥伴提案", icon: FileCheck2 },
   { id: "exploration" as const, label: "城市任務", icon: MapPinned },
   { id: "line" as const, label: "LINE 陪伴", icon: MessageCircle },
   { id: "impact" as const, label: "公益批次", icon: Trees },
@@ -108,9 +109,14 @@ export function OperationsDashboard() {
   const [photoAiStatus, setPhotoAiStatus] =
     useState<PhotoAiOperationalStatus | null>(null);
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
+  const [partnerCampaigns, setPartnerCampaigns] = useState<
+    PartnerCampaignSummary[]
+  >([]);
   const [routes, setRoutes] = useState<ExplorationRouteSummary[]>([]);
   const [radarMissions, setRadarMissions] = useState<RadarMissionSummary[]>([]);
-  const [lineBindings, setLineBindings] = useState<AdminLineBindingSummary[]>([]);
+  const [lineBindings, setLineBindings] = useState<AdminLineBindingSummary[]>(
+    [],
+  );
   const [lineStatus, setLineStatus] = useState<LineOperationalStatus | null>(
     null,
   );
@@ -131,6 +137,7 @@ export function OperationsDashboard() {
         nextSnapshot,
         nextPhotoAiStatus,
         nextReviews,
+        nextPartnerCampaigns,
         nextRoutes,
         nextRadarMissions,
         nextLineBindings,
@@ -141,6 +148,7 @@ export function OperationsDashboard() {
         api.dashboard(),
         api.photoAiStatus(),
         api.reviews(),
+        api.adminPartnerCampaigns(),
         api.explorationRoutes(),
         api.radarMissions(),
         api.lineBindings(),
@@ -151,6 +159,7 @@ export function OperationsDashboard() {
       setSnapshot(nextSnapshot);
       setPhotoAiStatus(nextPhotoAiStatus);
       setReviews(nextReviews);
+      setPartnerCampaigns(nextPartnerCampaigns);
       setRoutes(nextRoutes);
       setRadarMissions(nextRadarMissions);
       setLineBindings(nextLineBindings);
@@ -260,6 +269,17 @@ export function OperationsDashboard() {
               <span>{label}</span>
               {id === "reviews" && reviews.length > 0 ? (
                 <b>{reviews.length}</b>
+              ) : id === "partners" &&
+                partnerCampaigns.some(
+                  (campaign) => campaign.status === "SUBMITTED",
+                ) ? (
+                <b>
+                  {
+                    partnerCampaigns.filter(
+                      (campaign) => campaign.status === "SUBMITTED",
+                    ).length
+                  }
+                </b>
               ) : id === "line" && lineBindings.length > 0 ? (
                 <b>
                   {
@@ -279,14 +299,10 @@ export function OperationsDashboard() {
               <Building2 size={18} />
             </div>
             <div>
-              <strong>城市共好協會</strong>
-              <span>示範組織</span>
+              <strong>平台管理工作區</strong>
+              <span>跨組織審核與營運</span>
             </div>
           </div>
-          <button className="nav-item">
-            <Settings size={18} />
-            <span>組織設定</span>
-          </button>
         </div>
       </aside>
 
@@ -308,25 +324,17 @@ export function OperationsDashboard() {
             <Menu size={21} />
           </button>
           <div>
-            <p>城市共好協會</p>
+            <p>同行成林 · 平台管理</p>
             <h1>{title}</h1>
           </div>
           <div className="topbar-actions">
-            <label className="search">
-              <Search size={18} />
-              <input aria-label="搜尋" placeholder="搜尋任務、裝置或批次" />
-            </label>
-            <button className="icon-button" title="通知">
-              <Bell size={20} />
-              <span className="notification-dot" />
-            </button>
-            <button className="profile-button" title="帳號選單">
-              <span>林</span>
+            <div className="profile-button">
+              <span><ShieldCheck size={18} /></span>
               <div>
-                <strong>林雨晴</strong>
-                <small>組織管理員</small>
+                <strong>平台管理員</strong>
+                <small>已驗證管理權限</small>
               </div>
-            </button>
+            </div>
           </div>
         </header>
 
@@ -356,6 +364,18 @@ export function OperationsDashboard() {
           ) : null}
           {view === "reviews" ? (
             <Reviews reviews={reviews} photoAiStatus={photoAiStatus} />
+          ) : null}
+          {view === "partners" ? (
+            <PartnerCampaignReviews
+              campaigns={partnerCampaigns}
+              onChange={(updated) =>
+                setPartnerCampaigns((campaigns) =>
+                  campaigns.map((campaign) =>
+                    campaign.id === updated.id ? updated : campaign,
+                  ),
+                )
+              }
+            />
           ) : null}
           {view === "exploration" ? (
             <div className="exploration-stack">
@@ -544,7 +564,7 @@ function Overview({
 
   const validationItems = [
     {
-      label: "App 實機驗收",
+      label: "行動紀錄",
       value: `${Math.max(snapshot.completedTaskCount, 0)}`,
       detail: "任務完成紀錄",
       icon: BadgeCheck,
@@ -552,7 +572,7 @@ function Overview({
       view: "exploration" as View,
     },
     {
-      label: "PHOTO AI",
+      label: "照片見證",
       value: `${reviews.length}`,
       detail: "待家人覆核",
       icon: FileCheck2,
@@ -579,64 +599,64 @@ function Overview({
 
   return (
     <div className="overview-motion-root" data-view-root ref={overviewRef}>
-      <section className="ops-hero" aria-label="App V2 營運總控台">
+      <section className="ops-hero" aria-label="營運工作入口">
         <div className="ops-hero-copy">
-          <span>GREEN COMPANION OPS</span>
-          <h2>同行成林營運總控台</h2>
+          <h2>讓每一段同行，安心出發。</h2>
           <p>
-            把 App 驗收、城市雷達、照片 AI、家人覆核與互動樹裝置放在同一個畫面。
-            這裡只顯示真實狀態，不用假數字撐場面。
+            管理城市旅程、檢查行動見證，並追蹤互動樹的連線狀態。
           </p>
           <div className="ops-hero-actions">
-            <button className="primary-button" onClick={() => onNavigate("exploration")}>
+            <button
+              className="primary-button"
+              onClick={() => onNavigate("exploration")}
+            >
               任務營運 <ChevronRight size={16} />
             </button>
-            <button className="secondary-button" onClick={() => onNavigate("reviews")}>
+            <button
+              className="secondary-button"
+              onClick={() => onNavigate("reviews")}
+            >
               照片覆核
             </button>
           </div>
         </div>
-        <div className="ops-radar" aria-hidden="true">
-          <div className="ops-radar-ring ops-radar-ring-a" />
-          <div className="ops-radar-ring ops-radar-ring-b" />
-          <div className="ops-radar-ring ops-radar-ring-c" />
-          <span className="ops-pulse ops-pulse-a" />
-          <span className="ops-pulse ops-pulse-b" />
-          <span className="ops-pulse ops-pulse-c" />
-          <strong>TAIPEI QUEST LIVE</strong>
-          <small>雷達任務 · 路線任務 · 安全半徑</small>
-        </div>
         <div className="ops-validation-grid">
-          {validationItems.map(({ label, value, detail, icon: Icon, action, view }) => (
-            <button
-              className="ops-validation-card"
-              key={label}
-              onClick={() => onNavigate(view)}
-              type="button"
-            >
-              <Icon size={20} />
-              <span>{label}</span>
-              <strong>{value}</strong>
-              <small>{detail}</small>
-              <b>{action}</b>
-            </button>
-          ))}
+          {validationItems.map(
+            ({ label, value, detail, icon: Icon, action, view }) => (
+              <button
+                className="ops-validation-card"
+                key={label}
+                onClick={() => onNavigate(view)}
+                type="button"
+              >
+                <Icon size={20} />
+                <span>{label}</span>
+                <strong>{value}</strong>
+                <small>{detail}</small>
+                <b>{action}</b>
+              </button>
+            ),
+          )}
         </div>
       </section>
 
       <section className="ops-command-strip" aria-label="營運狀態列">
         <article>
-          <span>APP ADVENTURE V2</span>
+          <span>城市探索</span>
           <strong>{publishedRadarCount} 個雷達任務已發布</strong>
-          <small>探索頁以定位、半徑與任務 sheet 為主，不再依賴全域底部 nav。</small>
+          <small>
+            參與者可在探索頁查看附近旅程與場域範圍。
+          </small>
         </article>
         <article>
-          <span>PHOTO AI</span>
+          <span>照片見證</span>
           <strong>{photoAiReady ? "照片驗證可用" : "需要環境檢查"}</strong>
-          <small>一般任務可 PHOTO_AI；雷達任務仍維持 SELF_CHECK / TIMER。</small>
+          <small>
+            一般任務支援照片判讀；城市旅程使用現場確認或停留計時。
+          </small>
         </article>
         <article>
-          <span>LINE COMPANION</span>
+          <span>陪伴通知</span>
           <strong>{activeLineCount} 個 LINE 綁定</strong>
           <small>LINE 用於提醒、求助與通知，不取代 App 地圖探索。</small>
         </article>
@@ -666,16 +686,7 @@ function Overview({
             </div>
             <span className="period">近 7 天</span>
           </div>
-          <div className="bar-chart" aria-label="七日任務完成長條圖">
-            {[38, 52, 45, 68, 61, 84, 72].map((height, index) => (
-              <div className="bar-column" key={index}>
-                <div className="bar-track">
-                  <span style={{ height: `${height}%` }} />
-                </div>
-                <small>{"一二三四五六日"[index]}</small>
-              </div>
-            ))}
-          </div>
+          <p className="empty-state">尚未提供每日統計。累積完成數請參考上方數據。</p>
         </div>
 
         <div className="panel impact-panel">
@@ -691,9 +702,6 @@ function Overview({
             value={snapshot.impactPoolPoints}
           />
           <span>成長值</span>
-          <div className="impact-progress">
-            <span style={{ width: "74%" }} />
-          </div>
           <div className="impact-foot">
             <span>
               <Trees size={17} /> 約 {snapshot.simulatedTreeCount} 棵示範樹
@@ -715,7 +723,10 @@ function Overview({
             <p>立即處理</p>
             <h2>待覆核任務</h2>
           </div>
-          <button className="secondary-button" onClick={() => onNavigate("reviews")}>
+          <button
+            className="secondary-button"
+            onClick={() => onNavigate("reviews")}
+          >
             查看全部
           </button>
         </div>
@@ -735,7 +746,10 @@ function Overview({
               <small>AI 信心值</small>
               <strong>{Math.round(reviews[0].confidence * 100)}%</strong>
             </div>
-            <button className="primary-button" onClick={() => onNavigate("reviews")}>
+            <button
+              className="primary-button"
+              onClick={() => onNavigate("reviews")}
+            >
               開始覆核
             </button>
           </div>
@@ -752,7 +766,11 @@ function Overview({
           <span>互動樹狀態</span>
           <strong>{devices[0]?.name ?? "尚未認領裝置"}</strong>
         </div>
-        <span className={devices[0]?.reportedState.online ? "online-pill" : "offline-pill"}>
+        <span
+          className={
+            devices[0]?.reportedState.online ? "online-pill" : "offline-pill"
+          }
+        >
           {devices[0]?.reportedState.online ? "在線" : "離線"}
         </span>
         <div className="sensor-value">
@@ -763,11 +781,193 @@ function Overview({
           <small>濕度</small>
           <strong>{devices[0]?.reportedState.humidityPercent ?? "--"}%</strong>
         </div>
-        <button className="icon-button" title="查看裝置" onClick={() => onNavigate("devices")}>
+        <button
+          className="icon-button"
+          title="查看裝置"
+          onClick={() => onNavigate("devices")}
+        >
           <ChevronRight size={20} />
         </button>
       </section>
     </div>
+  );
+}
+
+function PartnerCampaignReviews({
+  campaigns,
+  onChange,
+}: {
+  campaigns: PartnerCampaignSummary[];
+  onChange: (campaign: PartnerCampaignSummary) => void;
+}) {
+  const submitted = campaigns.filter(
+    (campaign) => campaign.status === "SUBMITTED",
+  );
+  const [selectedId, setSelectedId] = useState<string | null>(
+    submitted[0]?.id ?? null,
+  );
+  const [reviewNote, setReviewNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const selected =
+    campaigns.find((campaign) => campaign.id === selectedId) ?? submitted[0];
+
+  async function review(decision: "approve" | "reject") {
+    if (!selected || reviewNote.trim().length < 4) {
+      setError("請先留下至少四個字的審查說明。");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const updated =
+        decision === "approve"
+          ? await api.approvePartnerCampaign(selected.id, reviewNote)
+          : await api.rejectPartnerCampaign(selected.id, reviewNote);
+      onChange(updated);
+      setReviewNote("");
+      setSelectedId(
+        submitted.find((campaign) => campaign.id !== selected.id)?.id ?? null,
+      );
+    } catch {
+      setError("審查結果未儲存，請重新整理後再試。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="workspace partner-review-workspace" data-view-root>
+      <div className="workspace-heading">
+        <div>
+          <h2>旅程提案審核</h2>
+          <p>
+            夥伴不能自行發布。請確認安全、無障礙、時間窗及「不消費也能完成」後再核准。
+          </p>
+        </div>
+        <span className="queue-count warning">{submitted.length} 件待審</span>
+      </div>
+      {submitted.length === 0 ? (
+        <div className="empty-state">
+          <FileCheck2 size={28} />
+          <strong>目前沒有等待審核的提案</strong>
+          <span>已核准或退回的紀錄仍保留在資料庫與稽核軌跡中。</span>
+        </div>
+      ) : (
+        <div className="partner-review-layout">
+          <div className="partner-review-list" aria-label="待審提案">
+            {submitted.map((campaign) => (
+              <button
+                key={campaign.id}
+                className={
+                  campaign.id === selected?.id
+                    ? "partner-review-item active"
+                    : "partner-review-item"
+                }
+                onClick={() => {
+                  setSelectedId(campaign.id);
+                  setReviewNote("");
+                  setError(null);
+                }}
+              >
+                <span>{campaign.organizationName}</span>
+                <strong>{campaign.title}</strong>
+                <small>{campaign.venueName}</small>
+              </button>
+            ))}
+          </div>
+          {selected ? (
+            <article className="partner-review-detail">
+              <span className="eyebrow">{selected.organizationName}</span>
+              <h3>{selected.title}</h3>
+              <p>{selected.description}</p>
+              <dl className="partner-review-facts">
+                <div>
+                  <dt>旅程據點</dt>
+                  <dd>{selected.venueName}</dd>
+                </div>
+                <div>
+                  <dt>精確位置</dt>
+                  <dd>
+                    {selected.latitude.toFixed(6)},{" "}
+                    {selected.longitude.toFixed(6)}
+                  </dd>
+                </div>
+                <div>
+                  <dt>時間</dt>
+                  <dd>
+                    {new Date(selected.startsAt).toLocaleString("zh-TW")} 至{" "}
+                    {new Date(selected.endsAt).toLocaleString("zh-TW")}
+                  </dd>
+                </div>
+                <div>
+                  <dt>行動見證</dt>
+                  <dd>
+                    {selected.verificationMode === "TIMER"
+                      ? `停留 ${selected.minimumSeconds} 秒`
+                      : "現場自我確認"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>場域半徑</dt>
+                  <dd>{selected.radiusMeters} 公尺</dd>
+                </div>
+                <div>
+                  <dt>年輪進度</dt>
+                  <dd>完成後增加 {selected.growthPoints} 點</dd>
+                </div>
+                <div>
+                  <dt>季節收藏</dt>
+                  <dd>{selected.badgeName ?? "未設定"}</dd>
+                </div>
+                <div>
+                  <dt>無障礙資訊</dt>
+                  <dd>{selected.accessibilityNotes}</dd>
+                </div>
+                <div>
+                  <dt>安全說明</dt>
+                  <dd>{selected.safetyNotes}</dd>
+                </div>
+                <div>
+                  <dt>自願優惠</dt>
+                  <dd>{selected.optionalOffer ?? "未提供"}</dd>
+                </div>
+                <div>
+                  <dt>消費條件</dt>
+                  <dd>不需要消費即可完成</dd>
+                </div>
+              </dl>
+              <label className="partner-review-note-input">
+                審查說明
+                <textarea
+                  value={reviewNote}
+                  maxLength={500}
+                  onChange={(event) => setReviewNote(event.target.value)}
+                  placeholder="說明核准依據，或具體指出需要修正的地方"
+                />
+              </label>
+              {error ? <p className="form-error">{error}</p> : null}
+              <div className="partner-review-actions">
+                <button
+                  className="reject-button"
+                  disabled={busy}
+                  onClick={() => void review("reject")}
+                >
+                  退回修正
+                </button>
+                <button
+                  className="primary-button"
+                  disabled={busy}
+                  onClick={() => void review("approve")}
+                >
+                  <ShieldCheck size={16} /> 核准並發布到 App
+                </button>
+              </div>
+            </article>
+          ) : null}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -823,7 +1023,9 @@ function Reviews({
                 <p>{item.explanation}</p>
                 <div className="review-actions">
                   <button className="secondary-button" disabled>
-                    {fullyEnabled ? "家人覆核決策由 App 處理" : "等待照片 AI 環境完成"}
+                    {fullyEnabled
+                      ? "家人覆核決策由 App 處理"
+                      : "等待照片 AI 環境完成"}
                   </button>
                 </div>
               </div>
@@ -865,11 +1067,7 @@ const photoAiValidationCases = [
   },
 ];
 
-function PhotoAiValidationRunbook({
-  fullyEnabled,
-}: {
-  fullyEnabled: boolean;
-}) {
+function PhotoAiValidationRunbook({ fullyEnabled }: { fullyEnabled: boolean }) {
   return (
     <div className="photo-ai-runbook" aria-label="照片 AI 實機驗收劇本">
       <div className="photo-ai-runbook-heading">
@@ -898,7 +1096,8 @@ function PhotoAiValidationRunbook({
       <div className="photo-ai-runbook-note">
         <ShieldCheck size={17} />
         <span>
-          雷達任務仍維持 SELF_CHECK / TIMER；照片 AI 只驗收一般任務，避免定位任務和照片證據模型混用。
+          雷達任務仍維持 SELF_CHECK / TIMER；照片 AI
+          只驗收一般任務，避免定位任務和照片證據模型混用。
         </span>
       </div>
     </div>
@@ -918,7 +1117,9 @@ function LineOps({
   lastResult: LineNotificationStatus | null;
   onTestPush: (bindingId: string) => Promise<void>;
 }) {
-  const activeBindings = bindings.filter((binding) => binding.status === "ACTIVE");
+  const activeBindings = bindings.filter(
+    (binding) => binding.status === "ACTIVE",
+  );
   const revokedBindings = bindings.filter(
     (binding) => binding.status === "REVOKED",
   );
@@ -929,7 +1130,8 @@ function LineOps({
         <div>
           <h2>LINE 陪伴入口</h2>
           <p>
-            LINE 是提醒、求助與覆核通知入口；地圖探索、照片驗證與生命樹成長仍以 App 為準。
+            LINE 是提醒、求助與覆核通知入口；地圖探索、照片驗證與生命樹成長仍以
+            App 為準。
           </p>
         </div>
         <span className="queue-count">{activeBindings.length} 個啟用綁定</span>
@@ -949,7 +1151,12 @@ function LineOps({
               <small>啟用綁定</small>
             </div>
             <div>
-              <strong>{bindings.reduce((sum, item) => sum + item.notificationCount, 0)}</strong>
+              <strong>
+                {bindings.reduce(
+                  (sum, item) => sum + item.notificationCount,
+                  0,
+                )}
+              </strong>
               <small>通知紀錄</small>
             </div>
             <div>
@@ -990,7 +1197,13 @@ function LineOps({
             bindings.map((binding) => (
               <article className="line-binding-card" key={binding.id}>
                 <div>
-                  <span className={binding.status === "ACTIVE" ? "online-pill" : "offline-pill"}>
+                  <span
+                    className={
+                      binding.status === "ACTIVE"
+                        ? "online-pill"
+                        : "offline-pill"
+                    }
+                  >
                     {binding.status === "ACTIVE" ? "啟用" : "已解除"}
                   </span>
                   <h3>{binding.userDisplayName}</h3>
@@ -1012,7 +1225,9 @@ function LineOps({
                 </dl>
                 <button
                   className="primary-button"
-                  disabled={binding.status !== "ACTIVE" || busyId === binding.id}
+                  disabled={
+                    binding.status !== "ACTIVE" || busyId === binding.id
+                  }
                   onClick={() => void onTestPush(binding.id)}
                 >
                   {busyId === binding.id ? (
@@ -1059,7 +1274,9 @@ function Impact({
         <ShieldCheck size={20} />
         <div>
           <strong>防漂綠保護已啟用</strong>
-          <span>第一版只允許建立 simulated=true 的批次，公開頁會持續顯示模擬標記。</span>
+          <span>
+            第一版只允許建立 simulated=true 的批次，公開頁會持續顯示模擬標記。
+          </span>
         </div>
       </div>
       <div className="batch-table">
@@ -1128,14 +1345,22 @@ function Devices({ devices }: { devices: DeviceView[] }) {
           <article className="device-card" key={device.id}>
             <div className="device-visual">
               <FolderTree size={46} />
-              <span className={device.reportedState.online ? "pulse online" : "pulse"} />
+              <span
+                className={
+                  device.reportedState.online ? "pulse online" : "pulse"
+                }
+              />
             </div>
             <div className="device-name">
               <div>
                 <span>{device.serialNumber}</span>
                 <h3>{device.name}</h3>
               </div>
-              <span className={device.reportedState.online ? "online-pill" : "offline-pill"}>
+              <span
+                className={
+                  device.reportedState.online ? "online-pill" : "offline-pill"
+                }
+              >
                 {device.reportedState.online ? "在線" : "離線"}
               </span>
             </div>
@@ -1192,11 +1417,7 @@ function BatchDialog({
         defaults: { duration: 0.28, ease: "power2.out" },
       });
       timeline
-        .fromTo(
-          backdropRef.current,
-          { autoAlpha: 0 },
-          { autoAlpha: 1 },
-        )
+        .fromTo(backdropRef.current, { autoAlpha: 0 }, { autoAlpha: 1 })
         .fromTo(
           dialogRef.current,
           { y: 14, scale: 0.98, autoAlpha: 0 },
@@ -1223,7 +1444,12 @@ function BatchDialog({
             <span>simulated=true</span>
             <h2>建立模擬公益批次</h2>
           </div>
-          <button type="button" className="icon-button" onClick={onClose} title="關閉">
+          <button
+            type="button"
+            className="icon-button"
+            onClick={onClose}
+            title="關閉"
+          >
             <X size={20} />
           </button>
         </div>
@@ -1256,7 +1482,11 @@ function BatchDialog({
             取消
           </button>
           <button type="submit" className="primary-button" disabled={busy}>
-            {busy ? <LoaderCircle size={18} className="spin" /> : <Plus size={18} />}
+            {busy ? (
+              <LoaderCircle size={18} className="spin" />
+            ) : (
+              <Plus size={18} />
+            )}
             建立批次
           </button>
         </div>
@@ -1290,7 +1520,9 @@ function AnimatedNumber({
         duration: 0.8,
         ease: "power2.out",
         onUpdate: () => {
-          element.textContent = Math.round(counter.value).toLocaleString("zh-TW");
+          element.textContent = Math.round(counter.value).toLocaleString(
+            "zh-TW",
+          );
         },
       });
     },

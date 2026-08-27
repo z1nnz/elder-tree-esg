@@ -19,6 +19,7 @@ describeWithDatabase("PersistentStoreService", () => {
   const createdRadarMissionIds = new Set<string>();
   const createdDeviceIds = new Set<string>();
   const createdLineTargets = new Set<string>();
+  const createdOrganizationIds = new Set<string>();
   let prisma: PrismaService;
   let store: PersistentStoreService;
 
@@ -41,6 +42,9 @@ describeWithDatabase("PersistentStoreService", () => {
     await prisma.lineNotificationLog.deleteMany({
       where: { target: { in: [...createdLineTargets] } },
     });
+    await prisma.organization.deleteMany({
+      where: { id: { in: [...createdOrganizationIds] } },
+    });
     await prisma.user.deleteMany({
       where: { firebaseUid: { in: [...createdFirebaseUids] } },
     });
@@ -56,6 +60,233 @@ describeWithDatabase("PersistentStoreService", () => {
     await prisma.task.deleteMany({ where: { id: { in: [...createdTaskIds] } } });
     await prisma.$disconnect();
   });
+
+  it(
+    "keeps partner proposals organization-scoped and publishes one mission after approval",
+    async () => {
+      const partnerUid = `integration-partner-${randomUUID()}`;
+      const outsiderUid = `integration-partner-outsider-${randomUUID()}`;
+      const adminUid = `integration-partner-admin-${randomUUID()}`;
+      const noPartnerUid = `integration-non-partner-${randomUUID()}`;
+      createdFirebaseUids.add(partnerUid);
+      createdFirebaseUids.add(outsiderUid);
+      createdFirebaseUids.add(adminUid);
+      createdFirebaseUids.add(noPartnerUid);
+
+      await store.getContext(partnerUid);
+      await store.getContext(outsiderUid);
+      await store.getContext(adminUid);
+      await store.getContext(noPartnerUid);
+      await expect(store.listPartnerOrganizations(noPartnerUid)).rejects.toThrow(
+        "Journey partner access required",
+      );
+      const partner = await prisma.user.update({
+        where: { firebaseUid: partnerUid },
+        data: { role: "ORG_ADMIN" },
+      });
+      await prisma.user.update({
+        where: { firebaseUid: adminUid },
+        data: { role: "PLATFORM_ADMIN" },
+      });
+      const organization = await prisma.organization.create({
+        data: {
+          name: "整合測試共創夥伴",
+          memberships: {
+            create: { userId: partner.id, role: "ORG_ADMIN" },
+          },
+        },
+      });
+      createdOrganizationIds.add(organization.id);
+      const outsider = await prisma.user.update({
+        where: { firebaseUid: outsiderUid },
+        data: { role: "ORG_ADMIN" },
+      });
+      const otherOrganization = await prisma.organization.create({
+        data: {
+          name: "另一個整合測試夥伴",
+          memberships: {
+            create: { userId: outsider.id, role: "ORG_ADMIN" },
+          },
+        },
+      });
+      createdOrganizationIds.add(otherOrganization.id);
+
+      await expect(
+        store.getPartnerWorkspace(outsiderUid, organization.id),
+      ).rejects.toThrow("Journey partner access required");
+      await expect(
+        store.getPartnerWorkspace(partnerUid, otherOrganization.id),
+      ).rejects.toThrow("Journey partner access required");
+      expect(await store.listPartnerOrganizations(partnerUid)).toEqual([
+        expect.objectContaining({ id: organization.id }),
+      ]);
+
+      const startsAt = new Date(Date.now() - 60_000);
+      const endsAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const legacyCampaign = await prisma.campaign.create({
+        data: {
+          organizationId: organization.id,
+          title: "舊版未補齊資料的提案",
+          startsAt,
+          endsAt,
+        },
+      });
+      await expect(
+        store.submitPartnerCampaign(partnerUid, organization.id, legacyCampaign.id),
+      ).rejects.toThrow("complete venue and safety information");
+      await expect(
+        store.createPartnerCampaign(partnerUid, organization.id, {
+          title: "必須消費的錯誤旅程",
+          description: "這個提案應該在伺服器驗證階段直接被拒絕。",
+          venueName: "錯誤測試據點",
+          latitude: 25.033,
+          longitude: 121.5654,
+          radiusMeters: 60,
+          startsAt: startsAt.toISOString(),
+          endsAt: endsAt.toISOString(),
+          verificationMode: "SELF_CHECK",
+          growthPoints: 12,
+          accessibilityNotes: "設有平緩步道。",
+          safetyNotes: "白天開放。",
+          // @ts-expect-error Deliberately bypass the contract to exercise the runtime guard.
+          purchaseRequired: true,
+        }),
+      ).rejects.toThrow("must be completable without a purchase");
+      const draft = await store.createPartnerCampaign(
+        partnerUid,
+        organization.id,
+        {
+          title: "一起走進友善公園",
+          description: "在安全步道停留三分鐘，一起看看公園裡的季節變化。",
+          venueName: "整合測試公園",
+          latitude: 25.033,
+          longitude: 121.5654,
+          radiusMeters: 60,
+          startsAt: startsAt.toISOString(),
+          endsAt: endsAt.toISOString(),
+          verificationMode: "SELF_CHECK",
+          growthPoints: 12,
+          badgeName: "公園同行葉",
+          accessibilityNotes: "設有平緩步道與無障礙洗手間。",
+          safetyNotes: "白天開放，請避開施工區域。",
+          optionalOffer: "完成後可自願領取一杯水，不需消費。",
+          purchaseRequired: false,
+        },
+      );
+      expect(draft.status).toBe("DRAFT");
+      const race = await Promise.allSettled([
+        store.submitPartnerCampaign(partnerUid, organization.id, draft.id),
+        store.updatePartnerCampaign(partnerUid, organization.id, draft.id, draft),
+      ]);
+      expect(race[0].status).toBe("fulfilled");
+      expect((await prisma.campaign.findUnique({ where: { id: draft.id } }))?.status)
+        .toBe("SUBMITTED");
+      await expect(
+        store.updatePartnerCampaign(partnerUid, organization.id, draft.id, {
+          ...draft,
+          title: "提交後不應能修改",
+          purchaseRequired: false,
+        }),
+      ).rejects.toThrow("Submitted campaigns are read-only");
+
+      const [approved, approvedAgain] = await Promise.all([
+        store.approvePartnerCampaign(adminUid, draft.id, "安全與無障礙資訊完整，核准試辦。"),
+        store.approvePartnerCampaign(adminUid, draft.id, "重複送出不應建立第二筆任務。"),
+      ]);
+      expect(approved.status).toBe("APPROVED");
+      expect(approved.radarMissionId).toBeTruthy();
+      expect(approvedAgain.radarMissionId).toBe(approved.radarMissionId);
+      createdRadarMissionIds.add(approved.radarMissionId!);
+      expect(
+        await prisma.radarMission.count({
+          where: { campaignId: draft.id },
+        }),
+      ).toBe(1);
+
+      const radar = await store.getRadarState(outsiderUid);
+      expect(radar.missions.find((mission) => mission.id === approved.radarMissionId))
+        .toMatchObject({
+          venueName: draft.venueName,
+          safetyNotes: draft.safetyNotes,
+          accessibilityNotes: draft.accessibilityNotes,
+          optionalOffer: draft.optionalOffer,
+        });
+      await store.unlockRadarMission(outsiderUid, approved.radarMissionId!, {
+        eventKey: `partner-arrival-${randomUUID()}`,
+        latitude: 25.033,
+        longitude: 121.5654,
+        accuracyMeters: 8,
+        occurredAt: new Date().toISOString(),
+      });
+      await store.completeRadarMission(outsiderUid, approved.radarMissionId!);
+      const secondHousehold = await prisma.household.create({
+        data: {
+          name: "同一使用者的第二個樹伴圈",
+          members: {
+            create: {
+              userId: outsider.id,
+              relationship: "測試成員",
+            },
+          },
+          trees: { create: { name: "第二棵測試生命樹" } },
+        },
+      });
+      await store.setActiveHousehold(outsiderUid, secondHousehold.id);
+      await store.getRadarState(outsiderUid);
+      await store.unlockRadarMission(outsiderUid, approved.radarMissionId!, {
+        eventKey: `partner-second-circle-arrival-${randomUUID()}`,
+        latitude: 25.033,
+        longitude: 121.5654,
+        accuracyMeters: 8,
+        occurredAt: new Date().toISOString(),
+      });
+      await store.completeRadarMission(outsiderUid, approved.radarMissionId!);
+      const workspace = await store.getPartnerWorkspace(
+        partnerUid,
+        organization.id,
+      );
+      expect(workspace.campaigns.find((campaign) => campaign.id === draft.id)?.metrics).toEqual({
+        deliveredToAppCount: 1,
+        arrivedCount: 1,
+        completedCount: 1,
+        completionRate: 1,
+      });
+
+      const rejectedDraft = await store.createPartnerCampaign(
+        partnerUid,
+        organization.id,
+        {
+          title: "需要補充安全資訊的旅程",
+          description: "用第二個提案驗證平台退回與審查紀錄流程。",
+          venueName: "整合測試廣場",
+          latitude: 25.034,
+          longitude: 121.566,
+          radiusMeters: 50,
+          startsAt: startsAt.toISOString(),
+          endsAt: endsAt.toISOString(),
+          verificationMode: "SELF_CHECK",
+          growthPoints: 8,
+          accessibilityNotes: "入口目前標示為平面。",
+          safetyNotes: "仍需確認夜間照明。",
+          purchaseRequired: false,
+        },
+      );
+      await store.submitPartnerCampaign(
+        partnerUid,
+        organization.id,
+        rejectedDraft.id,
+      );
+      const rejected = await store.rejectPartnerCampaign(
+        adminUid,
+        rejectedDraft.id,
+        "請補上雨天替代路線與夜間照明資訊。",
+      );
+      expect(rejected.status).toBe("REJECTED");
+      expect(rejected.reviewNote).toContain("雨天替代路線");
+      expect(rejected.radarMissionId).toBeNull();
+    },
+    120_000,
+  );
 
   it(
     "persists task completion and awards growth only once across restarts",

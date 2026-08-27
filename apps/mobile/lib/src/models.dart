@@ -665,6 +665,10 @@ class RadarMissionModel {
     required this.minimumSeconds,
     required this.growthPoints,
     required this.badgeName,
+    required this.venueName,
+    required this.accessibilityNotes,
+    required this.safetyNotes,
+    required this.optionalOffer,
     required this.publicationStatus,
     required this.status,
     required this.unlockedAt,
@@ -686,6 +690,10 @@ class RadarMissionModel {
   final int? minimumSeconds;
   final int growthPoints;
   final String? badgeName;
+  final String? venueName;
+  final String? accessibilityNotes;
+  final String? safetyNotes;
+  final String? optionalOffer;
   final String publicationStatus;
   final String status;
   final DateTime? unlockedAt;
@@ -736,6 +744,10 @@ class RadarMissionModel {
     minimumSeconds: minimumSeconds,
     growthPoints: growthPoints,
     badgeName: badgeName,
+    venueName: venueName,
+    accessibilityNotes: accessibilityNotes,
+    safetyNotes: safetyNotes,
+    optionalOffer: optionalOffer,
     publicationStatus: publicationStatus,
     status: status ?? this.status,
     unlockedAt: unlockedAt ?? this.unlockedAt,
@@ -762,6 +774,10 @@ class RadarMissionModel {
         minimumSeconds: json['minimumSeconds'] as int?,
         growthPoints: json['growthPoints'] as int,
         badgeName: json['badgeName'] as String?,
+        venueName: json['venueName'] as String?,
+        accessibilityNotes: json['accessibilityNotes'] as String?,
+        safetyNotes: json['safetyNotes'] as String?,
+        optionalOffer: json['optionalOffer'] as String?,
         publicationStatus: json['publicationStatus'] as String,
         status: json['status'] as String,
         unlockedAt: json['unlockedAt'] == null

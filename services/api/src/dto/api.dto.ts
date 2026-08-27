@@ -56,7 +56,9 @@ export class CompleteTaskDto {
 }
 
 export class CompleteCooperativeActionChapterDto {
-  @ApiPropertyOptional({ description: "Prevents duplicate chapter submissions" })
+  @ApiPropertyOptional({
+    description: "Prevents duplicate chapter submissions",
+  })
   @IsOptional()
   @IsString()
   @Length(8, 120)
@@ -182,7 +184,9 @@ export class DeviceEventDto {
   @Length(8, 100)
   eventKey!: string;
 
-  @ApiProperty({ enum: ["BUTTON_TASK", "BUTTON_FAMILY", "BUTTON_CONFIRM", "STATE"] })
+  @ApiProperty({
+    enum: ["BUTTON_TASK", "BUTTON_FAMILY", "BUTTON_CONFIRM", "STATE"],
+  })
   @IsIn(["BUTTON_TASK", "BUTTON_FAMILY", "BUTTON_CONFIRM", "STATE"])
   eventType!: string;
 
@@ -518,6 +522,95 @@ export class CreateRadarMissionDto {
 }
 
 export class UpdateRadarMissionDto extends CreateRadarMissionDto {}
+
+export class PartnerCampaignDto {
+  @ApiProperty()
+  @IsString()
+  @Length(2, 100)
+  title!: string;
+
+  @ApiProperty()
+  @IsString()
+  @Length(8, 500)
+  description!: string;
+
+  @ApiProperty()
+  @IsString()
+  @Length(2, 120)
+  venueName!: string;
+
+  @ApiProperty()
+  @IsLatitude()
+  latitude!: number;
+
+  @ApiProperty()
+  @IsLongitude()
+  longitude!: number;
+
+  @ApiProperty()
+  @IsInt()
+  @Min(25)
+  @Max(150)
+  radiusMeters!: number;
+
+  @ApiProperty()
+  @IsDateString()
+  startsAt!: string;
+
+  @ApiProperty()
+  @IsDateString()
+  endsAt!: string;
+
+  @ApiProperty({ enum: ["SELF_CHECK", "TIMER"] })
+  @IsIn(["SELF_CHECK", "TIMER"])
+  verificationMode!: "SELF_CHECK" | "TIMER";
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(30)
+  @Max(3600)
+  minimumSeconds?: number | null;
+
+  @ApiProperty()
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  growthPoints!: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(2, 80)
+  badgeName?: string | null;
+
+  @ApiProperty()
+  @IsString()
+  @Length(4, 500)
+  accessibilityNotes!: string;
+
+  @ApiProperty()
+  @IsString()
+  @Length(4, 500)
+  safetyNotes!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(240)
+  optionalOffer?: string | null;
+
+  @ApiProperty({ default: false })
+  @IsBoolean()
+  purchaseRequired!: false;
+}
+
+export class ReviewPartnerCampaignDto {
+  @ApiProperty()
+  @IsString()
+  @Length(4, 500)
+  reviewNote!: string;
+}
 
 export class CreateImpactBatchDto {
   @ApiProperty()
