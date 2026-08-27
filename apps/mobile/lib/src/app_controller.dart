@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'api_client.dart';
 import 'evidence_uploader.dart';
 import 'models.dart';
+import 'venue_witness_models.dart';
 
 class AppController extends ChangeNotifier {
   AppController({
@@ -69,6 +70,8 @@ class AppController extends ChangeNotifier {
   int? lastGrowthAwardPoints;
   String? lastGrowthAwardTitle;
   bool _sendingLocation = false;
+  bool _radarCompletionInFlight = false;
+  bool _disposed = false;
 
   bool get sendingLocation => _sendingLocation;
 
@@ -746,44 +749,99 @@ class AppController extends ChangeNotifier {
     }
   }
 
-  Future<void> completeRadarMission(RadarMissionModel mission) async {
-    if (mission.status == 'COMPLETED') return;
+  Future<bool> completeRadarMission(
+    RadarMissionModel mission, {
+    VenueWitnessSubmission? venueWitness,
+  }) async {
+    if (_disposed || _radarCompletionInFlight) return false;
+    if (mission.status == 'COMPLETED') return true;
     if (mission.status != 'UNLOCKED') {
       notice = '請先走進「${mission.title}」的任務範圍再完成。';
       notifyListeners();
-      return;
+      return false;
     }
     final timerRemaining = mission.timerRemainingAt(DateTime.now());
     if (timerRemaining > Duration.zero) {
       notice =
           '「${mission.title}」還需要 ${timerRemaining.inSeconds} 秒，完成後生命樹才會成長。';
       notifyListeners();
-      return;
+      return false;
     }
+    if (mission.requiresVenueWitness &&
+        (venueWitness == null || !venueWitness.isValidAt(DateTime.now()))) {
+      notice = '請掃描現場到場碼，並取得最近三十秒、誤差五十公尺內的真實位置。';
+      notifyListeners();
+      return false;
+    }
+    final activeCircle = context?.activeHouseholdId;
+    bool current() => !_disposed && context?.activeHouseholdId == activeCircle;
+    var completed = false;
+    _radarCompletionInFlight = true;
     try {
       if (offlineDemo) {
         notice = '離線示範只能瀏覽，不會完成雷達旅程或增加年輪進度。';
       } else {
-        radar = await _api.completeRadarMission(mission.id);
-        tree = await _api.getTree();
-        impact = await _api.getImpactSummary();
-        exploration = await _api.getExplorationState();
-        companionPrompts =
-            await _safeRefresh(
-              'companionPromptsAfterRadarComplete',
-              _api.getCompanionPrompts(),
-            ) ??
-            companionPrompts;
-        await _refreshHomeSummary();
+        final nextRadar = await _api.completeRadarMission(
+          mission.id,
+          venueWitness: venueWitness,
+        );
+        if (!current()) return false;
+        radar = nextRadar;
+        completed = radar.missions.any(
+          (item) => item.id == mission.id && item.isCompleted,
+        );
+        if (!completed) throw const FormatException('旅程尚未完成');
+        final nextTree = await _safeRefresh('treeAfterRadar', _api.getTree());
+        final nextImpact = await _safeRefresh(
+          'impactAfterRadar',
+          _api.getImpactSummary(),
+        );
+        final nextExploration = await _safeRefresh(
+          'explorationAfterRadar',
+          _api.getExplorationState(),
+        );
+        if (!current()) return false;
+        tree = nextTree ?? tree;
+        impact = nextImpact ?? impact;
+        exploration = nextExploration ?? exploration;
+        final nextPrompts = await _safeRefresh(
+          'companionPromptsAfterRadarComplete',
+          _api.getCompanionPrompts(),
+        );
+        final nextHome = await _safeRefresh(
+          'homeAfterRadar',
+          _api.getHomeSummary(),
+        );
+        if (!current()) return false;
+        companionPrompts = nextPrompts ?? companionPrompts;
+        home = nextHome ?? home;
         lastGrowthAwardPoints = mission.growthPoints;
         lastGrowthAwardTitle = mission.title;
         notice =
             '生命樹長出新葉 +${mission.growthPoints}：${mission.title}。生活片段已整理，可分享給家人/陪伴者。';
       }
     } catch (error) {
-      notice = _friendlyActionError(error, fallback: '雷達任務暫時無法完成，請稍後再試一次。');
+      if (current()) {
+        notice = _friendlyActionError(
+          error,
+          fallback: '旅程暫時無法完成。請確認連線、現場碼與位置後重試。',
+        );
+      }
+    } finally {
+      _radarCompletionInFlight = false;
     }
-    notifyListeners();
+    if (current()) notifyListeners();
+    return current() && completed;
+  }
+
+  Future<VenueReceipt?> getVenueReceipt(String missionId) {
+    if (offlineDemo) throw const FormatException('離線示範不提供到場見證或回饋。');
+    return _api.getVenueReceipt(missionId);
+  }
+
+  Future<VenueRedemptionCode> createVenueRedemptionCode(String missionId) {
+    if (offlineDemo) throw const FormatException('離線示範不提供領取碼。');
+    return _api.createVenueRedemptionCode(missionId);
   }
 
   Future<void> sendFamilyMessage(String body) async {
@@ -969,6 +1027,7 @@ class AppController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _locationSubscription?.cancel();
     for (final subscription in _subscriptions) {
       subscription.cancel();

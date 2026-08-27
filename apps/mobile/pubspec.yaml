@@ -37,6 +37,7 @@ dependencies:
   http: ^1.6.0
   image_picker: ^1.2.3
   mobile_scanner: ^7.2.0
+  qr_flutter: 4.1.0
   flutter_blue_plus: ^2.3.10
   geolocator: ^14.0.2
   health: ^13.3.1

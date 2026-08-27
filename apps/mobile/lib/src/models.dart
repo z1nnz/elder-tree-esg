@@ -650,6 +650,7 @@ class HomeSummaryModel {
 
 class RadarMissionModel {
   const RadarMissionModel({
+    this.requiresVenueWitness = false,
     required this.id,
     required this.title,
     required this.description,
@@ -676,6 +677,7 @@ class RadarMissionModel {
   });
 
   final String id;
+  final bool requiresVenueWitness;
   final String title;
   final String description;
   final String category;
@@ -729,6 +731,7 @@ class RadarMissionModel {
     DateTime? completedAt,
     int? remainingSeconds,
   }) => RadarMissionModel(
+    requiresVenueWitness: requiresVenueWitness,
     id: id,
     title: title,
     description: description,
@@ -756,6 +759,7 @@ class RadarMissionModel {
 
   factory RadarMissionModel.fromJson(Map<String, dynamic> json) =>
       RadarMissionModel(
+        requiresVenueWitness: json['requiresVenueWitness'] as bool? ?? false,
         id: json['id'] as String,
         title: json['title'] as String,
         description: json['description'] as String,
