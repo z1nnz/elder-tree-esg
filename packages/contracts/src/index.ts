@@ -340,6 +340,7 @@ export interface PartnerCampaignInput {
   safetyNotes: string;
   optionalOffer?: string | null;
   purchaseRequired: false;
+  requiresVenueWitness?: boolean;
 }
 
 export interface PartnerCampaignSummary extends PartnerCampaignInput {
@@ -364,6 +365,37 @@ export interface PartnerCampaignSummary extends PartnerCampaignInput {
 export interface PartnerWorkspaceSummary {
   organization: PartnerOrganizationSummary;
   campaigns: PartnerCampaignSummary[];
+}
+
+export interface VenueCodeSummary {
+  code: string;
+  expiresAt: string;
+  serverTime: string;
+}
+
+export interface VenueWitnessSubmission {
+  code: string;
+  latitude: number;
+  longitude: number;
+  accuracyMeters: number;
+  occurredAt: string;
+}
+
+export interface VenueWitnessReceiptSummary {
+  id: string;
+  campaignId: string;
+  witnessedAt: string;
+  redeemedAt: string | null;
+  offer: string | null;
+}
+
+export interface VenueMetricsSummary {
+  witnessedCount: number;
+  redeemedCount: number;
+}
+
+export interface VenueRedemptionResult extends VenueWitnessReceiptSummary {
+  alreadyRedeemed: boolean;
 }
 
 export interface WorkspaceAccessSummary {
@@ -465,6 +497,7 @@ export interface RadarMissionSummary {
   safetyNotes: string | null;
   optionalOffer: string | null;
   publicationStatus: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  requiresVenueWitness: boolean;
   status: RadarMissionStatus;
   unlockedAt: string | null;
   completedAt: string | null;

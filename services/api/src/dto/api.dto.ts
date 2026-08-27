@@ -18,6 +18,7 @@ import {
   Length,
   Max,
   MaxLength,
+  Matches,
   Min,
   ValidateNested,
 } from "class-validator";
@@ -414,12 +415,52 @@ export class RadarMissionEventDto {
   occurredAt!: string;
 }
 
+export class VenueWitnessSubmissionDto {
+  @ApiProperty()
+  @IsString()
+  @Matches(/^TCA1_[A-Za-z0-9_-]{43}$/)
+  code!: string;
+
+  @ApiProperty()
+  @IsNumber()
+  @IsLatitude()
+  latitude!: number;
+
+  @ApiProperty()
+  @IsNumber()
+  @IsLongitude()
+  longitude!: number;
+
+  @ApiProperty()
+  @IsNumber()
+  @Min(0)
+  @Max(50)
+  accuracyMeters!: number;
+
+  @ApiProperty()
+  @IsDateString()
+  occurredAt!: string;
+}
+
+export class RedeemVenueOfferDto {
+  @ApiProperty()
+  @IsString()
+  @Matches(/^TCR1_[A-Za-z0-9_-]{43}$/)
+  code!: string;
+}
+
 export class CompleteRadarMissionDto {
   @ApiPropertyOptional({ description: "Prevents duplicate growth awards" })
   @IsOptional()
   @IsString()
   @Length(8, 120)
   idempotencyKey?: string;
+
+  @ApiPropertyOptional({ type: VenueWitnessSubmissionDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => VenueWitnessSubmissionDto)
+  venueWitness?: VenueWitnessSubmissionDto;
 }
 
 export class CompanionPromptTemplatesDto {
@@ -603,6 +644,11 @@ export class PartnerCampaignDto {
   @ApiProperty({ default: false })
   @IsBoolean()
   purchaseRequired!: false;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  requiresVenueWitness?: boolean;
 }
 
 export class ReviewPartnerCampaignDto {

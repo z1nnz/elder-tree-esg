@@ -160,6 +160,7 @@ model User {
   createdPartnerCampaigns  Campaign[]                      @relation("PartnerCampaignCreator")
   reviewedPartnerCampaigns Campaign[]                      @relation("PartnerCampaignReviewer")
   campaignReaches          CampaignReach[]
+  venueWitnesses           VenueWitnessReceipt[]
   createdAt                DateTime                        @default(now())
   updatedAt                DateTime                        @updatedAt
 }
@@ -185,6 +186,7 @@ model Household {
   lineBindings          LineBinding[]
   lineBindingCodes      LineBindingCode[]
   cooperativeActionRuns CooperativeActionRun[]
+  venueWitnesses        VenueWitnessReceipt[]
   createdAt             DateTime                @default(now())
   updatedAt             DateTime                @updatedAt
 }
@@ -472,6 +474,7 @@ model RadarMission {
   accessibilityNotes             String?
   safetyNotes                    String?
   optionalOffer                  String?
+  requiresVenueWitness           Boolean                       @default(false)
   companionElderMessageTemplate  String?
   companionReplyTemplate         String?
   companionVolunteerNoteTemplate String?
@@ -733,6 +736,7 @@ model Campaign {
   accessibilityNotes String                @default("")
   safetyNotes        String                @default("")
   optionalOffer      String?
+  requiresVenueWitness Boolean              @default(false)
   purchaseRequired   Boolean               @default(false)
   status             PartnerCampaignStatus @default(DRAFT)
   submittedAt        DateTime?
@@ -745,6 +749,8 @@ model Campaign {
   reviewedBy         User?                 @relation("PartnerCampaignReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
   radarMission       RadarMission?
   reaches            CampaignReach[]
+  venueChallenges    VenueChallenge[]
+  venueWitnesses     VenueWitnessReceipt[]
   createdAt          DateTime              @default(now())
   updatedAt          DateTime              @updatedAt
 
@@ -761,6 +767,36 @@ model CampaignReach {
 
   @@id([campaignId, userId])
   @@index([campaignId, firstSeenAt])
+}
+
+model VenueChallenge {
+  id         String   @id @default(uuid())
+  campaignId String
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, createdAt])
+  @@index([expiresAt])
+}
+
+model VenueWitnessReceipt {
+  id                    String    @id @default(uuid())
+  campaignId            String
+  userId                String
+  householdId           String?
+  witnessedAt           DateTime
+  redemptionTokenHash   String?   @unique
+  redemptionExpiresAt   DateTime?
+  redemptionIssuedAt    DateTime?
+  redeemedAt            DateTime?
+  campaign              Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  household             Household? @relation(fields: [householdId], references: [id], onDelete: SetNull)
+
+  @@unique([campaignId, userId])
+  @@index([campaignId, redeemedAt])
 }
 
 model ImpactPoolEntry {

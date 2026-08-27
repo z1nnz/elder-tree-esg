@@ -39,6 +39,11 @@ import type {
   TreeSummary,
   VerificationResult,
   WorkspaceAccessSummary,
+  VenueCodeSummary,
+  VenueMetricsSummary,
+  VenueRedemptionResult,
+  VenueWitnessSubmission,
+  VenueWitnessReceiptSummary,
 } from "@elder-tree/contracts";
 import {
   BadRequestException,
@@ -3074,6 +3079,7 @@ export class PersistentStoreService {
           accessibilityNotes: campaign.accessibilityNotes,
           safetyNotes: campaign.safetyNotes,
           optionalOffer: campaign.optionalOffer,
+          requiresVenueWitness: campaign.requiresVenueWitness,
           status: "PUBLISHED",
           publishedAt: now,
         },
@@ -3144,6 +3150,232 @@ export class PersistentStoreService {
       });
     });
     return this.getAdminPartnerCampaign(campaignId);
+  }
+
+  async createVenueChallenge(
+    firebaseUid: string,
+    organizationId: string,
+    campaignId: string,
+  ): Promise<VenueCodeSummary> {
+    return this.prisma.$transaction(async (transaction) => {
+      await transaction.$executeRaw`
+        SELECT pg_advisory_xact_lock(hashtext(${`venue-challenge:${campaignId}`}))
+      `;
+      await this.requireVenuePartner(transaction, firebaseUid, organizationId);
+      const now = this.clock.now();
+      const campaign = await this.availableVenueCampaign(transaction, campaignId, now);
+      if (campaign.organizationId !== organizationId) {
+        throw new NotFoundException("Venue campaign not found");
+      }
+      const recent = await transaction.venueChallenge.findFirst({
+        where: { campaignId, createdAt: { gt: new Date(now.getTime() - 10_000) } },
+      });
+      if (recent) throw new ConflictException("Please wait before refreshing the venue code");
+      const code = `TCA1_${randomBytes(32).toString("base64url")}`;
+      const expiresAt = new Date(Math.min(now.getTime() + 60_000, campaign.endsAt.getTime(), campaign.radarMission!.endsAt.getTime()));
+      await transaction.venueChallenge.create({
+        data: { campaignId, tokenHash: this.venueTokenHash(code), expiresAt, createdAt: now },
+      });
+      await transaction.venueChallenge.deleteMany({
+        where: { campaignId, expiresAt: { lt: new Date(now.getTime() - 86_400_000) } },
+      });
+      return { code, expiresAt: expiresAt.toISOString(), serverTime: now.toISOString() };
+    });
+  }
+
+  async getVenueMetrics(
+    firebaseUid: string,
+    organizationId: string,
+    campaignId: string,
+  ): Promise<VenueMetricsSummary> {
+    await this.getPartnerMembership(firebaseUid, organizationId);
+    const campaign = await this.prisma.campaign.findFirst({
+      where: { id: campaignId, organizationId },
+    });
+    if (!campaign) throw new NotFoundException("Venue campaign not found");
+    const [witnessedCount, redeemedCount] = await this.prisma.$transaction([
+      this.prisma.venueWitnessReceipt.count({ where: { campaignId } }),
+      this.prisma.venueWitnessReceipt.count({ where: { campaignId, redeemedAt: { not: null } } }),
+    ], { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+    return { witnessedCount, redeemedCount };
+  }
+
+  async getVenueReceipt(
+    firebaseUid: string,
+    missionId: string,
+  ): Promise<VenueWitnessReceiptSummary | null> {
+    const active = await this.getActiveUser(firebaseUid);
+    const receipt = await this.prisma.venueWitnessReceipt.findFirst({
+      where: { userId: active.id, campaign: { radarMission: { id: missionId } } },
+      include: { campaign: true },
+    });
+    return receipt ? this.toVenueReceiptSummary(receipt) : null;
+  }
+
+  async createVenueRedemptionCode(
+    firebaseUid: string,
+    missionId: string,
+  ): Promise<VenueCodeSummary> {
+    const active = await this.getActiveUser(firebaseUid);
+    return this.prisma.$transaction(async (transaction) => {
+      await transaction.$executeRaw`
+        SELECT pg_advisory_xact_lock(hashtext(${`venue-receipt:${missionId}:${active.id}`}))
+      `;
+      const now = this.clock.now();
+      const receipt = await transaction.venueWitnessReceipt.findFirst({
+        where: { userId: active.id, campaign: { radarMission: { id: missionId } } },
+      });
+      if (!receipt) throw new NotFoundException("Complete the witnessed journey first");
+      const campaign = await this.availableVenueCampaign(transaction, receipt.campaignId, now);
+      if (!campaign.optionalOffer?.trim()) throw new ConflictException("This journey has no optional offer");
+      if (receipt.redeemedAt) throw new ConflictException("Offer already redeemed");
+      if (receipt.redemptionIssuedAt && now.getTime() - receipt.redemptionIssuedAt.getTime() < 10_000) {
+        throw new ConflictException("Please wait before refreshing the redemption code");
+      }
+      const code = `TCR1_${randomBytes(32).toString("base64url")}`;
+      const expiresAt = new Date(Math.min(now.getTime() + 300_000, campaign.endsAt.getTime(), campaign.radarMission!.endsAt.getTime()));
+      // The conditional update also serializes against a concurrent redemption.
+      const updated = await transaction.venueWitnessReceipt.updateMany({
+        where: { id: receipt.id, redeemedAt: null },
+        data: {
+          redemptionTokenHash: this.venueTokenHash(code),
+          redemptionExpiresAt: expiresAt,
+          redemptionIssuedAt: now,
+        },
+      });
+      if (updated.count !== 1) throw new ConflictException("Offer already redeemed");
+      return { code, expiresAt: expiresAt.toISOString(), serverTime: now.toISOString() };
+    });
+  }
+
+  async redeemVenueOffer(
+    firebaseUid: string,
+    organizationId: string,
+    campaignId: string,
+    code: string,
+  ): Promise<VenueRedemptionResult> {
+    if (!/^TCR1_[A-Za-z0-9_-]{43}$/.test(code)) {
+      throw new BadRequestException("Invalid redemption code");
+    }
+    return this.prisma.$transaction(async (transaction) => {
+      const partner = await this.requireVenuePartner(transaction, firebaseUid, organizationId);
+      const tokenHash = this.venueTokenHash(code);
+      const receipt = await transaction.venueWitnessReceipt.findFirst({
+        where: { campaignId, redemptionTokenHash: tokenHash, campaign: { organizationId } },
+        include: { campaign: true },
+      });
+      if (!receipt) throw new NotFoundException("Invalid redemption code");
+      if (receipt.redeemedAt) return { ...this.toVenueReceiptSummary(receipt), alreadyRedeemed: true };
+      const now = this.clock.now();
+      const campaign = await this.availableVenueCampaign(transaction, campaignId, now);
+      if (!campaign.optionalOffer?.trim() || !receipt.redemptionExpiresAt || receipt.redemptionExpiresAt <= now) {
+        throw new ConflictException("Redemption code has expired or is unavailable");
+      }
+      const updated = await transaction.venueWitnessReceipt.updateMany({
+        where: {
+          id: receipt.id,
+          redeemedAt: null,
+          redemptionTokenHash: tokenHash,
+          redemptionExpiresAt: { gt: now },
+        },
+        data: { redeemedAt: now },
+      });
+      const current = await transaction.venueWitnessReceipt.findUniqueOrThrow({
+        where: { id: receipt.id }, include: { campaign: true },
+      });
+      if (current.redemptionTokenHash !== tokenHash || !current.redeemedAt) {
+        throw new ConflictException("Redemption code was replaced; scan the current code");
+      }
+      if (updated.count === 1) {
+        await transaction.auditLog.create({
+          data: {
+            actorId: partner.userId, action: "VENUE_OFFER_REDEEMED",
+            entityType: "VenueWitnessReceipt", entityId: receipt.id,
+            after: { campaignId, redeemedAt: now.toISOString() },
+          },
+        });
+      }
+      return { ...this.toVenueReceiptSummary(current), alreadyRedeemed: updated.count === 0 };
+    });
+  }
+
+  private venueTokenHash(code: string): string {
+    return createHash("sha256").update(code).digest("hex");
+  }
+
+  private async requireVenuePartner(
+    transaction: Prisma.TransactionClient,
+    firebaseUid: string,
+    organizationId: string,
+  ) {
+    const membership = await transaction.organizationMember.findFirst({
+      where: { organizationId, role: UserRole.ORG_ADMIN, user: { firebaseUid } },
+    });
+    if (!membership) throw new ForbiddenException("Journey partner access required");
+    return membership;
+  }
+
+  private async availableVenueCampaign(
+    transaction: Prisma.TransactionClient,
+    campaignId: string,
+    now: Date,
+  ) {
+    const campaign = await transaction.campaign.findUnique({
+      where: { id: campaignId }, include: { radarMission: true },
+    });
+    if (!campaign || !campaign.requiresVenueWitness || campaign.status !== "APPROVED" ||
+      campaign.purchaseRequired || campaign.startsAt > now || campaign.endsAt <= now ||
+      !campaign.radarMission?.requiresVenueWitness || campaign.radarMission.status !== "PUBLISHED" ||
+      campaign.radarMission.startsAt > now || campaign.radarMission.endsAt <= now) {
+      throw new ConflictException("Venue journey is not currently available");
+    }
+    return campaign;
+  }
+
+  private toVenueReceiptSummary(
+    receipt: Prisma.VenueWitnessReceiptGetPayload<{ include: { campaign: true } }>,
+  ): VenueWitnessReceiptSummary {
+    return {
+      id: receipt.id, campaignId: receipt.campaignId,
+      witnessedAt: receipt.witnessedAt.toISOString(),
+      redeemedAt: receipt.redeemedAt?.toISOString() ?? null,
+      offer: receipt.campaign.optionalOffer,
+    };
+  }
+
+  private async recordVenueWitness(
+    transaction: Prisma.TransactionClient,
+    campaignId: string,
+    userId: string,
+    householdId: string,
+    proof: VenueWitnessSubmission | undefined,
+    now: Date,
+  ): Promise<void> {
+    const campaign = await this.availableVenueCampaign(transaction, campaignId, now);
+    const existing = await transaction.venueWitnessReceipt.findUnique({
+      where: { campaignId_userId: { campaignId, userId } },
+    });
+    if (existing) throw new ConflictException("This account has already completed this venue journey");
+    if (!proof || !/^TCA1_[A-Za-z0-9_-]{43}$/.test(proof.code)) {
+      throw new BadRequestException("Scan the current venue code to complete this journey");
+    }
+    const age = now.getTime() - new Date(proof.occurredAt).getTime();
+    if (!Number.isFinite(age) || age < -5_000 || age > 30_000 ||
+      !Number.isFinite(proof.accuracyMeters) || proof.accuracyMeters < 0 || proof.accuracyMeters > 50 ||
+      !Number.isFinite(proof.latitude) || Math.abs(proof.latitude) > 90 ||
+      !Number.isFinite(proof.longitude) || Math.abs(proof.longitude) > 180) {
+      throw new BadRequestException("Venue witness requires a recent accurate location");
+    }
+    if (distanceBetweenMeters(campaign.radarMission!, proof) > campaign.radarMission!.radiusMeters) {
+      throw new BadRequestException("You must be inside the venue radius");
+    }
+    const challenge = await transaction.venueChallenge.findFirst({
+      where: { campaignId, tokenHash: this.venueTokenHash(proof.code), createdAt: { lte: now }, expiresAt: { gt: now } },
+    });
+    if (!challenge) throw new BadRequestException("Venue code is expired or belongs to another journey");
+    await transaction.venueWitnessReceipt.create({
+      data: { campaignId, userId, householdId, witnessedAt: now },
+    });
   }
 
   async getRecentCompanionPrompts(
@@ -3323,9 +3555,9 @@ export class PersistentStoreService {
     firebaseUid: string,
     missionId: string,
     _idempotencyKey?: string,
+    venueWitness?: VenueWitnessSubmission,
   ): Promise<RadarState> {
     const active = await this.getActiveUser(firebaseUid);
-    const now = this.clock.now();
     const companionNotification = await this.prisma.$transaction(
       async (
         transaction,
@@ -3334,6 +3566,10 @@ export class PersistentStoreService {
         growthPoints: number;
         companionReply: string;
       } | null> => {
+        await transaction.$executeRaw`
+          SELECT pg_advisory_xact_lock(hashtext(${`radar-complete:${missionId}:${active.id}`}))
+        `;
+        const now = this.clock.now();
         const progress = await transaction.radarMissionProgress.findUnique({
           where: {
             missionId_userId_householdId: {
@@ -3377,6 +3613,15 @@ export class PersistentStoreService {
               `Radar timer requires ${minimumSeconds - elapsedSeconds} more seconds`,
             );
           }
+        }
+        if (progress.mission.requiresVenueWitness) {
+          if (!progress.mission.campaignId) {
+            throw new ConflictException("Venue journey is not linked to a partner campaign");
+          }
+          await this.recordVenueWitness(
+            transaction, progress.mission.campaignId, active.id,
+            active.activeHouseholdId, venueWitness, now,
+          );
         }
         await this.awardRadarMissionGrowth(
           transaction,
@@ -4161,6 +4406,9 @@ export class PersistentStoreService {
   private assertValidPartnerCampaignInput(
     input: PartnerCampaignValidationInput,
   ): void {
+    if (input.requiresVenueWitness !== undefined && typeof input.requiresVenueWitness !== "boolean") {
+      throw new BadRequestException("Venue witness setting must be a boolean");
+    }
     if (input.purchaseRequired !== false) {
       throw new BadRequestException(
         "Partner journeys must be completable without a purchase",
@@ -4239,6 +4487,7 @@ export class PersistentStoreService {
       safetyNotes: campaign.safetyNotes,
       optionalOffer: campaign.optionalOffer,
       purchaseRequired: campaign.purchaseRequired,
+      requiresVenueWitness: campaign.requiresVenueWitness,
     });
   }
 
@@ -4269,6 +4518,7 @@ export class PersistentStoreService {
       accessibilityNotes: input.accessibilityNotes.trim(),
       safetyNotes: input.safetyNotes.trim(),
       optionalOffer: input.optionalOffer?.trim() || null,
+      requiresVenueWitness: input.requiresVenueWitness ?? false,
       purchaseRequired: false,
     };
   }
@@ -4304,6 +4554,7 @@ export class PersistentStoreService {
       safetyNotes: campaign.safetyNotes,
       optionalOffer: campaign.optionalOffer,
       purchaseRequired: false,
+      requiresVenueWitness: campaign.requiresVenueWitness,
       status: campaign.status,
       submittedAt: campaign.submittedAt?.toISOString() ?? null,
       reviewedAt: campaign.reviewedAt?.toISOString() ?? null,
@@ -4420,6 +4671,7 @@ export class PersistentStoreService {
       accessibilityNotes: mission.accessibilityNotes,
       safetyNotes: mission.safetyNotes,
       optionalOffer: mission.optionalOffer,
+      requiresVenueWitness: mission.requiresVenueWitness,
       publicationStatus: mission.status,
       status,
       unlockedAt: progress?.unlockedAt.toISOString() ?? null,
