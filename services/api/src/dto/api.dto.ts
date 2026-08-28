@@ -166,9 +166,16 @@ export class ClaimDeviceDto {
 export class DeviceCommandDto {
   @ApiPropertyOptional()
   @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(2147483647)
+  expectedRevision?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  @Length(1, 120)
-  messagePreview?: string;
+  @Length(0, 120)
+  messagePreview?: string | null;
 
   @ApiPropertyOptional()
   @IsOptional()

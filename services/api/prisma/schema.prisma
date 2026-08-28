@@ -209,6 +209,8 @@ model Device {
   lastSeenAt      DateTime?
   desiredState    Json?
   reportedState   Json?
+  syncState       Json?
+  syncRevision    Int           @default(0)
   household       Household?    @relation(fields: [householdId], references: [id])
   events          DeviceEvent[]
   createdAt       DateTime      @default(now())
@@ -218,12 +220,14 @@ model Device {
 model DeviceEvent {
   id         String   @id @default(uuid())
   deviceId   String
-  eventKey   String   @unique
+  eventKey   String
   eventType  String
   payload    Json
   occurredAt DateTime
   device     Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now())
+
+  @@unique([deviceId, eventKey])
 }
 
 model Task {

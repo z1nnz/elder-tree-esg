@@ -2287,10 +2287,12 @@ export class PersistentStoreService {
     if (device.householdId && device.householdId !== active.activeHouseholdId) {
       throw new ConflictException("Companion device is already claimed");
     }
-    const claimed = await this.prisma.device.update({
-      where: { id: device.id },
+    const result = await this.prisma.device.updateMany({
+      where: { id: device.id, OR: [{ householdId: null }, { householdId: active.activeHouseholdId }] },
       data: { householdId: active.activeHouseholdId },
     });
+    if (result.count !== 1) throw new ConflictException("Companion device is already claimed");
+    const claimed = await this.prisma.device.findUniqueOrThrow({ where: { id: device.id } });
     return this.toDeviceSummary(claimed);
   }
 
@@ -4706,6 +4708,7 @@ export class PersistentStoreService {
     thingName: string;
     householdId: string | null;
     firmwareVersion: string;
+    lastSeenAt: Date | null;
     desiredState: Prisma.JsonValue | null;
     reportedState: Prisma.JsonValue | null;
     updatedAt: Date;
@@ -4732,7 +4735,7 @@ export class PersistentStoreService {
         updatedAt: desired.updatedAt ?? now,
       },
       reportedState: {
-        online: reported.online ?? false,
+        online: device.lastSeenAt !== null && this.clock.now().getTime() - device.lastSeenAt.getTime() < 90_000,
         firmwareVersion: reported.firmwareVersion ?? device.firmwareVersion,
         ambientLux: reported.ambientLux ?? null,
         temperatureC: reported.temperatureC ?? null,

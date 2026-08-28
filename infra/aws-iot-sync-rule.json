@@ -1,0 +1,13 @@
+{
+  "sql": "SELECT clientid() AS authenticatedThingName, topic(2) AS topicThingName, event FROM 'tree/+/sync/request'",
+  "awsIotSqlVersion": "2016-03-23",
+  "ruleDisabled": true,
+  "description": "同行成林裝置同步：以連線身分與主題確認設備，不信任負載中的裝置編號",
+  "actions": [
+    {
+      "lambda": {
+        "functionArn": "arn:aws:lambda:REGION:ACCOUNT_ID:function:DEVICE_SYNC_FUNCTION"
+      }
+    }
+  ]
+}

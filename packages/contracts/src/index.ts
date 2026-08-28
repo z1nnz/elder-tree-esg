@@ -1,4 +1,5 @@
 import { z } from "zod";
+export * from "./device-sync";
 
 export const taskVerificationModes = [
   "PHOTO_AI",

@@ -32,7 +32,12 @@ device should receive its own certificate during flashing.
 
 ## Current baseline boundary
 
-The checked-in API runs the complete product flow through `DemoStoreService`.
-The Prisma schema is production-shaped, but replacing the demo repository with
-a Neon-backed repository and Cloud Tasks enqueueing requires live project
-credentials and is intentionally left as the first cloud integration task.
+Core App and circle flows have persistent implementations. The desktop-tree
+version-2 backend and gateway are being integrated separately from physical
+firmware acceptance. Production device routes must not fall back to the seeded
+demo repository. Follow [the current device protocol and deployment gates](../docs/hardware/desktop-tree-sync.md)
+before configuring a real device; the older topology above describes the legacy
+prototype, not a verified version-2 deployment. The new rule template is disabled
+until certificate binding, invocation permissions and per-device topic policies
+have been verified. No cloud credentials or production deployment are provided
+by this repository.

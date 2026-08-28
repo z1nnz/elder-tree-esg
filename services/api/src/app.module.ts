@@ -4,6 +4,9 @@ import { AdminController } from "./controllers/admin.controller";
 import { CompanionPromptsController } from "./controllers/companion-prompts.controller";
 import { CirclesController } from "./controllers/circles.controller";
 import { DevicesController } from "./controllers/devices.controller";
+import { DeviceSyncController } from "./controllers/device-sync.controller";
+import { DeviceSyncService } from "./devices/device-sync.service";
+import { DeviceBridgeGuard } from "./security/device-bridge.guard";
 import { ExplorationController } from "./controllers/exploration.controller";
 import { FamilyController } from "./controllers/family.controller";
 import { HealthController } from "./controllers/health.controller";
@@ -33,6 +36,7 @@ import { LineMessagingService } from "./line/line-messaging.service";
     CompanionPromptsController,
     ExplorationController,
     DevicesController,
+    DeviceSyncController,
     AdminController,
     LineController,
     ImpactController,
@@ -48,6 +52,8 @@ import { LineMessagingService } from "./line/line-messaging.service";
     LineMessagingService,
     PlatformAdminGuard,
     PersistentStoreService,
+    DeviceSyncService,
+    DeviceBridgeGuard,
     {
       provide: APP_GUARD,
       useClass: ApiAuthGuard,

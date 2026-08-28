@@ -33,6 +33,7 @@ jobs:
       - run: npm ci
       - run: npm exec --workspace @elder-tree/api -- prisma migrate deploy
       - run: npm run typecheck
+      - run: npm run build --workspace @elder-tree/api
       - run: npm test
       - run: npm run build
 
