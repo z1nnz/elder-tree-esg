@@ -123,9 +123,11 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
               actions: [
                 if ((widget.controller.context?.households.length ?? 0) > 1)
                   PopupMenuButton<String>(
-                    tooltip: '切換家庭',
+                    tooltip: '切換樹伴圈',
                     icon: const Icon(Icons.swap_horiz_rounded),
-                    onSelected: widget.controller.switchHousehold,
+                    onSelected: widget.controller.membershipBusy
+                        ? null
+                        : widget.controller.switchHousehold,
                     itemBuilder: (context) => widget
                         .controller
                         .context!
@@ -146,7 +148,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
                                   size: 18,
                                 ),
                                 const SizedBox(width: 8),
-                                Text(household.name),
+                                Flexible(child: Text(household.name)),
                               ],
                             ),
                           ),

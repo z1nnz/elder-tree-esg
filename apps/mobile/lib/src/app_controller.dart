@@ -72,6 +72,11 @@ class AppController extends ChangeNotifier {
   bool _sendingLocation = false;
   bool _radarCompletionInFlight = false;
   bool _disposed = false;
+  int _refreshGeneration = 0;
+  int _circleEpoch = 0;
+  bool membershipBusy = false;
+  String? membershipError;
+  bool _changingHousehold = false;
 
   bool get sendingLocation => _sendingLocation;
 
@@ -135,6 +140,9 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
+    if (_disposed || _changingHousehold) return;
+    final generation = ++_refreshGeneration;
+    bool current() => !_disposed && generation == _refreshGeneration;
     loading = true;
     notice = null;
     notifyListeners();
@@ -148,6 +156,7 @@ class AppController extends ChangeNotifier {
         _safeRefresh('radar', _api.getRadarState()),
         _safeRefresh('circle', _api.getCircleOverview()),
       ]);
+      if (!current()) return;
       final homeResult = results[0] as HomeSummaryModel?;
       final contextResult = results[1] as AppContextModel?;
       final tasksResult = results[2] as List<DailyTask>?;
@@ -159,8 +168,8 @@ class AppController extends ChangeNotifier {
       if (!hasCoreUpdate) {
         throw TimeoutException('Core App data unavailable');
       }
+      if (contextResult != null) _adoptContext(contextResult);
       home = homeResult ?? home;
-      context = contextResult ?? context;
       tasks = tasksResult ?? tasks;
       tree = treeResult ?? tree;
       exploration = explorationResult ?? exploration;
@@ -178,6 +187,7 @@ class AppController extends ChangeNotifier {
         _safeRefresh('impact', _api.getImpactSummary()),
         _safeRefresh('lineBindings', _api.getLineBindings()),
       ]);
+      if (!current()) return;
       messages = optionalResults[0] as List<FamilyMessageModel>? ?? messages;
       companionPrompts =
           optionalResults[1] as List<CompanionPromptModel>? ?? companionPrompts;
@@ -187,16 +197,19 @@ class AppController extends ChangeNotifier {
       lineBindings =
           optionalResults[5] as List<LineBindingModel>? ?? lineBindings;
     } catch (error) {
+      if (!current()) return;
       if (kDebugMode) {
         debugPrint('[DEBUG-app-refresh] failed: $error');
       }
-      offlineDemo = _allowOfflineDemo;
-      notice = _allowOfflineDemo
+      offlineDemo = _allowOfflineDemo && context == null;
+      notice = offlineDemo
           ? '目前使用離線示範資料，連上 API 後會自動同步。'
           : '目前無法連線到服務，資料未變更，請稍後重新整理。';
     } finally {
-      loading = false;
-      notifyListeners();
+      if (current()) {
+        loading = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -222,42 +235,125 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> switchHousehold(String householdId) async {
-    if (context?.activeHouseholdId == householdId) return;
-    try {
-      context = await _api.setActiveHousehold(householdId);
-      await refresh();
-      notice = '已切換到 ${context?.activeHousehold.name ?? '家庭'}。';
-      notifyListeners();
-    } catch (error) {
-      notice = _friendlyActionError(error, fallback: '家庭暫時無法切換，請稍後再試一次。');
-      notifyListeners();
-    }
+  Future<bool> switchHousehold(String householdId) async {
+    if (context?.activeHouseholdId == householdId) return true;
+    return _changeHousehold(
+      () => _api.setActiveHousehold(householdId),
+      success: '已切換樹伴圈。',
+    );
   }
 
   Future<HouseholdInviteModel?> createHouseholdInvite() async {
+    if (!_beginMembershipAction()) return null;
     try {
       final invite = await _api.createHouseholdInvite();
-      notice = '邀請碼 ${invite.code}，24 小時內可使用一次。';
-      notifyListeners();
+      if (_disposed) return null;
+      notice = '邀請碼已準備好，請私下傳給一位想邀請的人。';
       return invite;
     } catch (error) {
-      notice = _friendlyActionError(error, fallback: '邀請碼暫時無法建立，請稍後再試一次。');
-      notifyListeners();
+      if (!_disposed) membershipError = _membershipFailure(error);
       return null;
+    } finally {
+      _finishMembershipAction();
     }
   }
 
-  Future<void> joinHousehold(String code, String relationship) async {
-    try {
-      context = await _api.joinHousehold(code.trim(), relationship.trim());
-      await refresh();
-      notice = '已加入 ${context?.activeHousehold.name ?? '新的家庭'}。';
+  Future<bool> joinHousehold(String code, String relationship) async {
+    return _changeHousehold(
+      () => _api.joinHousehold(code.trim().toUpperCase(), relationship.trim()),
+      success: '已加入樹伴圈，可以一起展開旅程了。',
+    );
+  }
+
+  bool _beginMembershipAction() {
+    if (_disposed || membershipBusy) return false;
+    membershipError = null;
+    if (offlineDemo) {
+      membershipError = '離線示範只能瀏覽。連上服務後，才能邀請或加入樹伴圈。';
       notifyListeners();
+      return false;
+    }
+    membershipBusy = true;
+    notifyListeners();
+    return true;
+  }
+
+  Future<bool> _changeHousehold(
+    Future<AppContextModel> Function() request, {
+    required String success,
+  }) async {
+    if (!_beginMembershipAction()) return false;
+    _changingHousehold = true;
+    ++_circleEpoch;
+    ++_refreshGeneration; // A previous circle's late refresh must not win.
+    loading = false;
+    try {
+      final updated = await request();
+      if (_disposed) return false;
+      _adoptContext(updated);
+      _changingHousehold = false;
+      await refresh();
+      if (_disposed) return false;
+      // Joining succeeded even if a subsequent content refresh is unavailable.
+      offlineDemo = false;
+      notice = notice == null ? success : '$success $notice';
+      return true;
     } catch (error) {
-      notice = _friendlyActionError(error, fallback: '暫時無法加入家庭，請確認邀請碼後再試一次。');
+      if (!_disposed) membershipError = _membershipFailure(error);
+      return false;
+    } finally {
+      _changingHousehold = false;
+      _finishMembershipAction();
+    }
+  }
+
+  void _finishMembershipAction() {
+    membershipBusy = false;
+    if (!_disposed) {
+      if (membershipError != null) notice = membershipError;
       notifyListeners();
     }
+  }
+
+  String _membershipFailure(Object error) {
+    final message = error.toString().toLowerCase();
+    if (message.contains('already a household member')) {
+      return '你已經在這個樹伴圈裡了，請從「我的樹伴圈」切換。';
+    }
+    if (message.contains('expired') || message.contains('already used')) {
+      return '邀請碼已過期或已使用，請邀請人產生一組新的邀請碼。';
+    }
+    if (message.contains('invite not found')) {
+      return '找不到這組邀請碼，請核對 8 碼英文字母與數字後重試。';
+    }
+    return _friendlyActionError(error, fallback: '暫時無法更新樹伴圈，請稍後再試一次。');
+  }
+
+  void _adoptContext(AppContextModel updated) {
+    if (context?.activeHouseholdId != updated.activeHouseholdId) {
+      ++_circleEpoch;
+      // Never retain another circle's private data after a partial refresh.
+      home = null;
+      tasks = [];
+      tree = _emptyTree;
+      circle = _emptyCircle;
+      messages = [];
+      companionPrompts = [];
+      devices = [];
+      reviews = [];
+      lineBindings = [];
+      latestLineBindingCode = null;
+      impact = _emptyImpact;
+      exploration = _emptyExploration;
+      radar = _emptyRadar;
+      discoveredTrees = [];
+      lastGrowthAwardPoints = null;
+      lastGrowthAwardTitle = null;
+      exploring = false;
+      _locationSubscription?.cancel();
+      _locationSubscription = null;
+    }
+    context = updated;
   }
 
   Future<LineBindingCodeModel?> createLineBindingCode() async {
@@ -334,87 +430,112 @@ class AppController extends ChangeNotifier {
     CooperativeActionChapterModel chapter, {
     required bool useAlternative,
   }) async {
+    if (membershipBusy) return;
+    final epoch = _circleEpoch;
+    bool current() => !_disposed && epoch == _circleEpoch;
     final action = circle.activeAction;
     if (action == null || action.runId == null || chapter.completed) return;
     try {
       if (offlineDemo) {
         notice = '離線示範不會建立多人接力紀錄；請連上服務後再認領。';
       } else {
-        circle = await _api.claimCooperativeActionChapter(
+        final updated = await _api.claimCooperativeActionChapter(
           runId: action.runId!,
           chapterId: chapter.id,
           useAlternative: useAlternative,
         );
+        if (!current()) return;
+        circle = updated;
         notice = useAlternative
             ? '你已認領無障礙替代方案，請在到期前完成或轉交。'
             : '接力棒交到你手上了，請在到期前完成或轉交。';
       }
     } catch (error) {
+      if (!current()) return;
       notice = _friendlyActionError(error, fallback: '目前無法認領這一棒，請重新整理後再試一次。');
     }
-    notifyListeners();
+    if (current()) notifyListeners();
   }
 
   Future<void> handoffCooperativeActionChapter(
     CooperativeActionChapterModel chapter,
     CircleMemberModel target,
   ) async {
+    if (membershipBusy) return;
+    final epoch = _circleEpoch;
+    bool current() => !_disposed && epoch == _circleEpoch;
     final action = circle.activeAction;
     if (action == null || action.runId == null || chapter.completed) return;
     try {
       if (offlineDemo) {
         notice = '離線示範不會建立轉棒紀錄；請連上服務後再轉交。';
       } else {
-        circle = await _api.handoffCooperativeActionChapter(
+        final updated = await _api.handoffCooperativeActionChapter(
           runId: action.runId!,
           chapterId: chapter.id,
           memberId: target.id,
         );
+        if (!current()) return;
+        circle = updated;
         notice = '接力棒已轉交給 ${target.displayName}，請對方在到期前完成。';
       }
     } catch (error) {
+      if (!current()) return;
       notice = _friendlyActionError(error, fallback: '目前無法轉交這一棒，請重新整理後再試一次。');
     }
-    notifyListeners();
+    if (current()) notifyListeners();
   }
 
   Future<void> releaseExpiredCooperativeActionClaim(
     CooperativeActionChapterModel chapter,
   ) async {
+    if (membershipBusy) return;
+    final epoch = _circleEpoch;
+    bool current() => !_disposed && epoch == _circleEpoch;
     final action = circle.activeAction;
     if (action == null || action.runId == null || chapter.completed) return;
     try {
       if (offlineDemo) {
         notice = '離線示範不會變更接力狀態；請連上服務後再釋出。';
       } else {
-        circle = await _api.releaseExpiredCooperativeActionClaim(
+        final updated = await _api.releaseExpiredCooperativeActionClaim(
           runId: action.runId!,
           chapterId: chapter.id,
         );
+        if (!current()) return;
+        circle = updated;
         notice = '逾時的接力棒已釋出，樹伴成員可以重新認領。';
       }
     } catch (error) {
+      if (!current()) return;
       notice = _friendlyActionError(error, fallback: '目前無法釋出這一棒，請重新整理後再試一次。');
     }
-    notifyListeners();
+    if (current()) notifyListeners();
   }
 
   Future<void> completeCooperativeActionChapter(
     CooperativeActionChapterModel chapter,
   ) async {
+    if (membershipBusy) return;
+    final epoch = _circleEpoch;
+    bool current() => !_disposed && epoch == _circleEpoch;
     final action = circle.activeAction;
     if (action == null || action.runId == null || chapter.completed) return;
     try {
       if (offlineDemo) {
         notice = '離線示範不會假裝完成多人見證；請連上 API 後再接棒。';
       } else {
-        circle = await _api.completeCooperativeActionChapter(
+        final updated = await _api.completeCooperativeActionChapter(
           runId: action.runId!,
           chapterId: chapter.id,
         );
+        if (!current()) return;
+        circle = updated;
         final completedAction = circle.activeAction;
         if (completedAction?.completed ?? false) {
-          tree = await _api.getTree();
+          final updatedTree = await _api.getTree();
+          if (!current()) return;
+          tree = updatedTree;
           lastGrowthAwardPoints = completedAction!.growthPoints;
           lastGrowthAwardTitle = completedAction.keepsakeName;
           notice =
@@ -424,9 +545,10 @@ class AppController extends ChangeNotifier {
         }
       }
     } catch (error) {
+      if (!current()) return;
       notice = _friendlyActionError(error, fallback: '這一棒暫時無法送出，請重新整理後再試一次。');
     }
-    notifyListeners();
+    if (current()) notifyListeners();
   }
 
   Future<void> startTask(DailyTask task) async {

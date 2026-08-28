@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:maplibre/maplibre.dart';
 
 import 'app_controller.dart';
+import 'circle_membership_screen.dart';
 import 'exploration_map_config.dart';
 import 'models.dart';
 import 'theme.dart';
@@ -5063,15 +5064,22 @@ class _CircleScreenState extends State<CircleScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) => _buildJourney(context),
+    );
+  }
+
+  Widget _buildJourney(BuildContext context) {
     final circle = controller.circle;
     final action = circle.activeAction;
     if (action == null) {
       return ListView(
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
-        children: const [
-          _PageHeading(title: '樹伴圈', subtitle: '和你在意的人，一起把真實行動留在生命樹上。'),
-          SizedBox(height: 20),
-          _EmptyBlock(
+        children: [
+          CirclePeopleHeader(controller: controller),
+          const SizedBox(height: 20),
+          const _EmptyBlock(
             icon: Icons.diversity_1_rounded,
             title: '新的共行旅程正在準備',
             text: '旅程開放後，每位樹伴都能接下一段篇章。',
@@ -5103,91 +5111,26 @@ class _CircleScreenState extends State<CircleScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
         children: [
-          const _PageHeading(title: '樹伴圈', subtitle: '不是各做各的，而是每個人接住彼此的一棒。'),
-          const SizedBox(height: 14),
-          Card(
-            color: const Color(0xFFF0F8ED),
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const CircleAvatar(
-                        backgroundColor: lime,
-                        foregroundColor: forestDark,
-                        child: Icon(Icons.groups_rounded),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              circle.name,
-                              style: const TextStyle(
-                                fontSize: 19,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            Text(
-                              '${circle.memberCount} 位樹伴 · ${action.contributorCount} 位已留下真實足跡',
-                              style: const TextStyle(
-                                color: Color(0xFF5E6C63),
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: circle.members
-                        .map(
-                          (member) => Chip(
-                            avatar: Icon(
-                              member.id == circle.currentMemberId
-                                  ? Icons.person_rounded
-                                  : Icons.eco_rounded,
-                              size: 18,
-                            ),
-                            label: Text(
-                              member.id == circle.currentMemberId
-                                  ? '${member.displayName}（你）'
-                                  : member.displayName,
-                            ),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          CirclePeopleHeader(controller: controller),
           const SizedBox(height: 14),
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(26),
-              gradient: const LinearGradient(
-                colors: [Color(0xFF123E2D), Color(0xFF3B7D57)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+              borderRadius: BorderRadius.circular(16),
+              color: forestDark,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  action.completed ? '這趟旅程已完成' : '接力旅程進行中',
+                  action.completed
+                      ? '這趟旅程已完成'
+                      : action.kind == CooperativeActionKind.collection
+                      ? '蒐集旅程進行中'
+                      : '接力旅程進行中',
                   style: const TextStyle(
                     color: lime,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -5226,7 +5169,12 @@ class _CircleScreenState extends State<CircleScreen> {
             ),
           ),
           const SizedBox(height: 18),
-          const _SectionTitle(title: '旅程篇章', subtitle: '前一棒完成後，下一棒才會亮起'),
+          _SectionTitle(
+            title: '旅程篇章',
+            subtitle: action.kind == CooperativeActionKind.collection
+                ? '一起蒐集，依自己的步調完成篇章'
+                : '前一棒完成後，下一棒才會亮起',
+          ),
           const SizedBox(height: 10),
           for (final chapter in action.chapters) ...[
             _CooperativeActionChapterCard(
@@ -5580,67 +5528,10 @@ class _FamilyScreenState extends State<FamilyScreen> {
       children: [
         const _PageHeading(title: '家人的陪伴', subtitle: '不必在同一個地方，也能一起照顧這棵家庭樹。'),
         const SizedBox(height: 14),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.controller.context?.activeHousehold.name ?? '我的家庭',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                const Text('一個人也能使用；想有人陪伴時，再邀請親友加入。'),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    FilledButton.icon(
-                      onPressed: () async {
-                        final invite = await widget.controller
-                            .createHouseholdInvite();
-                        if (invite != null && context.mounted) {
-                          await showDialog<void>(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: const Text('家庭邀請碼'),
-                              content: SelectableText(
-                                invite.code,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontSize: 30,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 4,
-                                ),
-                              ),
-                              actions: [
-                                FilledButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text('完成'),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-                      },
-                      icon: const Icon(Icons.person_add_alt_1_rounded),
-                      label: const Text('邀請親友'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: () => _showJoinDialog(context),
-                      icon: const Icon(Icons.group_add_outlined),
-                      label: const Text('加入家庭'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+        OutlinedButton.icon(
+          onPressed: () => openCircleMembership(context, widget.controller),
+          icon: const Icon(Icons.people_outline_rounded),
+          label: const Text('邀請與加入樹伴圈'),
         ),
         const SizedBox(height: 12),
         const _NoticeBand(
@@ -5773,50 +5664,6 @@ class _FamilyScreenState extends State<FamilyScreen> {
         ),
       ],
     );
-  }
-
-  Future<void> _showJoinDialog(BuildContext context) async {
-    final code = TextEditingController();
-    final relationship = TextEditingController(text: '家人');
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('加入另一個家庭'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: code,
-              maxLength: 8,
-              textCapitalization: TextCapitalization.characters,
-              decoration: const InputDecoration(labelText: '8 碼邀請碼'),
-            ),
-            TextField(
-              controller: relationship,
-              decoration: const InputDecoration(labelText: '關係，例如：女兒、朋友'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              await widget.controller.joinHousehold(
-                code.text,
-                relationship.text,
-              );
-              if (context.mounted) Navigator.pop(context);
-            },
-            child: const Text('加入'),
-          ),
-        ],
-      ),
-    );
-    code.dispose();
-    relationship.dispose();
   }
 }
 
