@@ -6,12 +6,14 @@ import 'package:elder_tree_mobile/src/app_controller.dart';
 import 'package:elder_tree_mobile/src/app_locale.dart';
 import 'package:elder_tree_mobile/src/circle_welcome_screen.dart';
 import 'package:elder_tree_mobile/src/models.dart';
+import 'package:elder_tree_mobile/src/journey_library_screen.dart';
 import 'package:elder_tree_mobile/src/screens.dart';
 import 'package:elder_tree_mobile/src/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'journey_library_test.dart' show JourneyApi, journeyController;
 
 void main() {
   const output = String.fromEnvironment('CIRCLE_CAPTURE_DIR');
@@ -35,7 +37,9 @@ void main() {
       await tester.runAsync(icons.load);
       await tester.binding.setSurfaceSize(const Size(390, 844));
       addTearDown(() => tester.binding.setSurfaceSize(null));
-      final controller = AppController()..offlineDemo = true;
+      final controller = label == 'journey'
+          ? journeyController(JourneyApi())
+          : (AppController()..offlineDemo = true);
       if (label == 'setup') {
         controller.offlineDemo = false;
         controller.context = const AppContextModel(
@@ -106,7 +110,9 @@ void main() {
                 ),
               ),
             ),
-            home: label == 'setup'
+            home: label == 'journey'
+                ? JourneyLibraryScreen(controller: controller)
+                : label == 'setup'
                 ? CircleWelcomeScreen(controller: controller)
                 : Scaffold(
                     appBar: AppBar(title: const Text('同行成林 · 示範畫面')),
@@ -131,7 +137,22 @@ void main() {
         });
       }
 
-      await capture(label == 'setup' ? 'circle-welcome' : 'circle-$label');
+      await capture(
+        label == 'journey'
+            ? 'journey-records'
+            : label == 'setup'
+            ? 'circle-welcome'
+            : 'circle-$label',
+      );
+      if (label == 'journey') {
+        await tester.tap(find.text('回看大家留下的片刻'));
+        await tester.pumpAndSettle();
+        await capture('journey-story');
+        await tester.ensureVisible(find.text('選下一段'));
+        await tester.tap(find.text('選下一段'));
+        await tester.pumpAndSettle();
+        await capture('journey-choices');
+      }
       if (label == 'setup') {
         await tester.ensureVisible(find.text('為樹伴圈取名'));
         await tester.tap(find.text('為樹伴圈取名'));

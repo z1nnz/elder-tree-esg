@@ -78,6 +78,124 @@ class AppController extends ChangeNotifier {
   String? membershipError;
   bool _changingHousehold = false;
   Set<String> _deferredCircleSetups = {};
+  JourneyShelfModel? journeyShelf;
+  bool journeyLoading = false;
+  bool journeyStarting = false;
+  String? journeyError;
+  int _journeyRequestGeneration = 0;
+
+  Future<void> loadJourneyShelf({bool more = false}) async {
+    if (_disposed || journeyLoading || journeyStarting || membershipBusy) {
+      return;
+    }
+    if (offlineDemo) {
+      journeyError = '離線示範不會產生共同紀錄。連上服務後，就能查看旅程與選擇下一段。';
+      notifyListeners();
+      return;
+    }
+    final circleId = context?.activeHouseholdId;
+    if (circleId == null) return;
+    final epoch = _circleEpoch;
+    final generation = ++_journeyRequestGeneration;
+    bool current() =>
+        !_disposed &&
+        epoch == _circleEpoch &&
+        generation == _journeyRequestGeneration;
+    final previous = journeyShelf;
+    final cursor = more ? previous?.nextCursor : null;
+    if (more && cursor == null) return;
+    journeyLoading = true;
+    journeyError = null;
+    notifyListeners();
+    try {
+      final shelf = await _api.getJourneyShelf(before: cursor);
+      if (!current()) return;
+      if (shelf.circleId != circleId) {
+        throw const ApiException('Circle changed; reload journeys');
+      }
+      journeyShelf = more && previous != null
+          ? JourneyShelfModel(
+              circleId: shelf.circleId,
+              currentRunId: shelf.currentRunId,
+              completedCount: shelf.completedCount,
+              choices: shelf.choices,
+              nextCursor: shelf.nextCursor,
+              results: {
+                for (final result in [...previous.results, ...shelf.results])
+                  result.runId: result,
+              }.values.toList(),
+            )
+          : shelf;
+    } catch (error) {
+      if (current()) {
+        journeyError = _friendlyActionError(
+          error,
+          fallback: '共同紀錄暫時讀不到，請重新整理；已完成的旅程不會因此消失。',
+        );
+      }
+    } finally {
+      if (current()) {
+        journeyLoading = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<bool> startJourney(JourneyChoiceModel choice) async {
+    final shelf = journeyShelf;
+    if (_disposed ||
+        membershipBusy ||
+        journeyStarting ||
+        journeyLoading ||
+        offlineDemo ||
+        shelf?.currentRunId == null ||
+        shelf?.circleId != context?.activeHouseholdId ||
+        choice.unavailableReason != null) {
+      return false;
+    }
+    final epoch = ++_circleEpoch;
+    ++_refreshGeneration;
+    ++_journeyRequestGeneration;
+    loading = false;
+    journeyStarting = true;
+    journeyError = null;
+    notifyListeners();
+    bool current() => !_disposed && epoch == _circleEpoch;
+    try {
+      final updated = await _api.startJourney(
+        circleId: shelf!.circleId,
+        actionId: choice.actionId,
+        previousRunId: shelf.currentRunId!,
+      );
+      if (!current()) return false;
+      if (updated.id != shelf.circleId) {
+        throw const ApiException('Circle changed; reload journeys');
+      }
+      circle = updated;
+      journeyShelf = null;
+      notice = '新的共行旅程已準備好，一起接下第一棒吧。';
+      return true;
+    } catch (error) {
+      if (current()) {
+        final message = error.toString().toLowerCase();
+        journeyError = message.contains('finish the current')
+            ? '已經有人接棒了。先完成目前旅程，再選下一段。'
+            : message.contains('revisit')
+            ? '這段旅程還在休息，請重新整理查看再次開放時間。'
+            : message.contains('invite more')
+            ? '目前樹伴人數不足，先邀請夥伴，或選擇人數較少的旅程。'
+            : message.contains('changed')
+            ? '樹伴圈已選擇另一段旅程，請重新整理後再確認。'
+            : _friendlyActionError(error, fallback: '旅程暫時無法開啟，請重新整理後再試。');
+      }
+      return false;
+    } finally {
+      if (current()) {
+        journeyStarting = false;
+        notifyListeners();
+      }
+    }
+  }
 
   bool get needsCircleSetup {
     final profile = context?.activeHousehold;
@@ -356,7 +474,7 @@ class AppController extends ChangeNotifier {
   }
 
   bool _beginMembershipAction() {
-    if (_disposed || membershipBusy) return false;
+    if (_disposed || membershipBusy || journeyStarting) return false;
     membershipError = null;
     if (offlineDemo) {
       membershipError = '離線示範只能瀏覽。連上服務後，才能建立、設定、邀請或加入樹伴圈。';
@@ -375,6 +493,9 @@ class AppController extends ChangeNotifier {
     if (!_beginMembershipAction()) return false;
     _changingHousehold = true;
     ++_circleEpoch;
+    ++_journeyRequestGeneration;
+    journeyLoading = false;
+    journeyShelf = null;
     ++_refreshGeneration; // A previous circle's late refresh must not win.
     loading = false;
     try {
@@ -429,6 +550,11 @@ class AppController extends ChangeNotifier {
   void _adoptContext(AppContextModel updated) {
     if (context?.activeHouseholdId != updated.activeHouseholdId) {
       ++_circleEpoch;
+      ++_journeyRequestGeneration;
+      journeyShelf = null;
+      journeyLoading = false;
+      journeyStarting = false;
+      journeyError = null;
       // Never retain another circle's private data after a partial refresh.
       home = null;
       tasks = [];
@@ -527,7 +653,7 @@ class AppController extends ChangeNotifier {
     CooperativeActionChapterModel chapter, {
     required bool useAlternative,
   }) async {
-    if (membershipBusy) return;
+    if (membershipBusy || journeyStarting) return;
     final epoch = _circleEpoch;
     bool current() => !_disposed && epoch == _circleEpoch;
     final action = circle.activeAction;
@@ -558,7 +684,7 @@ class AppController extends ChangeNotifier {
     CooperativeActionChapterModel chapter,
     CircleMemberModel target,
   ) async {
-    if (membershipBusy) return;
+    if (membershipBusy || journeyStarting) return;
     final epoch = _circleEpoch;
     bool current() => !_disposed && epoch == _circleEpoch;
     final action = circle.activeAction;
@@ -586,7 +712,7 @@ class AppController extends ChangeNotifier {
   Future<void> releaseExpiredCooperativeActionClaim(
     CooperativeActionChapterModel chapter,
   ) async {
-    if (membershipBusy) return;
+    if (membershipBusy || journeyStarting) return;
     final epoch = _circleEpoch;
     bool current() => !_disposed && epoch == _circleEpoch;
     final action = circle.activeAction;
@@ -613,7 +739,7 @@ class AppController extends ChangeNotifier {
   Future<void> completeCooperativeActionChapter(
     CooperativeActionChapterModel chapter,
   ) async {
-    if (membershipBusy) return;
+    if (membershipBusy || journeyStarting) return;
     final epoch = _circleEpoch;
     bool current() => !_disposed && epoch == _circleEpoch;
     final action = circle.activeAction;
@@ -630,9 +756,19 @@ class AppController extends ChangeNotifier {
         circle = updated;
         final completedAction = circle.activeAction;
         if (completedAction?.completed ?? false) {
-          final updatedTree = await _api.getTree();
-          if (!current()) return;
-          tree = updatedTree;
+          ++_journeyRequestGeneration;
+          journeyLoading = false;
+          journeyShelf = null;
+          try {
+            final updatedTree = await _api.getTree();
+            if (!current()) return;
+            tree = updatedTree;
+          } catch (_) {
+            if (!current()) return;
+            notice = '旅程已完成，共同紀錄已保存；生命樹資料暫時讀不到，請稍後重新整理。';
+            notifyListeners();
+            return;
+          }
           lastGrowthAwardPoints = completedAction!.growthPoints;
           lastGrowthAwardTitle = completedAction.keepsakeName;
           notice =

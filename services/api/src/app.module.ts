@@ -18,6 +18,7 @@ import { DemoStoreService } from "./store/demo-store.service";
 import { PrismaService } from "./database/prisma.service";
 import { PersistentStoreService } from "./store/persistent-store.service";
 import { CircleSettingsService } from "./store/circle-settings.service";
+import { JourneyLibraryService } from "./store/journey-library.service";
 import { ClockService } from "./time/clock.service";
 import { EvidenceStorageService } from "./evidence/evidence-storage.service";
 import { PhotoVerifierService } from "./evidence/photo-verifier.service";
@@ -50,6 +51,7 @@ import { LineMessagingService } from "./line/line-messaging.service";
     PlatformAdminGuard,
     PersistentStoreService,
     CircleSettingsService,
+    JourneyLibraryService,
     {
       provide: APP_GUARD,
       useClass: ApiAuthGuard,

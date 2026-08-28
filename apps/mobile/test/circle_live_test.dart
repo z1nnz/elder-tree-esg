@@ -171,6 +171,50 @@ void main() {
         action.growthPoints,
       );
       stdout.writeln('CIRCLE_ACCEPTANCE_PASSED:3-members-3-chapters-1-reward');
+      await controllers.first.loadJourneyShelf();
+      final firstShelf = controllers.first.journeyShelf!;
+      expect(firstShelf.results.single.runId, action.runId);
+      expect(firstShelf.results.single.growthPoints, action.growthPoints);
+      final next = firstShelf.choices.singleWhere(
+        (item) => item.title == '聽見彼此的日常',
+      );
+      expect(
+        await controllers.first.startJourney(next),
+        isTrue,
+        reason: controllers.first.journeyError,
+      );
+      final nextRun = controllers.first.circle.activeAction!;
+      expect(nextRun.runId, isNot(action.runId));
+      expect(nextRun.totalChapterCount, 2);
+      // Reusing the same predecessor cannot create another journey.
+      expect(
+        (await clients.first.startJourney(
+          circleId: ownerCircleId,
+          actionId: next.actionId,
+          previousRunId: action.runId!,
+        )).activeAction!.runId,
+        nextRun.runId,
+      );
+      for (var i = 0; i < 2; i++) {
+        controllers[i].circle = await clients[i].getCircleOverview();
+        final chapter = controllers[i].circle.activeAction!.nextChapter!;
+        await controllers[i].claimCooperativeActionChapter(
+          chapter,
+          useAlternative: false,
+        );
+        await controllers[i].completeCooperativeActionChapter(chapter);
+      }
+      final history = await clients.last.getJourneyShelf();
+      expect(history.completedCount, 2);
+      expect(history.results.map((item) => item.runId).toSet(), {
+        action.runId,
+        nextRun.runId,
+      });
+      expect(
+        (await clients.first.getTree()).growthPoints - before.growthPoints,
+        action.growthPoints + next.growthPoints,
+      );
+      stdout.writeln('JOURNEY_CONTINUATION_PASSED:2-journeys-2-receipts');
     },
     skip: url == null
         ? 'Run through the isolated circle acceptance suite.'

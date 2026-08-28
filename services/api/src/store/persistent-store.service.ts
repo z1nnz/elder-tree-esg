@@ -75,6 +75,7 @@ import { PhotoVerifierService } from "../evidence/photo-verifier.service";
 import { LineMessagingService } from "../line/line-messaging.service";
 import { ClockService } from "../time/clock.service";
 import { nextStageAt, stageForPoints } from "./tree-growth";
+import { buildJourneyResult } from "./journey-result";
 
 const TASK_SEEDS = [
   {
@@ -1053,17 +1054,33 @@ export class PersistentStoreService {
     if (!household) throw new NotFoundException("Circle not found");
 
     const now = this.clock.now();
-    const action = await this.prisma.cooperativeAction.findFirst({
-      where: {
-        status: "PUBLISHED",
-        AND: [
-          { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
-          { OR: [{ endsAt: null }, { endsAt: { gt: now } }] },
-        ],
-      },
-      orderBy: { publishedAt: "asc" },
+    const selectedRun = await this.prisma.$transaction(async (transaction) => {
+      await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`journey-circle:${household.id}`}))`;
+      const currentRun = await transaction.cooperativeActionRun.findFirst({
+        where: { householdId: household.id, isCurrent: true },
+      });
+      if (currentRun) return currentRun;
+      const action = await transaction.cooperativeAction.findFirst({
+        where: {
+          status: "PUBLISHED",
+          kind: "RELAY",
+          AND: [
+            { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+            { OR: [{ endsAt: null }, { endsAt: { gt: now } }] },
+          ],
+        },
+        orderBy: { publishedAt: "asc" },
+      });
+      if (!action) return null;
+      return transaction.cooperativeActionRun.create({
+        data: {
+          actionId: action.id,
+          householdId: household.id,
+          startedAt: now,
+        },
+      });
     });
-    if (!action) {
+    if (!selectedRun) {
       return {
         id: household.id,
         name: household.name,
@@ -1079,15 +1096,8 @@ export class PersistentStoreService {
       };
     }
 
-    const run = await this.prisma.cooperativeActionRun.upsert({
-      where: {
-        actionId_householdId: {
-          actionId: action.id,
-          householdId: household.id,
-        },
-      },
-      update: {},
-      create: { actionId: action.id, householdId: household.id },
+    const run = await this.prisma.cooperativeActionRun.findUniqueOrThrow({
+      where: { id: selectedRun.id },
       include: {
         action: {
           include: {
@@ -1127,7 +1137,13 @@ export class PersistentStoreService {
         title: run.action.title,
         description: run.action.description,
         kind: run.action.kind,
-        status: run.status,
+        status:
+          run.status === "ACTIVE" &&
+          (run.action.status !== "PUBLISHED" ||
+            (run.action.startsAt && run.action.startsAt > now) ||
+            (run.action.endsAt && run.action.endsAt <= now))
+            ? "EXPIRED"
+            : run.status,
         minimumContributors: run.action.minimumContributors,
         maxChaptersPerMember: run.action.maxChaptersPerMember,
         contributorCount,
@@ -1194,7 +1210,11 @@ export class PersistentStoreService {
         SELECT pg_advisory_xact_lock(hashtext(${runId}))
       `;
       const run = await transaction.cooperativeActionRun.findFirst({
-        where: { id: runId, householdId: active.activeHouseholdId },
+        where: {
+          id: runId,
+          householdId: active.activeHouseholdId,
+          isCurrent: true,
+        },
         include: {
           action: { include: { chapters: { orderBy: { sequence: "asc" } } } },
         },
@@ -1300,7 +1320,11 @@ export class PersistentStoreService {
         SELECT pg_advisory_xact_lock(hashtext(${runId}))
       `;
       const run = await transaction.cooperativeActionRun.findFirst({
-        where: { id: runId, householdId: active.activeHouseholdId },
+        where: {
+          id: runId,
+          householdId: active.activeHouseholdId,
+          isCurrent: true,
+        },
         include: { action: true },
       });
       if (!run) throw new NotFoundException("Cooperative action run not found");
@@ -1374,7 +1398,11 @@ export class PersistentStoreService {
         SELECT pg_advisory_xact_lock(hashtext(${runId}))
       `;
       const run = await transaction.cooperativeActionRun.findFirst({
-        where: { id: runId, householdId: active.activeHouseholdId },
+        where: {
+          id: runId,
+          householdId: active.activeHouseholdId,
+          isCurrent: true,
+        },
       });
       if (!run) throw new NotFoundException("Cooperative action run not found");
       if (run.claimedChapterId !== chapterId || !run.claimExpiresAt) {
@@ -1416,7 +1444,11 @@ export class PersistentStoreService {
       });
       if (!run) throw new NotFoundException("Cooperative action run not found");
       if (run.status === "COMPLETED") return;
-      if (run.status !== "ACTIVE" || run.action.status !== "PUBLISHED") {
+      if (
+        !run.isCurrent ||
+        run.status !== "ACTIVE" ||
+        run.action.status !== "PUBLISHED"
+      ) {
         throw new ConflictException("Cooperative action is not active");
       }
       const now = this.clock.now();
@@ -1535,11 +1567,17 @@ export class PersistentStoreService {
           run.action.growthPoints,
           active.activeHouseholdId,
         );
+        const resultSnapshot = await buildJourneyResult(
+          transaction,
+          run.id,
+          now,
+        );
         await transaction.cooperativeActionRun.update({
           where: { id: run.id },
           data: {
             status: "COMPLETED",
             completedAt: now,
+            resultSnapshot: resultSnapshot as unknown as Prisma.InputJsonValue,
             claimedChapterId: null,
             claimedById: null,
             claimedTaskId: null,

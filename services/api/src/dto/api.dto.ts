@@ -86,6 +86,21 @@ export class CompleteTaskDto {
   idempotencyKey?: string;
 }
 
+export class JourneyHistoryQueryDto {
+  @IsOptional()
+  @IsUUID()
+  before?: string;
+}
+
+export class StartJourneyDto {
+  @IsUUID()
+  circleId!: string;
+  @IsUUID()
+  actionId!: string;
+  @IsUUID()
+  previousRunId!: string;
+}
+
 export class CompleteCooperativeActionChapterDto {
   @ApiPropertyOptional({
     description: "Prevents duplicate chapter submissions",

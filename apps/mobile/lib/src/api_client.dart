@@ -119,6 +119,26 @@ class ApiClient {
     );
   }
 
+  Future<JourneyShelfModel> getJourneyShelf({
+    String? before,
+  }) async => JourneyShelfModel.fromJson(
+    await _getMap(
+      '/circles/current/journeys${before == null ? '' : '?before=${Uri.encodeQueryComponent(before)}'}',
+    ),
+  );
+
+  Future<CircleOverviewModel> startJourney({
+    required String circleId,
+    required String actionId,
+    required String previousRunId,
+  }) async => CircleOverviewModel.fromJson(
+    await _post('/circles/current/journeys', {
+      'circleId': circleId,
+      'actionId': actionId,
+      'previousRunId': previousRunId,
+    }),
+  );
+
   Future<AppContextModel> updateCircle({
     required String circleId,
     required String name,

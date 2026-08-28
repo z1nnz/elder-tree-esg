@@ -705,6 +705,38 @@ export interface CircleOverview {
   activeAction: CooperativeActionSummary | null;
 }
 
+export interface JourneyResult {
+  runId: string;
+  actionId: string;
+  title: string;
+  keepsakeName: string;
+  completedAt: string;
+  growthPoints: number;
+  historicalImport: boolean;
+  contributions: (CooperativeActionContributor & { elementName: string })[];
+}
+
+export interface JourneyChoice {
+  actionId: string;
+  title: string;
+  description: string;
+  keepsakeName: string;
+  minimumContributors: number;
+  chapterCount: number;
+  growthPoints: number;
+  availableAt: string | null;
+  unavailableReason: "IN_PROGRESS" | "COOLDOWN" | "NOT_ENOUGH_MEMBERS" | null;
+}
+
+export interface JourneyShelf {
+  circleId: string;
+  currentRunId: string | null;
+  completedCount: number;
+  results: JourneyResult[];
+  nextCursor: string | null;
+  choices: JourneyChoice[];
+}
+
 export interface ApiEnvelope<T> {
   data: T;
   meta?: {

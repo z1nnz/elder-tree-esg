@@ -9,6 +9,7 @@ import 'package:maplibre/maplibre.dart';
 
 import 'app_controller.dart';
 import 'circle_membership_screen.dart';
+import 'journey_library_screen.dart';
 import 'exploration_map_config.dart';
 import 'models.dart';
 import 'theme.dart';
@@ -5078,6 +5079,11 @@ class _CircleScreenState extends State<CircleScreen> {
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
         children: [
           CirclePeopleHeader(controller: controller),
+          TextButton.icon(
+            onPressed: () => openJourneyLibrary(context, controller),
+            icon: const Icon(Icons.history_rounded),
+            label: const Text('共同年輪與後續旅程'),
+          ),
           const SizedBox(height: 20),
           const _EmptyBlock(
             icon: Icons.diversity_1_rounded,
@@ -5095,7 +5101,7 @@ class _CircleScreenState extends State<CircleScreen> {
         .length;
     final nextChapter = action.nextChapter;
     final canParticipate =
-        !action.completed &&
+        action.status == CooperativeActionStatus.active &&
         nextChapter != null &&
         currentMemberContributionCount < action.maxChaptersPerMember;
     final claim = nextChapter?.claim;
@@ -5125,6 +5131,8 @@ class _CircleScreenState extends State<CircleScreen> {
                 Text(
                   action.completed
                       ? '這趟旅程已完成'
+                      : action.status == CooperativeActionStatus.expired
+                      ? '這趟旅程已結束'
                       : action.kind == CooperativeActionKind.collection
                       ? '蒐集旅程進行中'
                       : '接力旅程進行中',
@@ -5185,10 +5193,15 @@ class _CircleScreenState extends State<CircleScreen> {
             const SizedBox(height: 10),
           ],
           if (action.completed)
-            _NoticeBand(
-              icon: Icons.auto_awesome_rounded,
-              text:
-                  '你們共同解鎖了「${action.keepsakeName}」。這次成長來自 ${action.contributorCount} 位樹伴通過行動見證的真實足跡。',
+            FilledButton.icon(
+              onPressed: () => openJourneyLibrary(context, controller),
+              icon: const Icon(Icons.eco_outlined),
+              label: const Text('看看共同留下的年輪'),
+            )
+          else if (action.status == CooperativeActionStatus.expired)
+            OutlinedButton(
+              onPressed: () => openJourneyLibrary(context, controller),
+              child: const Text('選擇另一段旅程'),
             )
           else if (currentMemberHasClaim)
             Column(
@@ -5245,6 +5258,11 @@ class _CircleScreenState extends State<CircleScreen> {
             '目前篇章採「自我確認」行動見證，只累積基本年輪進度；商家回饋、公益時數與真實植樹會要求更強的見證方式。',
             style: TextStyle(color: Color(0xFF66706A), height: 1.5),
           ),
+          if (!action.completed)
+            TextButton(
+              onPressed: () => openJourneyLibrary(context, controller),
+              child: const Text('共同紀錄與其他旅程'),
+            ),
         ],
       ),
     );
@@ -6268,9 +6286,14 @@ class ImpactScreen extends StatelessWidget {
 }
 
 class TreeGrowthScreen extends StatelessWidget {
-  const TreeGrowthScreen({required this.controller, super.key});
+  const TreeGrowthScreen({
+    required this.controller,
+    this.onOpenCircle,
+    super.key,
+  });
 
   final AppController controller;
+  final VoidCallback? onOpenCircle;
 
   @override
   Widget build(BuildContext context) {
@@ -6289,7 +6312,15 @@ class TreeGrowthScreen extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
       children: [
-        const _PageHeading(title: '生命樹', subtitle: '每一次任務完成，都會讓家庭共同照顧的樹長出新葉。'),
+        const _PageHeading(title: '生命樹', subtitle: '樹伴圈一起走過的日常，慢慢長成共同年輪。'),
+        TextButton.icon(
+          onPressed: () async {
+            final opened = await openJourneyLibrary(context, controller);
+            if (context.mounted && opened == true) onOpenCircle?.call();
+          },
+          icon: const Icon(Icons.history_rounded),
+          label: const Text('共同旅程與紀念枝'),
+        ),
         const SizedBox(height: 14),
         Container(
           padding: const EdgeInsets.all(22),

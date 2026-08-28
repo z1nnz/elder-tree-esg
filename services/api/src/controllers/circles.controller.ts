@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Patch, Post, Req } from "@nestjs/common";
+import {
+  Body,
+  ConflictException,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import {
   ClaimCooperativeActionChapterDto,
@@ -6,11 +16,14 @@ import {
   HandoffCooperativeActionChapterDto,
   CreateCircleDto,
   UpdateCircleProfileDto,
+  JourneyHistoryQueryDto,
+  StartJourneyDto,
 } from "../dto/api.dto";
 import type { AuthenticatedRequest } from "../security/api-auth.guard";
 import { DemoStoreService } from "../store/demo-store.service";
 import { PersistentStoreService } from "../store/persistent-store.service";
 import { CircleSettingsService } from "../store/circle-settings.service";
+import { JourneyLibraryService } from "../store/journey-library.service";
 
 @ApiTags("circles")
 @ApiBearerAuth()
@@ -20,7 +33,28 @@ export class CirclesController {
     private readonly persistentStore: PersistentStoreService,
     private readonly demoStore: DemoStoreService,
     private readonly settings: CircleSettingsService,
+    private readonly journeys: JourneyLibraryService,
   ) {}
+
+  @Get("current/journeys")
+  async library(
+    @Req() request: AuthenticatedRequest,
+    @Query() query: JourneyHistoryQueryDto,
+  ) {
+    if (process.env.DEMO_MODE !== "false")
+      throw new ConflictException("Journey history requires persistent mode");
+    return { data: await this.journeys.shelf(request.user!.uid, query.before) };
+  }
+
+  @Post("current/journeys")
+  async startJourney(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: StartJourneyDto,
+  ) {
+    if (process.env.DEMO_MODE !== "false")
+      throw new ConflictException("Journey history requires persistent mode");
+    return { data: await this.journeys.start(request.user!.uid, dto) };
+  }
 
   @Post()
   async create(

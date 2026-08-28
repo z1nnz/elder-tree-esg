@@ -310,6 +310,11 @@ model CooperativeActionRun {
   status           CooperativeActionRunStatus      @default(ACTIVE)
   startedAt        DateTime                        @default(now())
   completedAt      DateTime?
+  isCurrent        Boolean                         @default(true)
+  previousRunId    String?                         @unique
+  previousRun      CooperativeActionRun?           @relation("JourneyChain", fields: [previousRunId], references: [id], onDelete: SetNull)
+  nextRun          CooperativeActionRun?           @relation("JourneyChain")
+  resultSnapshot   Json?
   claimedChapterId String?
   claimedById      String?
   claimedTaskId    String?
@@ -324,7 +329,7 @@ model CooperativeActionRun {
   createdAt        DateTime                        @default(now())
   updatedAt        DateTime                        @updatedAt
 
-  @@unique([actionId, householdId])
+  @@index([actionId, householdId, startedAt])
   @@index([householdId, status])
   @@index([claimedById, claimExpiresAt])
 }

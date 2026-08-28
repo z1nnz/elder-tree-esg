@@ -68,7 +68,10 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       ),
       FamilyScreen(controller: widget.controller),
       ImpactScreen(controller: widget.controller),
-      TreeGrowthScreen(controller: widget.controller),
+      TreeGrowthScreen(
+        controller: widget.controller,
+        onOpenCircle: () => _selectIndex(7),
+      ),
       SettingsScreen(
         controller: widget.controller,
         accountEmail: widget.accountEmail,

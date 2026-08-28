@@ -134,6 +134,9 @@ describe.runIf(Boolean(database))(
       expect(output).toContain(
         "CIRCLE_ACCEPTANCE_PASSED:3-members-3-chapters-1-reward",
       );
+      expect(output).toContain(
+        "JOURNEY_CONTINUATION_PASSED:2-journeys-2-receipts",
+      );
       expect(
         await prisma!.householdMember.count({
           where: { user: { firebaseUid: { in: uids } } },
@@ -141,7 +144,7 @@ describe.runIf(Boolean(database))(
       ).toBe(6);
     }, 100_000);
 
-    it("rejects invalid profiles and client-supplied manager rights over HTTP", async () => {
+    it("rejects invalid profiles, journey inputs and client-supplied privileges over HTTP", async () => {
       for (const body of [
         { name: "   ", kind: "FRIENDS" },
         { name: "名字", kind: "UNKNOWN" },
@@ -178,6 +181,35 @@ describe.runIf(Boolean(database))(
         },
       );
       expect(invalidRevision.status).toBe(400);
+      const validShape = {
+        circleId: user.activeHouseholdId,
+        actionId: randomUUID(),
+        previousRunId: randomUUID(),
+      };
+      for (const body of [
+        {},
+        { ...validShape, actionId: "invalid" },
+        { ...validShape, previousRunId: "invalid" },
+        { ...validShape, growthPoints: 9999 },
+        { ...validShape, isCurrent: true },
+      ]) {
+        const response = await fetch(`${baseUrl}/circles/current/journeys`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-demo-user": uids[0]!,
+          },
+          body: JSON.stringify(body),
+        });
+        expect(response.status).toBe(400);
+      }
+      const badCursor = await fetch(
+        `${baseUrl}/circles/current/journeys?before=invalid`,
+        {
+          headers: { "x-demo-user": uids[0]! },
+        },
+      );
+      expect(badCursor.status).toBe(400);
       expect(
         await prisma!.householdMember.count({
           where: { user: { firebaseUid: { in: uids } } },
