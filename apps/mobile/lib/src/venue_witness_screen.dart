@@ -561,26 +561,64 @@ class _ArrivalCamera extends StatefulWidget {
   State<_ArrivalCamera> createState() => _ArrivalCameraState();
 }
 
-class _ArrivalCameraState extends State<_ArrivalCamera> {
+class _ArrivalCameraState extends State<_ArrivalCamera>
+    with WidgetsBindingObserver {
+  // The plugin has a single native camera. A replacement widget must wait
+  // until the previous widget has finished both its permission request and
+  // native cleanup, including when navigating away and back to this screen.
+  static Future<void> _lastCleanup = Future<void>.value();
+  late final Future<void> _previousCleanup;
+  final _released = Completer<void>();
   final _camera = MobileScannerController(
     autoStart: false,
     formats: const [BarcodeFormat.qrCode],
   );
   bool _read = false;
+  bool _retired = false;
   Future<void>? _starting;
+  Future<void>? _closing;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _previousCleanup = _lastCleanup;
+    _lastCleanup = _released.future;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _starting = _camera.start();
+      _starting = _startCamera();
       // The scanner's errorBuilder presents permission/start errors.
       unawaited(_starting!.catchError((Object _) {}));
     });
   }
 
+  Future<void> _startCamera() async {
+    await _previousCleanup;
+    if (!mounted || _retired) return;
+    await _camera.start();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      // A paused app may not render the parent's requested removal at all.
+      // Release native resources without waiting for another Flutter frame.
+      _retire();
+    }
+  }
+
+  void _retire() {
+    _retired = true;
+    _closing ??= _closeCamera().catchError((Object error) {
+      debugPrint('[venue-camera] cleanup failed: ${error.runtimeType}');
+    });
+    unawaited(_closing);
+  }
+
   Future<void> _closeCamera() async {
+    await _previousCleanup;
     try {
       // A permission response can arrive after the screen has gone away.
       // Stop the eventual native session before disposing the controller.
@@ -589,15 +627,20 @@ class _ArrivalCameraState extends State<_ArrivalCamera> {
       // Failed initialization still needs controller cleanup.
     }
     try {
-      await _camera.stop();
+      try {
+        await _camera.stop();
+      } finally {
+        await _camera.dispose();
+      }
     } finally {
-      await _camera.dispose();
+      _released.complete();
     }
   }
 
   @override
   void dispose() {
-    unawaited(_closeCamera());
+    WidgetsBinding.instance.removeObserver(this);
+    _retire();
     super.dispose();
   }
 
@@ -608,12 +651,11 @@ class _ArrivalCameraState extends State<_ArrivalCamera> {
       child: Text('無法開啟相機。請確認權限，或關閉鏡頭後貼上現場碼。', style: TextStyle(fontSize: 16)),
     ),
     onDetect: (capture) {
-      if (_read || !mounted) return;
+      if (_read || !mounted || _retired) return;
       for (final barcode in capture.barcodes) {
         final value = barcode.rawValue;
         if (value == null) continue;
         _read = true;
-        unawaited(_camera.stop());
         widget.onRead(value);
         break;
       }

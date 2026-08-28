@@ -13,6 +13,51 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+
+class PendingCameraPlatform extends MobileScannerPlatform {
+  final starts = <Completer<MobileScannerViewAttributes>>[];
+  final events = <String>[];
+  bool running = false;
+  @override
+  Stream<BarcodeCapture?> get barcodesStream => const Stream.empty();
+  @override
+  Stream<TorchState> get torchStateStream => const Stream.empty();
+  @override
+  Stream<double> get zoomScaleStateStream => const Stream.empty();
+  @override
+  Widget buildCameraView() => const SizedBox.expand();
+  @override
+  Future<MobileScannerViewAttributes> start(StartOptions options) async {
+    final pending = Completer<MobileScannerViewAttributes>();
+    starts.add(pending);
+    events.add('start-${starts.length}');
+    final attributes = await pending.future;
+    running = true;
+    return attributes;
+  }
+
+  @override
+  Future<void> stop() async {
+    events.add('stop');
+    running = false;
+  }
+
+  @override
+  Future<void> dispose() async {
+    events.add('dispose');
+    running = false;
+  }
+
+  void allow(int index) => starts[index].complete(
+    const MobileScannerViewAttributes(
+      cameraDirection: CameraFacing.back,
+      currentTorchMode: TorchState.off,
+      size: Size(300, 300),
+      numberOfCameras: 1,
+    ),
+  );
+}
 
 class VenueLocationStub extends GeolocatorPlatform {
   bool mocked = false;
@@ -103,6 +148,74 @@ VenueWitnessSubmission proof({
 );
 
 void main() {
+  testWidgets(
+    'reopening the camera waits for the pending previous session to close',
+    (tester) async {
+      final original = MobileScannerPlatform.instance;
+      final camera = PendingCameraPlatform();
+      MobileScannerPlatform.instance = camera;
+      addTearDown(() {
+        MobileScannerPlatform.instance = original;
+      });
+      await tester.binding.setSurfaceSize(const Size(390, 1000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final controller = AppController(
+        api: ApiClient(client: MockClient((_) async => envelope(null))),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildAppTheme(true),
+          home: VenueWitnessScreen(
+            controller: controller,
+            mission: RadarMissionModel.fromJson(missionJson()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('掃描現場到場碼'));
+      await tester.pump();
+      expect(camera.starts.length, 1);
+      await tester.ensureVisible(find.text('關閉鏡頭'));
+      await tester.pump();
+      await tester.tap(find.text('關閉鏡頭'));
+      await tester.pump();
+      await tester.ensureVisible(find.text('掃描現場到場碼'));
+      await tester.pump();
+      await tester.tap(find.text('掃描現場到場碼'));
+      await tester.pump();
+      expect(
+        camera.starts.length,
+        1,
+        reason: 'A late permission reply must not create two native owners.',
+      );
+      camera.allow(0);
+      await tester.pump();
+      await tester.pump();
+      expect(camera.events, ['start-1', 'stop', 'dispose', 'start-2']);
+      camera.allow(1);
+      await tester.pumpAndSettle();
+      expect(camera.running, isTrue);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pumpAndSettle();
+      expect(camera.running, isFalse);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      expect(find.byType(MobileScanner), findsNothing);
+      expect(
+        camera.starts.length,
+        2,
+        reason: 'Returning must not silently restart the camera.',
+      );
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
+  );
+
   test(
     'location capture rejects native mock positions and denied permission',
     () async {

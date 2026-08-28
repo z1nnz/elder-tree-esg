@@ -36,6 +36,45 @@ jobs:
       - run: npm test
       - run: npm run build
 
+  venue-cross-client:
+    name: 跨端到場流程
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: venue_test
+          POSTGRES_PASSWORD: venue_test
+          POSTGRES_DB: venue_acceptance_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U venue_test -d venue_acceptance_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://venue_test:venue_test@127.0.0.1:5432/venue_acceptance_ci
+      VENUE_ACCEPTANCE_DATABASE_URL: postgresql://venue_test:venue_test@127.0.0.1:5432/venue_acceptance_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: npm ci
+      - run: npm exec --workspace @elder-tree/api -- prisma migrate deploy
+      - run: npm run build --workspace @elder-tree/api
+      - run: flutter pub get
+        working-directory: apps/mobile
+      - name: 以真實服務與兩端客戶端驗收
+        run: npm exec --workspace @elder-tree/admin-web -- vitest run src/lib/venue-live.integration.test.ts
+
   python:
     runs-on: ubuntu-latest
     defaults:
