@@ -54,12 +54,15 @@
 
 ```sh
 # 前置：已安裝 Node／Flutter 依賴，並在專用本機 PostGIS 資料庫套用遷移。
+npm run build:contracts
 npm run build --workspace @elder-tree/api
 VENUE_ACCEPTANCE_DATABASE_URL=postgresql://venue_test:venue_test@127.0.0.1:5432/venue_acceptance_local \
   npm exec --workspace @elder-tree/admin-web -- vitest run src/lib/venue-live.integration.test.ts
 ```
 
 若 Flutter 不在路徑，可另設定 `FLUTTER_BIN` 為執行檔完整路徑。一般 `npm test`／`flutter test` 沒有專用服務時明確略過此測試；持續整合獨立建立 `venue_acceptance_ci`，以 PostGIS 執行完整遷移後強制執行跨端流程，不依賴正式帳號或私密資料。
+
+乾淨環境須先建置共用契約套件，再建置後端；已將此順序加入持續整合與上述指令，不依賴本機先前留下的 `dist`。
 
 - 全倉 Node 型別檢查通過；一般 Node 測試 45 項通過、32 項資料庫測試及 1 項跨端測試明確略過，跨端測試另行執行通過。
 - 手機靜態檢查無問題；全套 35 項通過、1 項需獨立服務的測試略過；該測試在跨端流程內由兩個 Flutter 程序真正執行。

@@ -69,6 +69,7 @@ jobs:
           cache: true
       - run: npm ci
       - run: npm exec --workspace @elder-tree/api -- prisma migrate deploy
+      - run: npm run build:contracts
       - run: npm run build --workspace @elder-tree/api
       - run: flutter pub get
         working-directory: apps/mobile
