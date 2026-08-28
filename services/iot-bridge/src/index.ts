@@ -1,4 +1,5 @@
 import type { Handler } from "aws-lambda";
+export { syncHandler } from "./device-sync";
 
 export interface IoTDeviceEvent {
   deviceId: string;
