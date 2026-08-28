@@ -138,7 +138,51 @@ describe.runIf(Boolean(database))(
         await prisma!.householdMember.count({
           where: { user: { firebaseUid: { in: uids } } },
         }),
-      ).toBe(5);
+      ).toBe(6);
     }, 100_000);
+
+    it("rejects invalid profiles and client-supplied manager rights over HTTP", async () => {
+      for (const body of [
+        { name: "   ", kind: "FRIENDS" },
+        { name: "名字", kind: "UNKNOWN" },
+        { name: "名字", kind: "FRIENDS", canManageCircle: true },
+        { name: "不能\u0000包含控制字元", kind: "FRIENDS" },
+        { name: "圈".repeat(41), kind: "FRIENDS" },
+      ]) {
+        const response = await fetch(`${baseUrl}/circles`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-demo-user": uids[0]!,
+          },
+          body: JSON.stringify({ ...body, idempotencyKey: randomUUID() }),
+        });
+        expect(response.status).toBe(400);
+      }
+      const user = await prisma!.user.findUniqueOrThrow({
+        where: { firebaseUid: uids[0]! },
+      });
+      const invalidRevision = await fetch(
+        `${baseUrl}/circles/${user.activeHouseholdId}`,
+        {
+          method: "PATCH",
+          headers: {
+            "content-type": "application/json",
+            "x-demo-user": uids[0]!,
+          },
+          body: JSON.stringify({
+            name: "不可蓋掉",
+            kind: "FAMILY",
+            expectedRevision: -1,
+          }),
+        },
+      );
+      expect(invalidRevision.status).toBe(400);
+      expect(
+        await prisma!.householdMember.count({
+          where: { user: { firebaseUid: { in: uids } } },
+        }),
+      ).toBe(6);
+    });
   },
 );

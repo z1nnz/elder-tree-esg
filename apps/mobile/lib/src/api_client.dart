@@ -105,6 +105,35 @@ class ApiClient {
     return CircleOverviewModel.fromJson(await _getMap('/circles/current'));
   }
 
+  Future<AppContextModel> createCircle({
+    required String name,
+    required String kind,
+    required String idempotencyKey,
+  }) async {
+    return AppContextModel.fromJson(
+      await _post('/circles', {
+        'name': name,
+        'kind': kind,
+        'idempotencyKey': idempotencyKey,
+      }),
+    );
+  }
+
+  Future<AppContextModel> updateCircle({
+    required String circleId,
+    required String name,
+    required String kind,
+    required int expectedRevision,
+  }) async {
+    return AppContextModel.fromJson(
+      await _patch('/circles/$circleId', {
+        'name': name,
+        'kind': kind,
+        'expectedRevision': expectedRevision,
+      }),
+    );
+  }
+
   Future<CircleOverviewModel> claimCooperativeActionChapter({
     required String runId,
     required String chapterId,

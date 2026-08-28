@@ -539,6 +539,10 @@ export class PersistentStoreService {
         id: membership.householdId,
         name: membership.household.name,
         relationship: membership.relationship,
+        kind: membership.household.circleKind,
+        canManageCircle: membership.canManageCircle,
+        settingsRevision: membership.household.settingsRevision,
+        needsSetup: membership.household.configuredAt === null,
       })),
       capabilities: {
         photoEvidence: capability.photoEvidence,
@@ -5050,16 +5054,17 @@ export class PersistentStoreService {
       if (memberships.length === 0) {
         const household = await transaction.household.create({
           data: {
-            name: "我的家庭",
+            name: "我的樹伴圈",
             members: {
               create: {
                 userId: user.id,
                 relationship: "本人",
+                canManageCircle: true,
               },
             },
             trees: {
               create: {
-                name: "我們家的陪伴樹",
+                name: "我們的生命樹",
               },
             },
           },
@@ -5069,6 +5074,7 @@ export class PersistentStoreService {
             householdId: household.id,
             userId: user.id,
             relationship: "本人",
+            canManageCircle: true,
           },
         ];
       }

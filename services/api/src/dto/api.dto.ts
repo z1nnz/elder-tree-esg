@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { Type } from "class-transformer";
+import { Transform, Type } from "class-transformer";
+import { CircleKind } from "@prisma/client";
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -46,6 +47,35 @@ export class JoinHouseholdDto {
   @IsString()
   @Length(1, 24)
   relationship!: string;
+}
+
+export class CircleProfileDto {
+  @ApiProperty()
+  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @IsString()
+  @Length(1, 40)
+  @Matches(/^[^\u0000-\u001f\u007f]+$/u)
+  name!: string;
+
+  @ApiProperty({ enum: CircleKind })
+  @IsIn(Object.values(CircleKind))
+  kind!: CircleKind;
+}
+
+export class CreateCircleDto extends CircleProfileDto {
+  @ApiProperty()
+  @IsString()
+  @Length(16, 120)
+  @Matches(/^[a-zA-Z0-9_-]+$/)
+  idempotencyKey!: string;
+}
+
+export class UpdateCircleProfileDto extends CircleProfileDto {
+  @ApiProperty()
+  @IsInt()
+  @Min(0)
+  @Max(2147483646)
+  expectedRevision!: number;
 }
 
 export class CompleteTaskDto {

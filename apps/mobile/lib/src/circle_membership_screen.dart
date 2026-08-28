@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'app_controller.dart';
+import 'circle_profile_screen.dart';
 import 'models.dart';
 import 'theme.dart';
 
@@ -174,6 +175,20 @@ class _CircleMembershipScreenState extends State<CircleMembershipScreen> {
           child: Scaffold(
             appBar: AppBar(
               title: const Text('我的樹伴圈'),
+              actions: [
+                if (account?.activeHousehold.canManageCircle ?? false)
+                  IconButton(
+                    tooltip: '樹伴圈設定',
+                    onPressed: busy
+                        ? null
+                        : () => openCircleProfile(
+                            context,
+                            controller,
+                            profile: account!.activeHousehold,
+                          ),
+                    icon: const Icon(Icons.tune_rounded),
+                  ),
+              ],
               leading: IconButton(
                 tooltip: '返回',
                 onPressed: busy ? null : () => Navigator.of(context).maybePop(),
@@ -205,6 +220,14 @@ class _CircleMembershipScreenState extends State<CircleMembershipScreen> {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
+                      if (account != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: Text(
+                            '${circleKindLabels[account.activeHousehold.kind] ?? '樹伴圈'} · ${account.activeHousehold.canManageCircle ? '你是管理者' : '你是樹伴成員'}',
+                            style: const TextStyle(color: forest, fontSize: 14),
+                          ),
+                        ),
                       const SizedBox(height: 10),
                       const Text(
                         '家人、朋友、鄰居或志工，都能成為同行的樹伴。',
@@ -511,6 +534,14 @@ class _CircleMembershipScreenState extends State<CircleMembershipScreen> {
                               ],
                             ),
                           ),
+                      const SizedBox(height: 24),
+                      OutlinedButton.icon(
+                        onPressed: busy || controller.offlineDemo
+                            ? null
+                            : () => openCircleProfile(context, controller),
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('建立另一個樹伴圈'),
+                      ),
                       if ((account?.households.length ?? 0) > 1) ...[
                         const SizedBox(height: 24),
                         const Text(

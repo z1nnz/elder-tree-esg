@@ -1,13 +1,16 @@
-import { Body, Controller, Get, Param, Post, Req } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Req } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import {
   ClaimCooperativeActionChapterDto,
   CompleteCooperativeActionChapterDto,
   HandoffCooperativeActionChapterDto,
+  CreateCircleDto,
+  UpdateCircleProfileDto,
 } from "../dto/api.dto";
 import type { AuthenticatedRequest } from "../security/api-auth.guard";
 import { DemoStoreService } from "../store/demo-store.service";
 import { PersistentStoreService } from "../store/persistent-store.service";
+import { CircleSettingsService } from "../store/circle-settings.service";
 
 @ApiTags("circles")
 @ApiBearerAuth()
@@ -16,7 +19,27 @@ export class CirclesController {
   constructor(
     private readonly persistentStore: PersistentStoreService,
     private readonly demoStore: DemoStoreService,
+    private readonly settings: CircleSettingsService,
   ) {}
+
+  @Post()
+  async create(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: CreateCircleDto,
+  ) {
+    return { data: await this.settings.create(request.user!.uid, dto) };
+  }
+
+  @Patch(":circleId")
+  async update(
+    @Req() request: AuthenticatedRequest,
+    @Param("circleId") circleId: string,
+    @Body() dto: UpdateCircleProfileDto,
+  ) {
+    return {
+      data: await this.settings.update(request.user!.uid, circleId, dto),
+    };
+  }
 
   @Get("current")
   async current(@Req() request: AuthenticatedRequest) {

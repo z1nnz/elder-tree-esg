@@ -77,6 +77,16 @@ class AppController extends ChangeNotifier {
   bool membershipBusy = false;
   String? membershipError;
   bool _changingHousehold = false;
+  Set<String> _deferredCircleSetups = {};
+
+  bool get needsCircleSetup {
+    final profile = context?.activeHousehold;
+    return !offlineDemo &&
+        profile != null &&
+        profile.canManageCircle &&
+        profile.needsSetup &&
+        !_deferredCircleSetups.contains(profile.id);
+  }
 
   bool get sendingLocation => _sendingLocation;
 
@@ -126,7 +136,10 @@ class AppController extends ChangeNotifier {
 
   Future<void> initialize() async {
     final preferences = await SharedPreferences.getInstance();
+    if (_disposed) return;
     elderMode = preferences.getBool('elderMode') ?? true;
+    _deferredCircleSetups =
+        (preferences.getStringList('deferredCircleSetups') ?? []).toSet();
     await refresh();
     if (context?.displayName == '同行成林使用者' &&
         (_initialDisplayName?.trim().isNotEmpty ?? false)) {
@@ -265,11 +278,88 @@ class AppController extends ChangeNotifier {
     );
   }
 
+  Future<bool> createCircle({
+    required String name,
+    required String kind,
+    required String idempotencyKey,
+  }) => _changeHousehold(
+    () => _api.createCircle(
+      name: name.trim(),
+      kind: kind,
+      idempotencyKey: idempotencyKey,
+    ),
+    success: '新樹伴圈已建立，可以邀請同行的人了。',
+  );
+
+  Future<bool> updateCircle({
+    required String circleId,
+    required String name,
+    required String kind,
+    required int expectedRevision,
+  }) => _changeHousehold(
+    () => _api.updateCircle(
+      circleId: circleId,
+      name: name.trim(),
+      kind: kind,
+      expectedRevision: expectedRevision,
+    ),
+    success: '樹伴圈設定已儲存。',
+  );
+
+  Future<void> deferCircleSetup() async {
+    final id = context?.activeHouseholdId;
+    if (_disposed || id == null || membershipBusy) return;
+    _deferredCircleSetups.add(id);
+    notifyListeners();
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setStringList(
+        'deferredCircleSetups',
+        _deferredCircleSetups.toList(),
+      );
+    } catch (_) {
+      if (!_disposed) {
+        notice = '已暫時略過設定，下次開啟時可能再次提醒。';
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<HouseholdSummaryModel?> reloadCircleProfile(String circleId) async {
+    if (_disposed || membershipBusy) return null;
+    final epoch = _circleEpoch;
+    final generation = ++_refreshGeneration;
+    loading = false;
+    try {
+      final updated = await _api.getContext();
+      if (_disposed ||
+          epoch != _circleEpoch ||
+          generation != _refreshGeneration) {
+        return null;
+      }
+      _adoptContext(updated);
+      final profile = updated.households
+          .where((item) => item.id == circleId)
+          .firstOrNull;
+      membershipError = profile == null ? '找不到這個樹伴圈，請返回重新整理。' : null;
+      notifyListeners();
+      return profile;
+    } catch (error) {
+      if (!_disposed &&
+          epoch == _circleEpoch &&
+          generation == _refreshGeneration) {
+        membershipError = _membershipFailure(error);
+        notifyListeners();
+      }
+      return null;
+    }
+  }
+
   bool _beginMembershipAction() {
     if (_disposed || membershipBusy) return false;
     membershipError = null;
     if (offlineDemo) {
-      membershipError = '離線示範只能瀏覽。連上服務後，才能邀請或加入樹伴圈。';
+      membershipError = '離線示範只能瀏覽。連上服務後，才能建立、設定、邀請或加入樹伴圈。';
       notifyListeners();
       return false;
     }
@@ -317,6 +407,13 @@ class AppController extends ChangeNotifier {
 
   String _membershipFailure(Object error) {
     final message = error.toString().toLowerCase();
+    if (message.contains('settings changed')) {
+      return '樹伴圈設定已更新。請重新載入最新設定，再決定要如何修改。';
+    }
+    if (message.contains('manager permission')) return '只有這個樹伴圈的管理者可以修改名稱與類型。';
+    if (message.contains('creation key')) {
+      return '這次建立要求已送出。請先重新整理樹伴圈，確認結果後再建立其他圈。';
+    }
     if (message.contains('already a household member')) {
       return '你已經在這個樹伴圈裡了，請從「我的樹伴圈」切換。';
     }

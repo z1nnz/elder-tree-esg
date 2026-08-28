@@ -54,7 +54,48 @@ void main() {
       for (var i = 0; i < clients.length; i++) {
         controllers[i].context = await clients[i].getContext();
       }
+      final starterId = controllers.first.context!.activeHouseholdId;
+      expect(controllers.first.needsCircleSetup, isTrue);
+      expect(
+        await controllers.first.updateCircle(
+          circleId: starterId,
+          name: '我的日常',
+          kind: 'FRIENDS',
+          expectedRevision: 0,
+        ),
+        isTrue,
+      );
+      expect(controllers.first.needsCircleSetup, isFalse);
+      final creationKey = 'mobile-circle-${uids.first}';
+      expect(
+        await controllers.first.createCircle(
+          name: '一起慢步',
+          kind: 'COMMUNITY',
+          idempotencyKey: creationKey,
+        ),
+        isTrue,
+      );
       final ownerCircleId = controllers.first.context!.activeHouseholdId;
+      expect(ownerCircleId, isNot(starterId));
+      expect(
+        await controllers.first.createCircle(
+          name: '一起慢步',
+          kind: 'COMMUNITY',
+          idempotencyKey: creationKey,
+        ),
+        isTrue,
+      );
+      expect(controllers.first.context!.activeHouseholdId, ownerCircleId);
+      expect(controllers.first.context!.households.length, 2);
+      expect(
+        await controllers.first.updateCircle(
+          circleId: ownerCircleId,
+          name: '河岸同行',
+          kind: 'COMMUNITY',
+          expectedRevision: 0,
+        ),
+        isTrue,
+      );
       final ownCircleId = controllers[1].context!.activeHouseholdId;
       for (var i = 1; i < clients.length; i++) {
         final invite = await controllers.first.createHouseholdInvite();
@@ -66,7 +107,23 @@ void main() {
         );
         expect(controllers[i].context!.activeHouseholdId, ownerCircleId);
         expect(controllers[i].context!.households.length, 2);
+        expect(controllers[i].context!.activeHousehold.name, '河岸同行');
+        expect(
+          controllers[i].context!.activeHousehold.canManageCircle,
+          isFalse,
+        );
       }
+      expect(
+        await controllers[1].updateCircle(
+          circleId: ownerCircleId,
+          name: '不能竄改',
+          kind: 'FAMILY',
+          expectedRevision: 1,
+        ),
+        isFalse,
+      );
+      expect(controllers[1].membershipError, contains('管理者'));
+      expect((await clients.first.getContext()).activeHousehold.name, '河岸同行');
       expect(await controllers[1].switchHousehold(ownCircleId), isTrue);
       expect(controllers[1].context!.activeHouseholdId, ownCircleId);
       expect(await controllers[1].switchHousehold(ownerCircleId), isTrue);

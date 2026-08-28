@@ -139,6 +139,10 @@ export interface HouseholdSummary {
   id: string;
   name: string;
   relationship: string;
+  kind?: CircleKind;
+  canManageCircle?: boolean;
+  settingsRevision?: number;
+  needsSetup?: boolean;
 }
 
 export interface AppContext {

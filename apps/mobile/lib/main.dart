@@ -9,6 +9,7 @@ import 'src/api_client.dart';
 import 'src/auth_screen.dart';
 import 'src/auth_service.dart';
 import 'src/root_shell.dart';
+import 'src/circle_welcome_screen.dart';
 import 'src/theme.dart';
 
 const _localDemoAuth = bool.fromEnvironment('ELDER_TREE_LOCAL_DEMO_AUTH');
@@ -127,12 +128,14 @@ class _AuthenticatedExperienceState extends State<_AuthenticatedExperience> {
                   ? media.textScaler.clamp(minScaleFactor: 1.12)
                   : media.textScaler,
             ),
-            child: RootShell(
-              controller: controller,
-              accountEmail: widget.account.email,
-              onSignOut: widget.auth.signOut,
-              initialIndex: widget.initialTab,
-            ),
+            child: controller.needsCircleSetup
+                ? CircleWelcomeScreen(controller: controller)
+                : RootShell(
+                    controller: controller,
+                    accountEmail: widget.account.email,
+                    onSignOut: widget.auth.signOut,
+                    initialIndex: widget.initialTab,
+                  ),
           ),
         );
       },

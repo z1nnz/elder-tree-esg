@@ -368,17 +368,29 @@ class HouseholdSummaryModel {
     required this.id,
     required this.name,
     required this.relationship,
+    this.kind = 'FAMILY',
+    this.canManageCircle = false,
+    this.settingsRevision = 0,
+    this.needsSetup = false,
   });
 
   final String id;
   final String name;
   final String relationship;
+  final String kind;
+  final bool canManageCircle;
+  final int settingsRevision;
+  final bool needsSetup;
 
   factory HouseholdSummaryModel.fromJson(Map<String, dynamic> json) =>
       HouseholdSummaryModel(
         id: json['id'] as String,
         name: json['name'] as String,
         relationship: json['relationship'] as String,
+        kind: json['kind'] as String? ?? 'FAMILY',
+        canManageCircle: json['canManageCircle'] as bool? ?? false,
+        settingsRevision: json['settingsRevision'] as int? ?? 0,
+        needsSetup: json['needsSetup'] as bool? ?? false,
       );
 }
 
