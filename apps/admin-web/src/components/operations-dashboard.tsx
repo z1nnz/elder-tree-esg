@@ -906,6 +906,7 @@ function PartnerCampaignReviews({
                     {selected.verificationMode === "TIMER"
                       ? `停留 ${selected.minimumSeconds} 秒`
                       : "現場自我確認"}
+                    {selected.requiresVenueWitness ? "，另需現場短效碼與近期定位" : "，不需掃碼"}
                   </dd>
                 </div>
                 <div>

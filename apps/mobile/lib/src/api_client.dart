@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'models.dart';
+import 'venue_witness_models.dart';
 
 typedef TokenProvider = Future<String?> Function();
 
@@ -293,13 +294,36 @@ class ApiClient {
     );
   }
 
-  Future<RadarStateModel> completeRadarMission(String missionId) async {
+  Future<RadarStateModel> completeRadarMission(
+    String missionId, {
+    VenueWitnessSubmission? venueWitness,
+  }) async {
     return RadarStateModel.fromJson(
       await _post('/exploration/radar/$missionId/complete', {
         'idempotencyKey': 'mobile-radar-$missionId',
+        if (venueWitness != null) 'venueWitness': venueWitness.toJson(),
       }),
     );
   }
+
+  Future<VenueReceipt?> getVenueReceipt(String missionId) async {
+    final response = await _client
+        .get(
+          Uri.parse('$baseUrl/exploration/radar/$missionId/venue-receipt'),
+          headers: {...await _headers, 'cache-control': 'no-store'},
+        )
+        .timeout(const Duration(seconds: 5));
+    final data = _decode(response);
+    return data == null
+        ? null
+        : VenueReceipt.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<VenueRedemptionCode> createVenueRedemptionCode(
+    String missionId,
+  ) async => VenueRedemptionCode.fromJson(
+    await _post('/exploration/radar/$missionId/redemption-code', const {}),
+  );
 
   Future<FamilyMessageModel> sendMessage(String body) async {
     final data = await _post('/family/messages', {'body': body});

@@ -11,6 +11,7 @@ import 'app_controller.dart';
 import 'exploration_map_config.dart';
 import 'models.dart';
 import 'theme.dart';
+import 'venue_witness_screen.dart';
 
 ui.ImageFilter get uiBlur => ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18);
 
@@ -1269,7 +1270,9 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
               view: selectedMissionForSheet,
               onClose: () => setState(() => _missionSheetOpen = false),
               onFocus: () => _focusRadarMission(selectedMissionForSheet),
-              onComplete: selectedMissionForSheet.mission.isCompleted
+              onComplete:
+                  selectedMissionForSheet.mission.isCompleted &&
+                      !selectedMissionForSheet.mission.requiresVenueWitness
                   ? null
                   : () => _confirmCompleteRadarMission(selectedMissionForSheet),
             ),
@@ -1398,6 +1401,15 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
   }
 
   Future<void> _confirmCompleteRadarMission(RadarMissionViewState view) async {
+    if (view.mission.requiresVenueWitness) {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) =>
+              VenueWitnessScreen(controller: controller, mission: view.mission),
+        ),
+      );
+      return;
+    }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -2324,9 +2336,15 @@ class _MissionDetailPanelState extends State<_MissionDetailPanel> {
             width: double.infinity,
             child: mission.isCompleted
                 ? OutlinedButton.icon(
-                    onPressed: null,
+                    onPressed: mission.requiresVenueWitness
+                        ? widget.onComplete
+                        : null,
                     icon: const Icon(Icons.done_all_rounded),
-                    label: const Text('已完成，生命樹已長出新葉'),
+                    label: Text(
+                      mission.requiresVenueWitness
+                          ? '查看到場紀錄與回饋'
+                          : '已完成，生命樹已長出新葉',
+                    ),
                   )
                 : FilledButton.icon(
                     onPressed: canComplete ? widget.onComplete : null,
@@ -2339,7 +2357,7 @@ class _MissionDetailPanelState extends State<_MissionDetailPanel> {
                       mission.isTimer && timerRemaining > Duration.zero
                           ? '還需 ${_formatDuration(timerRemaining)}'
                           : mission.status == 'UNLOCKED'
-                          ? '我完成了'
+                          ? (mission.requiresVenueWitness ? '掃碼留下到場足跡' : '我完成了')
                           : widget.view.primaryActionLabel,
                     ),
                   ),
@@ -4561,14 +4579,38 @@ class _RadarMissionCardState extends State<_RadarMissionCard> {
               width: double.infinity,
               child: completed
                   ? OutlinedButton.icon(
-                      onPressed: null,
+                      onPressed: mission.requiresVenueWitness
+                          ? () => Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => VenueWitnessScreen(
+                                  controller: controller,
+                                  mission: mission,
+                                ),
+                              ),
+                            )
+                          : null,
                       icon: const Icon(Icons.done_all_rounded),
-                      label: const Text('已完成，生命樹已成長'),
+                      label: Text(
+                        mission.requiresVenueWitness
+                            ? '查看到場紀錄與回饋'
+                            : '已完成，生命樹已成長',
+                      ),
                     )
                   : unlocked
                   ? FilledButton.icon(
                       onPressed: canComplete
                           ? () async {
+                              if (mission.requiresVenueWitness) {
+                                await Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => VenueWitnessScreen(
+                                      controller: controller,
+                                      mission: mission,
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
                               final confirmed = await showDialog<bool>(
                                 context: context,
                                 builder: (context) => AlertDialog(
@@ -4602,7 +4644,9 @@ class _RadarMissionCardState extends State<_RadarMissionCard> {
                       ),
                       label: Text(
                         canComplete
-                            ? '完成並讓樹成長'
+                            ? (mission.requiresVenueWitness
+                                  ? '掃碼留下到場足跡'
+                                  : '完成並讓樹成長')
                             : '還需 ${_formatDuration(timerRemaining)}',
                       ),
                     )

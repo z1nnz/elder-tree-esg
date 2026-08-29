@@ -1,23 +1,12 @@
 import "reflect-metadata";
-import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { AppModule } from "./app.module";
+import { configureHttp } from "./http/configure-http";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
-  app.setGlobalPrefix("api/v1");
-  app.enableCors({
-    origin: process.env.CORS_ORIGIN?.split(",") ?? true,
-    credentials: true,
-  });
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-      forbidNonWhitelisted: true,
-    }),
-  );
+  configureHttp(app);
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle("同行成林服務介面")

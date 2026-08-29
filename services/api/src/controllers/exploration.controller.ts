@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Req } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  Param,
+  Post,
+  Req,
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import {
   ExplorationEventDto,
@@ -55,6 +63,32 @@ export class ExplorationController {
         request.user!.uid,
         missionId,
         dto.idempotencyKey,
+        dto.venueWitness,
+      ),
+    };
+  }
+
+  @Get("radar/:missionId/venue-receipt")
+  @Header("Cache-Control", "no-store")
+  async venueReceipt(
+    @Req() request: AuthenticatedRequest,
+    @Param("missionId") missionId: string,
+  ) {
+    return {
+      data: await this.store.getVenueReceipt(request.user!.uid, missionId),
+    };
+  }
+
+  @Post("radar/:missionId/redemption-code")
+  @Header("Cache-Control", "no-store")
+  async redemptionCode(
+    @Req() request: AuthenticatedRequest,
+    @Param("missionId") missionId: string,
+  ) {
+    return {
+      data: await this.store.createVenueRedemptionCode(
+        request.user!.uid,
+        missionId,
       ),
     };
   }
