@@ -15,6 +15,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'journey_library_test.dart' show JourneyApi, journeyController;
+import 'relay_timer_witness_test.dart' show timerCircle;
 
 void main() {
   const output = String.fromEnvironment('CIRCLE_CAPTURE_DIR');
@@ -42,6 +43,11 @@ void main() {
           ? journeyController(JourneyApi())
           : (AppController()..offlineDemo = true);
       controller.loading = false;
+      if (label == 'timer') {
+        controller
+          ..offlineDemo = false
+          ..circle = timerCircle();
+      }
       if (label == 'setup') {
         controller.offlineDemo = false;
         controller.context = const AppContextModel(
@@ -197,6 +203,16 @@ void main() {
         await tester.tap(find.text('我有邀請碼'));
         await tester.pumpAndSettle();
         await capture('circle-join');
+      }
+      if (label == 'timer') {
+        await tester.scrollUntilVisible(
+          find.text('完整計時見證'),
+          240,
+          scrollable: find.byType(Scrollable).last,
+        );
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+        await capture('relay-timer-witness');
       }
       await tester.pumpWidget(const SizedBox.shrink());
       controller.dispose();

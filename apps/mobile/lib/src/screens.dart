@@ -5193,31 +5193,46 @@ class _CircleScreenState extends State<CircleScreen> {
               child: const Text('選擇另一段旅程'),
             )
           else if (currentMemberHasClaim)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                FilledButton.icon(
-                  onPressed: () => _confirmCooperativeChapter(
-                    context,
-                    controller,
-                    nextChapter,
-                  ),
-                  icon: const Icon(Icons.task_alt_rounded),
-                  label: Text('完成「${nextChapter.elementName}」這一棒'),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: () => _chooseHandoffMember(
-                    context,
-                    controller,
-                    action,
-                    nextChapter,
-                  ),
-                  icon: const Icon(Icons.redo_rounded),
-                  label: const Text('暫時不方便，轉交給其他樹伴'),
-                ),
-              ],
-            )
+            nextChapter.selectedVerificationMode == VerificationMode.timer
+                ? _RelayTimerWitnessControls(
+                    chapter: nextChapter,
+                    onComplete: () => _confirmCooperativeChapter(
+                      context,
+                      controller,
+                      nextChapter,
+                    ),
+                    onHandoff: () => _chooseHandoffMember(
+                      context,
+                      controller,
+                      action,
+                      nextChapter,
+                    ),
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      FilledButton.icon(
+                        onPressed: () => _confirmCooperativeChapter(
+                          context,
+                          controller,
+                          nextChapter,
+                        ),
+                        icon: const Icon(Icons.task_alt_rounded),
+                        label: Text('完成「${nextChapter.elementName}」這一棒'),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: () => _chooseHandoffMember(
+                          context,
+                          controller,
+                          action,
+                          nextChapter,
+                        ),
+                        icon: const Icon(Icons.redo_rounded),
+                        label: const Text('暫時不方便，轉交給其他樹伴'),
+                      ),
+                    ],
+                  )
           else if (claimExpired)
             FilledButton.icon(
               onPressed: () =>
@@ -5230,7 +5245,11 @@ class _CircleScreenState extends State<CircleScreen> {
               onPressed: () =>
                   _chooseCooperativeAction(context, controller, nextChapter),
               icon: const Icon(Icons.sync_alt_rounded),
-              label: Text('認領「${nextChapter.elementName}」這一棒'),
+              label: Text(
+                nextChapter.verificationMode == VerificationMode.timer
+                    ? '認領並開始「${nextChapter.elementName}」計時'
+                    : '認領「${nextChapter.elementName}」這一棒',
+              ),
             )
           else if (claim != null)
             _NoticeBand(
@@ -5243,8 +5262,15 @@ class _CircleScreenState extends State<CircleScreen> {
               text: '你已完成這趟旅程的一棒。現在把舞台留給下一位樹伴。',
             ),
           const SizedBox(height: 10),
-          const Text(
-            '目前篇章採「自我確認」行動見證，只累積基本年輪進度；商家回饋、公益時數與真實植樹會要求更強的見證方式。',
+          Text(
+            action.chapters.any(
+                  (chapter) =>
+                      chapter.verificationMode == VerificationMode.timer ||
+                      chapter.alternative?.verificationMode ==
+                          VerificationMode.timer,
+                )
+                ? '這趟旅程同時包含自我確認與完整計時見證；計時只證明完成流程時間，不代表健康效果、位置或同場。'
+                : '目前篇章採「自我確認」行動見證，只累積基本年輪進度；商家回饋、公益時數與真實植樹會要求更強的見證方式。',
             style: TextStyle(color: Color(0xFF66706A), height: 1.5),
           ),
           if (!action.completed)
@@ -5270,7 +5296,7 @@ class _CircleScreenState extends State<CircleScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('選一個現在做得到的方式。認領後保留 30 分鐘，也可以再轉交。'),
+            const Text('選一個現在做得到的方式。認領後保留 30 分鐘，也可以再轉交。計時行動會從認領成功時開始。'),
             const SizedBox(height: 14),
             OutlinedButton(
               onPressed: () => Navigator.pop(context, false),
@@ -5284,6 +5310,17 @@ class _CircleScreenState extends State<CircleScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(chapter.description, textAlign: TextAlign.center),
+                    const SizedBox(height: 5),
+                    Text(
+                      _relayWitnessLabel(
+                        chapter.verificationMode,
+                        chapter.minimumSeconds,
+                      ),
+                      style: const TextStyle(
+                        color: Color(0xFF8A6115),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -5304,6 +5341,17 @@ class _CircleScreenState extends State<CircleScreen> {
                       Text(
                         chapter.alternative!.description,
                         textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        _relayWitnessLabel(
+                          chapter.alternative!.verificationMode,
+                          chapter.alternative!.minimumSeconds,
+                        ),
+                        style: const TextStyle(
+                          color: Color(0xFF8A6115),
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ],
                   ),
@@ -5411,6 +5459,121 @@ class _CircleScreenState extends State<CircleScreen> {
   }
 }
 
+class _RelayTimerWitnessControls extends StatefulWidget {
+  const _RelayTimerWitnessControls({
+    required this.chapter,
+    required this.onComplete,
+    required this.onHandoff,
+  });
+
+  final CooperativeActionChapterModel chapter;
+  final VoidCallback onComplete;
+  final VoidCallback onHandoff;
+
+  @override
+  State<_RelayTimerWitnessControls> createState() =>
+      _RelayTimerWitnessControlsState();
+}
+
+class _RelayTimerWitnessControlsState
+    extends State<_RelayTimerWitnessControls> {
+  Timer? _timer;
+  DateTime _now = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _startTickerIfNeeded();
+  }
+
+  @override
+  void didUpdateWidget(covariant _RelayTimerWitnessControls oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.chapter.claim?.claimedAt != widget.chapter.claim?.claimedAt ||
+        oldWidget.chapter.selectedMinimumSeconds !=
+            widget.chapter.selectedMinimumSeconds) {
+      _timer?.cancel();
+      _timer = null;
+      _now = DateTime.now();
+      _startTickerIfNeeded();
+    }
+  }
+
+  void _startTickerIfNeeded() {
+    if (widget.chapter.timerRemainingAt(_now) == Duration.zero) return;
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() => _now = DateTime.now());
+      if (widget.chapter.timerRemainingAt(_now) == Duration.zero) {
+        _timer?.cancel();
+        _timer = null;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final remaining = widget.chapter.timerRemainingAt(_now);
+    final ready = remaining == Duration.zero;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF6D9),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE7C868)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.timer_rounded, color: Color(0xFF8A6115)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '完整計時見證',
+                      style: TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      ready
+                          ? '時間已完成，可以留下這一棒。'
+                          : '伺服器已保存開始時間，還需 ${_formatDuration(remaining)}。離開 App 後仍會繼續計時。',
+                      style: const TextStyle(height: 1.45),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        FilledButton.icon(
+          onPressed: ready ? widget.onComplete : null,
+          icon: Icon(ready ? Icons.task_alt_rounded : Icons.hourglass_top),
+          label: Text('完成「${widget.chapter.elementName}」這一棒'),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: widget.onHandoff,
+          icon: const Icon(Icons.redo_rounded),
+          label: const Text('暫時不方便，轉交給其他樹伴'),
+        ),
+      ],
+    );
+  }
+}
+
 class _CooperativeActionChapterCard extends StatelessWidget {
   const _CooperativeActionChapterCard({
     required this.chapter,
@@ -5478,6 +5641,17 @@ class _CooperativeActionChapterCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 5),
                   Text(visibleDescription),
+                  const SizedBox(height: 6),
+                  Text(
+                    _relayWitnessLabel(
+                      chapter.selectedVerificationMode,
+                      chapter.selectedMinimumSeconds,
+                    ),
+                    style: const TextStyle(
+                      color: Color(0xFF8A6115),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                   if (isNext && !completed && chapter.alternative != null) ...[
                     const SizedBox(height: 7),
                     Text(
@@ -7679,6 +7853,13 @@ String _formatDuration(Duration duration) {
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
   return '${seconds}s';
+}
+
+String _relayWitnessLabel(VerificationMode mode, int? minimumSeconds) {
+  if (mode == VerificationMode.timer && minimumSeconds != null) {
+    return '完整計時見證 · ${_formatDuration(Duration(seconds: minimumSeconds))}';
+  }
+  return '自我確認見證';
 }
 
 String _radarViewActionText(RadarMissionViewState view) {

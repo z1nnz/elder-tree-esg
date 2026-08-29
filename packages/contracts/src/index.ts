@@ -650,12 +650,16 @@ export interface CooperativeActionContributor {
   usedAlternative: boolean;
   witnessedAt: string;
   witnessTier: ActionWitnessTier;
+  witnessStartedAt: string | null;
+  witnessMinimumSeconds: number | null;
+  witnessElapsedSeconds: number | null;
 }
 
 export interface CooperativeActionAlternativeSummary {
   title: string;
   description: string;
   verificationMode: TaskVerificationMode;
+  minimumSeconds: number | null;
 }
 
 export interface CooperativeActionClaimSummary {
@@ -673,6 +677,7 @@ export interface CooperativeActionChapterSummary {
   description: string;
   elementName: string;
   verificationMode: TaskVerificationMode;
+  minimumSeconds: number | null;
   alternative: CooperativeActionAlternativeSummary | null;
   claim: CooperativeActionClaimSummary | null;
   contributor: CooperativeActionContributor | null;

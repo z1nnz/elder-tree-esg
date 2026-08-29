@@ -76,6 +76,7 @@ import { LineMessagingService } from "../line/line-messaging.service";
 import { ClockService } from "../time/clock.service";
 import { nextStageAt, stageForPoints } from "./tree-growth";
 import { buildJourneyResult } from "./journey-result";
+import { evaluateRelayTimerWitness } from "./relay-witness";
 
 const TASK_SEEDS = [
   {
@@ -141,6 +142,10 @@ const COOPERATIVE_ACTION_SEED = {
       alternativeTitle: "在窗邊找一束光",
       alternativeDescription:
         "不方便外出時，在安全的窗邊坐一會兒，感受今天的光。",
+      verificationMode: VerificationMode.SELF_CHECK,
+      minimumSeconds: null,
+      alternativeVerificationMode: VerificationMode.SELF_CHECK,
+      alternativeMinimumSeconds: null,
       elementName: "陽光",
     },
     {
@@ -151,6 +156,10 @@ const COOPERATIVE_ACTION_SEED = {
       description: "跟著畫面完成三分鐘舒緩伸展或慢呼吸。",
       alternativeTitle: "坐著完成慢呼吸",
       alternativeDescription: "不方便伸展時，坐穩後跟著畫面完成三分鐘慢呼吸。",
+      verificationMode: VerificationMode.TIMER,
+      minimumSeconds: 180,
+      alternativeVerificationMode: VerificationMode.TIMER,
+      alternativeMinimumSeconds: 180,
       elementName: "水",
     },
     {
@@ -162,6 +171,10 @@ const COOPERATIVE_ACTION_SEED = {
       alternativeTitle: "在室內找一片綠",
       alternativeDescription:
         "不方便外出時，在室內找一株植物或從窗邊觀察一片綠。",
+      verificationMode: VerificationMode.SELF_CHECK,
+      minimumSeconds: null,
+      alternativeVerificationMode: VerificationMode.SELF_CHECK,
+      alternativeMinimumSeconds: null,
       elementName: "新芽",
     },
   ],
@@ -169,6 +182,13 @@ const COOPERATIVE_ACTION_SEED = {
 
 const COOPERATIVE_CLAIM_DURATION_MS = 30 * 60 * 1000;
 
+function timerMinimumSeconds(rule: Prisma.JsonValue): number | null {
+  if (!rule || typeof rule !== "object" || Array.isArray(rule)) return null;
+  const value = (rule as Prisma.JsonObject).minimumSeconds;
+  return typeof value === "number" && Number.isInteger(value) && value > 0
+    ? value
+    : null;
+}
 type AssignmentWithTask = Prisma.TaskAssignmentGetPayload<{
   include: { task: true };
 }>;
@@ -1160,11 +1180,15 @@ export class PersistentStoreService {
             description: chapter.task.description,
             elementName: chapter.elementName,
             verificationMode: chapter.task.verificationMode,
+            minimumSeconds: timerMinimumSeconds(chapter.task.verificationRule),
             alternative: chapter.alternativeTask
               ? {
                   title: chapter.alternativeTask.title,
                   description: chapter.alternativeTask.description,
                   verificationMode: chapter.alternativeTask.verificationMode,
+                  minimumSeconds: timerMinimumSeconds(
+                    chapter.alternativeTask.verificationRule,
+                  ),
                 }
               : null,
             claim:
@@ -1190,6 +1214,10 @@ export class PersistentStoreService {
                     contribution.taskId === chapter.alternativeTaskId,
                   witnessedAt: contribution.witnessedAt.toISOString(),
                   witnessTier: contribution.witnessTier,
+                  witnessStartedAt:
+                    contribution.witnessStartedAt?.toISOString() ?? null,
+                  witnessMinimumSeconds: contribution.witnessMinimumSeconds,
+                  witnessElapsedSeconds: contribution.witnessElapsedSeconds,
                 }
               : null,
           };
@@ -1493,8 +1521,42 @@ export class PersistentStoreService {
         where: { id: run.claimedTaskId },
       });
       if (!claimedTask) throw new NotFoundException("Claimed action not found");
-      if (claimedTask.verificationMode !== "SELF_CHECK") {
+      if (
+        claimedTask.verificationMode !== "SELF_CHECK" &&
+        claimedTask.verificationMode !== "TIMER"
+      ) {
         throw new ConflictException("Selected action requires witness data");
+      }
+      let witnessTier: "SELF_CHECK" | "PROCESS" = "SELF_CHECK";
+      let witnessStartedAt: Date | null = null;
+      let witnessMinimumSeconds: number | null = null;
+      let witnessElapsedSeconds: number | null = null;
+      if (claimedTask.verificationMode === "TIMER") {
+        const minimumSeconds = timerMinimumSeconds(
+          claimedTask.verificationRule,
+        );
+        if (!minimumSeconds || !run.claimedAt) {
+          throw new ConflictException(
+            "Selected timer action has no valid witness rule",
+          );
+        }
+        try {
+          const witness = evaluateRelayTimerWitness({
+            startedAt: run.claimedAt,
+            completedAt: now,
+            minimumSeconds,
+          });
+          witnessTier = "PROCESS";
+          witnessStartedAt = run.claimedAt;
+          witnessMinimumSeconds = minimumSeconds;
+          witnessElapsedSeconds = witness.elapsedSeconds;
+        } catch (error) {
+          throw new ConflictException(
+            error instanceof Error
+              ? error.message
+              : "Relay timer witness is incomplete",
+          );
+        }
       }
       const completedChapterIds = new Set(
         (
@@ -1545,7 +1607,10 @@ export class PersistentStoreService {
           userId: active.id,
           taskId: claimedTask.id,
           idempotencyKey,
-          witnessTier: "SELF_CHECK",
+          witnessTier,
+          witnessStartedAt,
+          witnessMinimumSeconds,
+          witnessElapsedSeconds,
           witnessedAt: now,
         },
       });
@@ -5211,16 +5276,22 @@ export class PersistentStoreService {
           update: {
             title: chapter.title,
             description: chapter.description,
-            verificationMode: "SELF_CHECK",
-            verificationRule: { confirmationRequired: true },
+            verificationMode: chapter.verificationMode,
+            verificationRule:
+              chapter.verificationMode === VerificationMode.TIMER
+                ? { minimumSeconds: chapter.minimumSeconds }
+                : { confirmationRequired: true },
             growthPoints: 0,
           },
           create: {
             id: chapter.taskId,
             title: chapter.title,
             description: chapter.description,
-            verificationMode: "SELF_CHECK",
-            verificationRule: { confirmationRequired: true },
+            verificationMode: chapter.verificationMode,
+            verificationRule:
+              chapter.verificationMode === VerificationMode.TIMER
+                ? { minimumSeconds: chapter.minimumSeconds }
+                : { confirmationRequired: true },
             growthPoints: 0,
           },
         });
@@ -5229,16 +5300,22 @@ export class PersistentStoreService {
           update: {
             title: chapter.alternativeTitle,
             description: chapter.alternativeDescription,
-            verificationMode: "SELF_CHECK",
-            verificationRule: { confirmationRequired: true },
+            verificationMode: chapter.alternativeVerificationMode,
+            verificationRule:
+              chapter.alternativeVerificationMode === VerificationMode.TIMER
+                ? { minimumSeconds: chapter.alternativeMinimumSeconds }
+                : { confirmationRequired: true },
             growthPoints: 0,
           },
           create: {
             id: chapter.alternativeTaskId,
             title: chapter.alternativeTitle,
             description: chapter.alternativeDescription,
-            verificationMode: "SELF_CHECK",
-            verificationRule: { confirmationRequired: true },
+            verificationMode: chapter.alternativeVerificationMode,
+            verificationRule:
+              chapter.alternativeVerificationMode === VerificationMode.TIMER
+                ? { minimumSeconds: chapter.alternativeMinimumSeconds }
+                : { confirmationRequired: true },
             growthPoints: 0,
           },
         });

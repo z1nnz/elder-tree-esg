@@ -10,7 +10,8 @@
 | 2026-08-22 | 確立正式工作名稱「同行成林」、加速交付週期與主要負責人證據制度 | 品牌、時程、治理與研究所呈現方式 | 由 `@z1nnz` 負責名稱採用、版本整合與驗收 | [總目標議題 #33](https://github.com/z1nnz/elder-tree-esg/issues/33)、[`docs/brand-guidelines.md`](../brand-guidelines.md)、[`docs/roadmap/tongxing-chenglin-delivery-plan.md`](../roadmap/tongxing-chenglin-delivery-plan.md)、[`PROJECT_LEADERSHIP.md`](../../PROJECT_LEADERSHIP.md) |
 | 2026-08-22 | 完成接力旅程認領、轉棒、逾時釋出、無障礙替代方案與離線唯讀邊界 | 核心玩法、資料一致性、應用程式互動與驗收 | 由 `@z1nnz` 負責規格取捨、跨端整合、兩軸審查與正式版本驗收 | [議題 #35](https://github.com/z1nnz/elder-tree-esg/issues/35)、[合併請求 #36](https://github.com/z1nnz/elder-tree-esg/pull/36)、提交 `ff87d14` |
 | 2026-08-22 | 完成核心 App 視覺基礎與長者友善首頁，讓樹伴圈接力旅程、下一棒與共同收藏成為首頁主要入口 | 產品層級、視覺系統、核心介面實作、無障礙與跨平台驗收 | 由 `@z1nnz` 負責需求定義、視覺決策、程式整合、實際畫面驗收與 Android 安裝包驗收 | [議題 #37](https://github.com/z1nnz/elder-tree-esg/issues/37)、[合併請求 #38](https://github.com/z1nnz/elder-tree-esg/pull/38)、[390 × 844 畫面與驗證紀錄](issue-37-mobile-visual-evidence.md)、提交 `f87a6b7` |
-| 2026-08-29 | 將正式工作名稱統一為「樹伴」，重整首頁、陪伴與生命樹核心頁面，建立資料驅動的生命樹動畫容器、美術資產登記與降低動態退化 | 品牌採用、核心介面、美術技術管線、訊息一致性、無障礙與版本驗收 | 由 `@z1nnz` 負責產品與畫風決策、程式整合、失敗案例修正、畫面人工檢視及建置驗收 | [前後畫面、152 項回歸、建置雜湊與證據界線](app-core-art-and-companion-evidence.md)、[生命樹美術規格](../art/life-tree-art-direction.md) |
+| 2026-08-29 | 將正式工作名稱統一為「樹伴」，重整首頁、陪伴與生命樹核心頁面，建立資料驅動的生命樹動畫容器、美術資產登記與降低動態退化 | 品牌採用、核心介面、美術技術管線、訊息一致性、無障礙與版本驗收 | 由 `@z1nnz` 負責產品與畫風決策、程式整合、失敗案例修正、畫面人工檢視及建置驗收 | [合併請求 #44](https://github.com/z1nnz/elder-tree-esg/pull/44)、合併提交 `e14bfc1`、[前後畫面、152 項回歸、建置雜湊與證據界線](app-core-art-and-companion-evidence.md)、[生命樹美術規格](../art/life-tree-art-direction.md) |
+| 2026-08-29 | 將三分鐘接力篇章由自我確認升級為伺服器完整計時，保存可追溯秒數、阻擋提前完成並支援轉棒重新計時 | 分級行動見證、資料規則、App 互動、無障礙與跨端驗收 | 由 `@z1nnz` 負責見證強度與倫理邊界、API／資料庫／App 整合、測試判讀及正式版本驗收 | [議題 #45](https://github.com/z1nnz/elder-tree-esg/issues/45)、[合併請求 #46](https://github.com/z1nnz/elder-tree-esg/pull/46)、[架構決策](../adr/0003-use-relay-claim-as-timer-start.md)、[畫面、測試與證據界線](relay-timer-witness-evidence.md) |
 
 ## 待補的本人實作證據
 
@@ -43,11 +44,11 @@
 
 主要負責人每次完成程式、設計、實機接線、測試或訪談後，應新增一筆紀錄，附原始分支、提交、照片或去識別化資料。未經核驗的內容不得推測或代填。
 
-### 2026-08-28：到場見證與現場回饋核銷（開發中）
+### 2026-08-28：到場見證與現場回饋核銷（已合併，現場試辦未完成）
 
 - 階段成果：短效到場碼、位置與時間條件、一次性自願回饋、組織隔離彙總；共創夥伴台新增產碼、鏡頭／掃描器輸入與明確核銷操作。
-- 主要負責人 `@z1nnz` 所負責的系統整合範圍與證據：[合併請求 #42](https://github.com/z1nnz/elder-tree-esg/pull/42)、[測試及實際介面紀錄](pr-42-venue-station-evidence.md)。尚未正式合併，手機與實機驗收未完成。
+- 主要負責人 `@z1nnz` 所負責的系統整合範圍與證據：[合併請求 #42](https://github.com/z1nnz/elder-tree-esg/pull/42)、合併提交 `a4c210f`、[測試及實際介面紀錄](pr-42-venue-station-evidence.md)。程式已合併至 `main`，手機實機與真實合作據點驗收仍未完成。
 - 不推定主要負責人已親自完成現場操作、已取得合作承諾或已進行真實植樹。
-- 同日手機串接：地圖與旅程卡入口、真實定位見證、自願領取、短效碼收起與連點保護；[13 項新增測試與未完成驗收](pr-42-mobile-witness-evidence.md)。正式合併與裝置驗收仍以 #42 後續紀錄為準。
+- 同日手機串接：地圖與旅程卡入口、真實定位見證、自願領取、短效碼收起與連點保護；[13 項新增測試與未完成驗收](pr-42-mobile-witness-evidence.md)。合併狀態由 #42 證明，裝置驗收仍須另行補證。
 - 同日介面修整：完成紀錄與回饋分層、過期提示、無回饋文案、繁體中文系統元件及可重現的隔離預覽；保存同尺寸前後畫面與窄版大字紀錄。修整後手機 34 項測試、靜態檢查與正式網頁建置通過，詳見上述手機串接紀錄追加章節；仍不推定本人已操作實體手機或已完成現場試辦。
 - 同日跨端驗收：正式網頁／Flutter 客戶端連接隔離真實後端，完成發布、見證、重送不重複成長、一次性核銷及重讀紀錄；加入專用持續整合。補修相機延遲權限競態與背景釋放，手機 35 項測試通過。[重現指令、失敗原因及證據界線](pr-42-cross-client-evidence.md)保留本機 PostGIS 缺件造成的既有距離測試失敗，不列為通過；最新遠端檢查及實機狀態以 #42 為準。

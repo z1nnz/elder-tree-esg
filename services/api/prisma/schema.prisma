@@ -342,6 +342,9 @@ model CooperativeActionContribution {
   taskId         String
   idempotencyKey String                   @unique
   witnessTier    ActionWitnessTier        @default(SELF_CHECK)
+  witnessStartedAt      DateTime?
+  witnessMinimumSeconds Int?
+  witnessElapsedSeconds Int?
   witnessedAt    DateTime                 @default(now())
   run            CooperativeActionRun     @relation(fields: [runId], references: [id], onDelete: Cascade)
   chapter        CooperativeActionChapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)

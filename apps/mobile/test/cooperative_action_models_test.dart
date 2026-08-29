@@ -74,4 +74,44 @@ void main() {
       isTrue,
     );
   });
+
+  test(
+    'uses the selected relay timer and rounds the visible final second up',
+    () {
+      final chapter = CooperativeActionChapterModel(
+        id: 'timer',
+        sequence: 2,
+        title: '喚醒水流',
+        description: '完成三分鐘舒展。',
+        elementName: '水',
+        verificationMode: VerificationMode.timer,
+        minimumSeconds: 180,
+        alternative: const CooperativeActionAlternativeModel(
+          title: '坐著慢呼吸',
+          description: '完成三分鐘慢呼吸。',
+          verificationMode: VerificationMode.timer,
+          minimumSeconds: 180,
+        ),
+        claim: CooperativeActionClaimModel(
+          memberId: 'member-2',
+          displayName: '美玲',
+          claimedAt: DateTime.parse('2026-08-29T08:01:00.000Z'),
+          expiresAt: DateTime.parse('2026-08-29T08:31:00.000Z'),
+          usingAlternative: true,
+        ),
+        contributor: null,
+      );
+
+      expect(chapter.selectedVerificationMode, VerificationMode.timer);
+      expect(chapter.selectedMinimumSeconds, 180);
+      expect(
+        chapter.timerRemainingAt(DateTime.parse('2026-08-29T08:03:59.999Z')),
+        const Duration(seconds: 1),
+      );
+      expect(
+        chapter.timerRemainingAt(DateTime.parse('2026-08-29T08:04:00.000Z')),
+        Duration.zero,
+      );
+    },
+  );
 }

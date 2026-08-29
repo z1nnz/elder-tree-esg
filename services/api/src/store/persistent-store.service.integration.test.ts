@@ -329,62 +329,67 @@ describeWithDatabase("PersistentStoreService", () => {
       createdFirebaseUids.add(ownerUid);
       createdFirebaseUids.add(secondUid);
       createdFirebaseUids.add(thirdUid);
+      let now = new Date("2026-08-29T07:00:00.000Z");
+      const relayStore = new PersistentStoreService(prisma, {
+        now: () => now,
+      } as ClockService);
 
-      await store.getContext(ownerUid);
-      const secondInvite = await store.createHouseholdInvite(ownerUid);
-      await store.joinHousehold(secondUid, secondInvite.code, "朋友");
-      const thirdInvite = await store.createHouseholdInvite(ownerUid);
-      await store.joinHousehold(thirdUid, thirdInvite.code, "鄰居朋友");
+      await relayStore.getContext(ownerUid);
+      const secondInvite = await relayStore.createHouseholdInvite(ownerUid);
+      await relayStore.joinHousehold(secondUid, secondInvite.code, "朋友");
+      const thirdInvite = await relayStore.createHouseholdInvite(ownerUid);
+      await relayStore.joinHousehold(thirdUid, thirdInvite.code, "鄰居朋友");
 
-      const before = await store.getTree(ownerUid);
-      const circle = await store.getCircleOverview(ownerUid);
+      const before = await relayStore.getTree(ownerUid);
+      const circle = await relayStore.getCircleOverview(ownerUid);
       const action = circle.activeAction;
       expect(circle.memberCount).toBe(3);
       expect(action?.runId).toBeTruthy();
       expect(action?.chapters).toHaveLength(3);
 
-      await store.claimCooperativeActionChapter(
+      await relayStore.claimCooperativeActionChapter(
         ownerUid,
         action!.runId!,
         action.chapters[0]!.id,
       );
-      await store.completeCooperativeActionChapter(
+      await relayStore.completeCooperativeActionChapter(
         ownerUid,
         action.runId!,
         action.chapters[0]!.id,
         "circle-owner-first",
       );
       await expect(
-        store.claimCooperativeActionChapter(
+        relayStore.claimCooperativeActionChapter(
           ownerUid,
           action.runId!,
           action.chapters[1]!.id,
         ),
       ).rejects.toThrow("Each member can complete only one chapter");
-      await store.claimCooperativeActionChapter(
+      await relayStore.claimCooperativeActionChapter(
         secondUid,
         action.runId!,
         action.chapters[1]!.id,
       );
-      await store.completeCooperativeActionChapter(
+      now = new Date(now.getTime() + 180_000);
+      await relayStore.completeCooperativeActionChapter(
         secondUid,
         action.runId!,
         action.chapters[1]!.id,
         "circle-second-member",
       );
-      await store.claimCooperativeActionChapter(
+      await relayStore.claimCooperativeActionChapter(
         thirdUid,
         action.runId!,
         action.chapters[2]!.id,
         true,
       );
-      const completed = await store.completeCooperativeActionChapter(
+      const completed = await relayStore.completeCooperativeActionChapter(
         thirdUid,
         action.runId!,
         action.chapters[2]!.id,
         "circle-third-member",
       );
-      await store.completeCooperativeActionChapter(
+      await relayStore.completeCooperativeActionChapter(
         thirdUid,
         action.runId!,
         action.chapters[2]!.id,
@@ -397,12 +402,130 @@ describeWithDatabase("PersistentStoreService", () => {
         actionTitle: "在室內找一片綠",
         usedAlternative: true,
       });
-      expect((await store.getTree(ownerUid)).growthPoints).toBe(
+      expect((await relayStore.getTree(ownerUid)).growthPoints).toBe(
         before.growthPoints + action.growthPoints,
       );
     },
     120_000,
   );
+
+  it("requires the full relay timer before recording a process witness", async () => {
+    const ownerUid = `integration-timer-relay-owner-${randomUUID()}`;
+    const secondUid = `integration-timer-relay-second-${randomUUID()}`;
+    const thirdUid = `integration-timer-relay-third-${randomUUID()}`;
+    createdFirebaseUids.add(ownerUid);
+    createdFirebaseUids.add(secondUid);
+    createdFirebaseUids.add(thirdUid);
+    let now = new Date("2026-08-29T08:00:00.000Z");
+    const timerStore = new PersistentStoreService(prisma, {
+      now: () => now,
+    } as ClockService);
+
+    await timerStore.getContext(ownerUid);
+    for (const [uid, relationship] of [
+      [secondUid, "朋友"],
+      [thirdUid, "鄰居朋友"],
+    ] as const) {
+      const invite = await timerStore.createHouseholdInvite(ownerUid);
+      await timerStore.joinHousehold(uid, invite.code, relationship);
+    }
+
+    const action = (await timerStore.getCircleOverview(ownerUid)).activeAction!;
+    expect(action.chapters[1]).toMatchObject({
+      verificationMode: "TIMER",
+      minimumSeconds: 180,
+      alternative: {
+        verificationMode: "TIMER",
+        minimumSeconds: 180,
+      },
+    });
+    await timerStore.claimCooperativeActionChapter(
+      ownerUid,
+      action.runId!,
+      action.chapters[0]!.id,
+    );
+    await timerStore.completeCooperativeActionChapter(
+      ownerUid,
+      action.runId!,
+      action.chapters[0]!.id,
+    );
+
+    now = new Date("2026-08-29T08:01:00.000Z");
+    const claimed = await timerStore.claimCooperativeActionChapter(
+      secondUid,
+      action.runId!,
+      action.chapters[1]!.id,
+      true,
+    );
+    expect(claimed.activeAction?.chapters[1]).toMatchObject({
+      verificationMode: "TIMER",
+      minimumSeconds: 180,
+      claim: {
+        claimedAt: "2026-08-29T08:01:00.000Z",
+        usingAlternative: true,
+      },
+    });
+
+    now = new Date("2026-08-29T08:03:59.000Z");
+    await expect(
+      timerStore.completeCooperativeActionChapter(
+        secondUid,
+        action.runId!,
+        action.chapters[1]!.id,
+      ),
+    ).rejects.toThrow("1 more seconds");
+    expect(
+      (await timerStore.getCircleOverview(secondUid)).activeAction?.chapters[1]
+        ?.contributor,
+    ).toBeNull();
+
+    const thirdMemberId = (await timerStore.getCircleOverview(thirdUid))
+      .currentMemberId;
+    const handedOff = await timerStore.handoffCooperativeActionChapter(
+      secondUid,
+      action.runId!,
+      action.chapters[1]!.id,
+      thirdMemberId,
+    );
+    expect(handedOff.activeAction?.chapters[1]?.claim).toMatchObject({
+      memberId: thirdMemberId,
+      claimedAt: "2026-08-29T08:03:59.000Z",
+      usingAlternative: true,
+    });
+
+    now = new Date("2026-08-29T08:04:00.000Z");
+    await expect(
+      timerStore.completeCooperativeActionChapter(
+        thirdUid,
+        action.runId!,
+        action.chapters[1]!.id,
+      ),
+    ).rejects.toThrow("179 more seconds");
+
+    now = new Date("2026-08-29T08:06:59.000Z");
+    const completed = await timerStore.completeCooperativeActionChapter(
+      thirdUid,
+      action.runId!,
+      action.chapters[1]!.id,
+      "timer-after-handoff",
+    );
+    expect(completed.activeAction?.chapters[1]?.contributor).toMatchObject({
+      witnessTier: "PROCESS",
+      usedAlternative: true,
+      witnessStartedAt: "2026-08-29T08:03:59.000Z",
+      witnessMinimumSeconds: 180,
+      witnessElapsedSeconds: 180,
+    });
+    const retried = await timerStore.completeCooperativeActionChapter(
+      thirdUid,
+      action.runId!,
+      action.chapters[1]!.id,
+      "timer-after-handoff",
+    );
+    expect(retried.activeAction?.chapters[1]?.contributor).toEqual(
+      completed.activeAction?.chapters[1]?.contributor,
+    );
+  }, 120_000);
 
   it(
     "hands an alternative relay action to another member and releases it only after expiry",
