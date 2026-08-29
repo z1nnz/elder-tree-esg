@@ -683,7 +683,12 @@ class AppController extends ChangeNotifier {
         );
         if (!current()) return;
         circle = updated;
-        notice = useAlternative
+        final selectedMode = useAlternative
+            ? chapter.alternative?.verificationMode
+            : chapter.verificationMode;
+        notice = selectedMode == VerificationMode.timer
+            ? '接力棒交到你手上，完整計時已由伺服器開始；離開 App 後仍會繼續。'
+            : useAlternative
             ? '你已認領無障礙替代方案，請在到期前完成或轉交。'
             : '接力棒交到你手上了，請在到期前完成或轉交。';
       }
@@ -899,6 +904,12 @@ class AppController extends ChangeNotifier {
 
   String _friendlyActionError(Object error, {required String fallback}) {
     final message = error.toString().toLowerCase();
+    final timerRemaining = RegExp(
+      r'relay timer witness requires (\d+) more seconds',
+    ).firstMatch(message);
+    if (timerRemaining != null) {
+      return '完整計時還差 ${timerRemaining.group(1)} 秒，時間到後再留下這一棒。';
+    }
     if (message.contains('permission') ||
         message.contains('denied') ||
         message.contains('權限')) {

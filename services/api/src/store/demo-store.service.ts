@@ -50,7 +50,6 @@ interface EvidenceRecord {
   sha256: string | null;
   completed: boolean;
 }
-
 interface AuditRecord {
   id: string;
   action: string;
@@ -86,10 +85,12 @@ export class DemoStoreService {
         description: "到附近安全的戶外空間走一小段，感受今天的光。",
         elementName: "陽光",
         verificationMode: "SELF_CHECK",
+        minimumSeconds: null,
         alternative: {
           title: "在窗邊找一束光",
           description: "不方便外出時，在安全的窗邊坐一會兒，感受今天的光。",
           verificationMode: "SELF_CHECK",
+          minimumSeconds: null,
         },
         claim: null,
         contributor: {
@@ -99,6 +100,9 @@ export class DemoStoreService {
           usedAlternative: false,
           witnessedAt: new Date(Date.now() - 70 * 60 * 1000).toISOString(),
           witnessTier: "SELF_CHECK",
+          witnessStartedAt: null,
+          witnessMinimumSeconds: null,
+          witnessElapsedSeconds: null,
         },
       },
       {
@@ -107,11 +111,13 @@ export class DemoStoreService {
         title: "喚醒水流",
         description: "跟著畫面完成三分鐘舒緩伸展或慢呼吸。",
         elementName: "水",
-        verificationMode: "SELF_CHECK",
+        verificationMode: "TIMER",
+        minimumSeconds: 180,
         alternative: {
           title: "坐著完成慢呼吸",
           description: "不方便伸展時，坐穩後跟著畫面完成三分鐘慢呼吸。",
-          verificationMode: "SELF_CHECK",
+          verificationMode: "TIMER",
+          minimumSeconds: 180,
         },
         claim: null,
         contributor: {
@@ -120,7 +126,10 @@ export class DemoStoreService {
           actionTitle: "喚醒水流",
           usedAlternative: false,
           witnessedAt: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
-          witnessTier: "SELF_CHECK",
+          witnessTier: "PROCESS",
+          witnessStartedAt: new Date(Date.now() - 28 * 60 * 1000).toISOString(),
+          witnessMinimumSeconds: 180,
+          witnessElapsedSeconds: 180,
         },
       },
       {
@@ -130,10 +139,12 @@ export class DemoStoreService {
         description: "到戶外找到一株讓你喜歡的植物，停下來看看它。",
         elementName: "新芽",
         verificationMode: "SELF_CHECK",
+        minimumSeconds: null,
         alternative: {
           title: "在室內找一片綠",
           description: "不方便外出時，在室內找一株植物或從窗邊觀察一片綠。",
           verificationMode: "SELF_CHECK",
+          minimumSeconds: null,
         },
         claim: null,
         contributor: null,
@@ -489,6 +500,9 @@ export class DemoStoreService {
       usedAlternative: chapter.claim.usingAlternative,
       witnessedAt: now.toISOString(),
       witnessTier: "SELF_CHECK",
+      witnessStartedAt: null,
+      witnessMinimumSeconds: null,
+      witnessElapsedSeconds: null,
     };
     action.completedChapterCount += 1;
     action.contributorCount = new Set(

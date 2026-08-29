@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:elder_tree_mobile/src/api_client.dart';
 import 'package:elder_tree_mobile/src/app_controller.dart';
+import 'package:elder_tree_mobile/src/models.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 
@@ -129,11 +130,26 @@ void main() {
       expect(await controllers[1].switchHousehold(ownerCircleId), isTrue);
 
       final before = await clients.first.getTree();
-      final firstOverview = await clients.first.getCircleOverview();
+      final initialOverview = await clients.first.getCircleOverview();
+      final initialShelf = await clients.first.getJourneyShelf();
+      final selfCheckJourney = initialShelf.choices.singleWhere(
+        (item) => item.title == '把好意傳下去',
+      );
+      final firstOverview = await clients.first.startJourney(
+        circleId: ownerCircleId,
+        actionId: selfCheckJourney.actionId,
+        previousRunId: initialOverview.activeAction!.runId!,
+      );
       expect(firstOverview.memberCount, 3);
       final action = firstOverview.activeAction!;
       expect(action.totalChapterCount, 3);
       expect(action.completedChapterCount, 0);
+      expect(
+        action.chapters.every(
+          (chapter) => chapter.verificationMode == VerificationMode.selfCheck,
+        ),
+        isTrue,
+      );
       for (var i = 0; i < clients.length; i++) {
         controllers[i].circle = await clients[i].getCircleOverview();
         final chapter = controllers[i].circle.activeAction!.nextChapter!;

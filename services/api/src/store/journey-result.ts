@@ -38,6 +38,9 @@ export async function buildJourneyResult(
       usedAlternative: item.taskId === item.chapter.alternativeTaskId,
       witnessedAt: item.witnessedAt.toISOString(),
       witnessTier: item.witnessTier,
+      witnessStartedAt: item.witnessStartedAt?.toISOString() ?? null,
+      witnessMinimumSeconds: item.witnessMinimumSeconds,
+      witnessElapsedSeconds: item.witnessElapsedSeconds,
     })),
   };
 }

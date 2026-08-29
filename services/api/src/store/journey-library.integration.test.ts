@@ -76,6 +76,9 @@ describe.runIf(Boolean(process.env.DATABASE_URL))(
           chapter.id,
           index === 1,
         );
+        if (chapter.verificationMode === "TIMER") {
+          now = new Date(now.getTime() + (chapter.minimumSeconds ?? 0) * 1000);
+        }
         await store.completeCooperativeActionChapter(
           uids[index]!,
           first.runId!,
@@ -98,10 +101,12 @@ describe.runIf(Boolean(process.env.DATABASE_URL))(
       expect(initialResult.contributions).toHaveLength(3);
       expect(initialResult.contributions[1]?.usedAlternative).toBe(true);
       expect(
-        initialResult.contributions.every(
-          (item) => item.witnessTier === "SELF_CHECK",
-        ),
-      ).toBe(true);
+        initialResult.contributions.map((item) => item.witnessTier),
+      ).toEqual(["SELF_CHECK", "PROCESS", "SELF_CHECK"]);
+      expect(initialResult.contributions[1]).toMatchObject({
+        witnessMinimumSeconds: 180,
+        witnessElapsedSeconds: 180,
+      });
       expect(
         shelf.choices.find((item) => item.actionId === action.id)
           ?.unavailableReason,

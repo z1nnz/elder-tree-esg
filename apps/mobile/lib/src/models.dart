@@ -44,6 +44,9 @@ class CooperativeActionContributorModel {
     required this.usedAlternative,
     required this.witnessedAt,
     required this.witnessTier,
+    this.witnessStartedAt,
+    this.witnessMinimumSeconds,
+    this.witnessElapsedSeconds,
   });
 
   final String memberId;
@@ -52,6 +55,9 @@ class CooperativeActionContributorModel {
   final bool usedAlternative;
   final DateTime witnessedAt;
   final ActionWitnessTier witnessTier;
+  final DateTime? witnessStartedAt;
+  final int? witnessMinimumSeconds;
+  final int? witnessElapsedSeconds;
 
   factory CooperativeActionContributorModel.fromJson(
     Map<String, dynamic> json,
@@ -67,6 +73,11 @@ class CooperativeActionContributorModel {
       'PARTNER' => ActionWitnessTier.partner,
       _ => ActionWitnessTier.selfCheck,
     },
+    witnessStartedAt: json['witnessStartedAt'] == null
+        ? null
+        : DateTime.parse(json['witnessStartedAt'] as String),
+    witnessMinimumSeconds: json['witnessMinimumSeconds'] as int?,
+    witnessElapsedSeconds: json['witnessElapsedSeconds'] as int?,
   );
 }
 
@@ -75,11 +86,13 @@ class CooperativeActionAlternativeModel {
     required this.title,
     required this.description,
     required this.verificationMode,
+    this.minimumSeconds,
   });
 
   final String title;
   final String description;
   final VerificationMode verificationMode;
+  final int? minimumSeconds;
 
   factory CooperativeActionAlternativeModel.fromJson(
     Map<String, dynamic> json,
@@ -87,6 +100,7 @@ class CooperativeActionAlternativeModel {
     title: json['title'] as String,
     description: json['description'] as String,
     verificationMode: _verificationModeFromJson(json['verificationMode']),
+    minimumSeconds: json['minimumSeconds'] as int?,
   );
 }
 
@@ -128,6 +142,7 @@ class CooperativeActionChapterModel {
     required this.alternative,
     required this.claim,
     required this.contributor,
+    this.minimumSeconds,
   });
 
   final String id;
@@ -136,11 +151,37 @@ class CooperativeActionChapterModel {
   final String description;
   final String elementName;
   final VerificationMode verificationMode;
+  final int? minimumSeconds;
   final CooperativeActionAlternativeModel? alternative;
   final CooperativeActionClaimModel? claim;
   final CooperativeActionContributorModel? contributor;
 
   bool get completed => contributor != null;
+
+  VerificationMode get selectedVerificationMode =>
+      claim?.usingAlternative == true && alternative != null
+      ? alternative!.verificationMode
+      : verificationMode;
+
+  int? get selectedMinimumSeconds =>
+      claim?.usingAlternative == true && alternative != null
+      ? alternative!.minimumSeconds
+      : minimumSeconds;
+
+  Duration timerRemainingAt(DateTime now) {
+    final startedAt = claim?.claimedAt;
+    final requiredSeconds = selectedMinimumSeconds;
+    if (selectedVerificationMode != VerificationMode.timer ||
+        startedAt == null ||
+        requiredSeconds == null ||
+        completed) {
+      return Duration.zero;
+    }
+    final remainingMilliseconds =
+        requiredSeconds * 1000 - now.difference(startedAt).inMilliseconds;
+    if (remainingMilliseconds <= 0) return Duration.zero;
+    return Duration(seconds: (remainingMilliseconds / 1000).ceil());
+  }
 
   factory CooperativeActionChapterModel.fromJson(Map<String, dynamic> json) =>
       CooperativeActionChapterModel(
@@ -150,6 +191,7 @@ class CooperativeActionChapterModel {
         description: json['description'] as String,
         elementName: json['elementName'] as String,
         verificationMode: _verificationModeFromJson(json['verificationMode']),
+        minimumSeconds: json['minimumSeconds'] as int?,
         alternative: json['alternative'] == null
             ? null
             : CooperativeActionAlternativeModel.fromJson(

@@ -250,7 +250,10 @@ void main() {
     );
     await tester.tap(find.text('認領「陽光」這一棒'));
     await tester.pumpAndSettle();
-    expect(find.text('選一個現在做得到的方式。認領後保留 30 分鐘，也可以再轉交。'), findsOneWidget);
+    expect(
+      find.text('選一個現在做得到的方式。認領後保留 30 分鐘，也可以再轉交。計時行動會從認領成功時開始。'),
+      findsOneWidget,
+    );
     expect(find.text('無障礙替代：在窗邊找一束光'), findsOneWidget);
     controller.dispose();
   });
