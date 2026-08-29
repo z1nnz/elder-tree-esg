@@ -336,105 +336,106 @@ class _JourneyRecord extends StatelessWidget {
   const _JourneyRecord({required this.result});
   final JourneyResultModel result;
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
-    decoration: BoxDecoration(
-      color: const Color(0xFFEAF2EB),
-      borderRadius: BorderRadius.circular(24),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Icon(Icons.eco_outlined, color: forest, size: 36),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                result.keepsakeName,
-                style: const TextStyle(
-                  fontSize: 26,
-                  color: forest,
-                  fontWeight: FontWeight.w700,
-                  height: 1.4,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Text(
-          result.title,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            height: 1.5,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '${_day(result.completedAt)} · ${result.contributions.map((item) => item.memberId).toSet().length} 位樹伴同行',
-          style: const TextStyle(fontSize: 15, color: mutedInk, height: 1.65),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '留下 ${result.growthPoints} 點基本年輪',
-          style: const TextStyle(fontSize: 16, color: forest, height: 1.6),
-        ),
-        if (result.historicalImport)
-          const Padding(
-            padding: EdgeInsets.only(top: 8),
-            child: Text(
-              '這段較早的旅程依既有紀錄整理，姓名為整理時的資料。',
-              style: TextStyle(fontSize: 14, color: mutedInk, height: 1.6),
-            ),
-          ),
-        const SizedBox(height: 12),
-        ExpansionTile(
-          tilePadding: EdgeInsets.zero,
-          title: const Text('回看大家留下的片刻'),
-          children: [
-            for (final contribution in result.contributions)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 20),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        contribution.displayName,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        contribution.actionTitle,
-                        style: const TextStyle(fontSize: 16, height: 1.6),
-                      ),
-                      Text(
-                        '${switch (contribution.witnessTier) {
-                          ActionWitnessTier.selfCheck => '自我確認',
-                          ActionWitnessTier.process => '流程見證',
-                          ActionWitnessTier.composite => '複合見證',
-                          ActionWitnessTier.partner => '合作單位見證',
-                        }} · ${_day(contribution.witnessedAt)}${contribution.usedAlternative ? ' · 採替代行動' : ''}',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: mutedInk,
-                          height: 1.6,
-                        ),
-                      ),
-                    ],
+  Widget build(BuildContext context) => Material(
+    color: const Color(0xFFEAF2EB),
+    borderRadius: BorderRadius.circular(24),
+    clipBehavior: Clip.antiAlias,
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.eco_outlined, color: forest, size: 36),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  result.keepsakeName,
+                  style: const TextStyle(
+                    fontSize: 26,
+                    color: forest,
+                    fontWeight: FontWeight.w700,
+                    height: 1.4,
                   ),
                 ),
               ),
-          ],
-        ),
-      ],
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            result.title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${_day(result.completedAt)} · ${result.contributions.map((item) => item.memberId).toSet().length} 位樹伴同行',
+            style: const TextStyle(fontSize: 15, color: mutedInk, height: 1.65),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '留下 ${result.growthPoints} 點基本年輪',
+            style: const TextStyle(fontSize: 16, color: forest, height: 1.6),
+          ),
+          if (result.historicalImport)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Text(
+                '這段較早的旅程依既有紀錄整理，姓名為整理時的資料。',
+                style: TextStyle(fontSize: 14, color: mutedInk, height: 1.6),
+              ),
+            ),
+          const SizedBox(height: 12),
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: const Text('回看大家留下的片刻'),
+            children: [
+              for (final contribution in result.contributions)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 20),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          contribution.displayName,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          contribution.actionTitle,
+                          style: const TextStyle(fontSize: 16, height: 1.6),
+                        ),
+                        Text(
+                          '${switch (contribution.witnessTier) {
+                            ActionWitnessTier.selfCheck => '自我確認',
+                            ActionWitnessTier.process => '流程見證',
+                            ActionWitnessTier.composite => '複合見證',
+                            ActionWitnessTier.partner => '合作單位見證',
+                          }} · ${_day(contribution.witnessedAt)}${contribution.usedAlternative ? ' · 採替代行動' : ''}',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: mutedInk,
+                            height: 1.6,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
     ),
   );
 }
