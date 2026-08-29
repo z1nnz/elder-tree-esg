@@ -1,13 +1,29 @@
-import { Body, Controller, Get, Param, Post, Req } from "@nestjs/common";
+import {
+  Body,
+  ConflictException,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import {
   ClaimCooperativeActionChapterDto,
   CompleteCooperativeActionChapterDto,
   HandoffCooperativeActionChapterDto,
+  CreateCircleDto,
+  UpdateCircleProfileDto,
+  JourneyHistoryQueryDto,
+  StartJourneyDto,
 } from "../dto/api.dto";
 import type { AuthenticatedRequest } from "../security/api-auth.guard";
 import { DemoStoreService } from "../store/demo-store.service";
 import { PersistentStoreService } from "../store/persistent-store.service";
+import { CircleSettingsService } from "../store/circle-settings.service";
+import { JourneyLibraryService } from "../store/journey-library.service";
 
 @ApiTags("circles")
 @ApiBearerAuth()
@@ -16,7 +32,48 @@ export class CirclesController {
   constructor(
     private readonly persistentStore: PersistentStoreService,
     private readonly demoStore: DemoStoreService,
+    private readonly settings: CircleSettingsService,
+    private readonly journeys: JourneyLibraryService,
   ) {}
+
+  @Get("current/journeys")
+  async library(
+    @Req() request: AuthenticatedRequest,
+    @Query() query: JourneyHistoryQueryDto,
+  ) {
+    if (process.env.DEMO_MODE !== "false")
+      throw new ConflictException("Journey history requires persistent mode");
+    return { data: await this.journeys.shelf(request.user!.uid, query.before) };
+  }
+
+  @Post("current/journeys")
+  async startJourney(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: StartJourneyDto,
+  ) {
+    if (process.env.DEMO_MODE !== "false")
+      throw new ConflictException("Journey history requires persistent mode");
+    return { data: await this.journeys.start(request.user!.uid, dto) };
+  }
+
+  @Post()
+  async create(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: CreateCircleDto,
+  ) {
+    return { data: await this.settings.create(request.user!.uid, dto) };
+  }
+
+  @Patch(":circleId")
+  async update(
+    @Req() request: AuthenticatedRequest,
+    @Param("circleId") circleId: string,
+    @Body() dto: UpdateCircleProfileDto,
+  ) {
+    return {
+      data: await this.settings.update(request.user!.uid, circleId, dto),
+    };
+  }
 
   @Get("current")
   async current(@Req() request: AuthenticatedRequest) {

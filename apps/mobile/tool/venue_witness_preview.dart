@@ -117,7 +117,7 @@ class _VenueWitnessPreviewState extends State<VenueWitnessPreview> {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: '同行成林｜介面驗收',
+    title: '樹伴｜介面驗收',
     debugShowCheckedModeBanner: false,
     theme: buildAppTheme(true),
     locale: appLocale,

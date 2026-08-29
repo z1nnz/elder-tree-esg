@@ -105,6 +105,55 @@ class ApiClient {
     return CircleOverviewModel.fromJson(await _getMap('/circles/current'));
   }
 
+  Future<AppContextModel> createCircle({
+    required String name,
+    required String kind,
+    required String idempotencyKey,
+  }) async {
+    return AppContextModel.fromJson(
+      await _post('/circles', {
+        'name': name,
+        'kind': kind,
+        'idempotencyKey': idempotencyKey,
+      }),
+    );
+  }
+
+  Future<JourneyShelfModel> getJourneyShelf({
+    String? before,
+  }) async => JourneyShelfModel.fromJson(
+    await _getMap(
+      '/circles/current/journeys${before == null ? '' : '?before=${Uri.encodeQueryComponent(before)}'}',
+    ),
+  );
+
+  Future<CircleOverviewModel> startJourney({
+    required String circleId,
+    required String actionId,
+    required String previousRunId,
+  }) async => CircleOverviewModel.fromJson(
+    await _post('/circles/current/journeys', {
+      'circleId': circleId,
+      'actionId': actionId,
+      'previousRunId': previousRunId,
+    }),
+  );
+
+  Future<AppContextModel> updateCircle({
+    required String circleId,
+    required String name,
+    required String kind,
+    required int expectedRevision,
+  }) async {
+    return AppContextModel.fromJson(
+      await _patch('/circles/$circleId', {
+        'name': name,
+        'kind': kind,
+        'expectedRevision': expectedRevision,
+      }),
+    );
+  }
+
   Future<CircleOverviewModel> claimCooperativeActionChapter({
     required String runId,
     required String chapterId,

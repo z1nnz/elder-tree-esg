@@ -72,6 +72,148 @@ class AppController extends ChangeNotifier {
   bool _sendingLocation = false;
   bool _radarCompletionInFlight = false;
   bool _disposed = false;
+  int _refreshGeneration = 0;
+  int _circleEpoch = 0;
+  bool membershipBusy = false;
+  bool messageSending = false;
+  String? messageError;
+  final Map<String, String> _messageDrafts = {};
+  String get messageDraft => _messageDrafts[context?.activeHouseholdId] ?? '';
+  void saveMessageDraft(String value) {
+    final id = context?.activeHouseholdId;
+    if (id != null) _messageDrafts[id] = value;
+  }
+
+  String? membershipError;
+  bool _changingHousehold = false;
+  Set<String> _deferredCircleSetups = {};
+  JourneyShelfModel? journeyShelf;
+  bool journeyLoading = false;
+  bool journeyStarting = false;
+  String? journeyError;
+  int _journeyRequestGeneration = 0;
+
+  Future<void> loadJourneyShelf({bool more = false}) async {
+    if (_disposed || journeyLoading || journeyStarting || membershipBusy) {
+      return;
+    }
+    if (offlineDemo) {
+      journeyError = '離線示範不會產生共同紀錄。連上服務後，就能查看旅程與選擇下一段。';
+      notifyListeners();
+      return;
+    }
+    final circleId = context?.activeHouseholdId;
+    if (circleId == null) return;
+    final epoch = _circleEpoch;
+    final generation = ++_journeyRequestGeneration;
+    bool current() =>
+        !_disposed &&
+        epoch == _circleEpoch &&
+        generation == _journeyRequestGeneration;
+    final previous = journeyShelf;
+    final cursor = more ? previous?.nextCursor : null;
+    if (more && cursor == null) return;
+    journeyLoading = true;
+    journeyError = null;
+    notifyListeners();
+    try {
+      final shelf = await _api.getJourneyShelf(before: cursor);
+      if (!current()) return;
+      if (shelf.circleId != circleId) {
+        throw const ApiException('Circle changed; reload journeys');
+      }
+      journeyShelf = more && previous != null
+          ? JourneyShelfModel(
+              circleId: shelf.circleId,
+              currentRunId: shelf.currentRunId,
+              completedCount: shelf.completedCount,
+              choices: shelf.choices,
+              nextCursor: shelf.nextCursor,
+              results: {
+                for (final result in [...previous.results, ...shelf.results])
+                  result.runId: result,
+              }.values.toList(),
+            )
+          : shelf;
+    } catch (error) {
+      if (current()) {
+        journeyError = _friendlyActionError(
+          error,
+          fallback: '共同紀錄暫時讀不到，請重新整理；已完成的旅程不會因此消失。',
+        );
+      }
+    } finally {
+      if (current()) {
+        journeyLoading = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<bool> startJourney(JourneyChoiceModel choice) async {
+    final shelf = journeyShelf;
+    if (_disposed ||
+        membershipBusy ||
+        journeyStarting ||
+        journeyLoading ||
+        offlineDemo ||
+        shelf?.currentRunId == null ||
+        shelf?.circleId != context?.activeHouseholdId ||
+        choice.unavailableReason != null) {
+      return false;
+    }
+    final epoch = ++_circleEpoch;
+    ++_refreshGeneration;
+    ++_journeyRequestGeneration;
+    loading = false;
+    journeyStarting = true;
+    journeyError = null;
+    notifyListeners();
+    bool current() => !_disposed && epoch == _circleEpoch;
+    try {
+      final updated = await _api.startJourney(
+        circleId: shelf!.circleId,
+        actionId: choice.actionId,
+        previousRunId: shelf.currentRunId!,
+      );
+      if (!current()) return false;
+      if (updated.id != shelf.circleId) {
+        throw const ApiException('Circle changed; reload journeys');
+      }
+      circle = updated;
+      journeyShelf = null;
+      notice = '新的共行旅程已準備好，一起接下第一棒吧。';
+      return true;
+    } catch (error) {
+      if (current()) {
+        final message = error.toString().toLowerCase();
+        journeyError = message.contains('finish the current')
+            ? '已經有人接棒了。先完成目前旅程，再選下一段。'
+            : message.contains('revisit')
+            ? '這段旅程還在休息，請重新整理查看再次開放時間。'
+            : message.contains('invite more')
+            ? '目前樹伴人數不足，先邀請夥伴，或選擇人數較少的旅程。'
+            : message.contains('changed')
+            ? '樹伴圈已選擇另一段旅程，請重新整理後再確認。'
+            : _friendlyActionError(error, fallback: '旅程暫時無法開啟，請重新整理後再試。');
+      }
+      return false;
+    } finally {
+      if (current()) {
+        journeyStarting = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  bool get needsCircleSetup {
+    final profile = context?.activeHousehold;
+    return !offlineDemo &&
+        profile != null &&
+        profile.canManageCircle &&
+        profile.needsSetup &&
+        !_deferredCircleSetups.contains(profile.id);
+  }
 
   bool get sendingLocation => _sendingLocation;
 
@@ -121,9 +263,13 @@ class AppController extends ChangeNotifier {
 
   Future<void> initialize() async {
     final preferences = await SharedPreferences.getInstance();
+    if (_disposed) return;
     elderMode = preferences.getBool('elderMode') ?? true;
+    _deferredCircleSetups =
+        (preferences.getStringList('deferredCircleSetups') ?? []).toSet();
     await refresh();
-    if (context?.displayName == '同行成林使用者' &&
+    if ((context?.displayName == '同行成林使用者' ||
+            context?.displayName == '樹伴使用者') &&
         (_initialDisplayName?.trim().isNotEmpty ?? false)) {
       try {
         context = await _api.updateDisplayName(_initialDisplayName!.trim());
@@ -135,6 +281,9 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
+    if (_disposed || _changingHousehold) return;
+    final generation = ++_refreshGeneration;
+    bool current() => !_disposed && generation == _refreshGeneration;
     loading = true;
     notice = null;
     notifyListeners();
@@ -148,6 +297,7 @@ class AppController extends ChangeNotifier {
         _safeRefresh('radar', _api.getRadarState()),
         _safeRefresh('circle', _api.getCircleOverview()),
       ]);
+      if (!current()) return;
       final homeResult = results[0] as HomeSummaryModel?;
       final contextResult = results[1] as AppContextModel?;
       final tasksResult = results[2] as List<DailyTask>?;
@@ -159,8 +309,8 @@ class AppController extends ChangeNotifier {
       if (!hasCoreUpdate) {
         throw TimeoutException('Core App data unavailable');
       }
+      if (contextResult != null) _adoptContext(contextResult);
       home = homeResult ?? home;
-      context = contextResult ?? context;
       tasks = tasksResult ?? tasks;
       tree = treeResult ?? tree;
       exploration = explorationResult ?? exploration;
@@ -178,6 +328,7 @@ class AppController extends ChangeNotifier {
         _safeRefresh('impact', _api.getImpactSummary()),
         _safeRefresh('lineBindings', _api.getLineBindings()),
       ]);
+      if (!current()) return;
       messages = optionalResults[0] as List<FamilyMessageModel>? ?? messages;
       companionPrompts =
           optionalResults[1] as List<CompanionPromptModel>? ?? companionPrompts;
@@ -187,16 +338,19 @@ class AppController extends ChangeNotifier {
       lineBindings =
           optionalResults[5] as List<LineBindingModel>? ?? lineBindings;
     } catch (error) {
+      if (!current()) return;
       if (kDebugMode) {
         debugPrint('[DEBUG-app-refresh] failed: $error');
       }
-      offlineDemo = _allowOfflineDemo;
-      notice = _allowOfflineDemo
+      offlineDemo = _allowOfflineDemo && context == null;
+      notice = offlineDemo
           ? '目前使用離線示範資料，連上 API 後會自動同步。'
           : '目前無法連線到服務，資料未變更，請稍後重新整理。';
     } finally {
-      loading = false;
-      notifyListeners();
+      if (current()) {
+        loading = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -222,42 +376,221 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> switchHousehold(String householdId) async {
-    if (context?.activeHouseholdId == householdId) return;
-    try {
-      context = await _api.setActiveHousehold(householdId);
-      await refresh();
-      notice = '已切換到 ${context?.activeHousehold.name ?? '家庭'}。';
-      notifyListeners();
-    } catch (error) {
-      notice = _friendlyActionError(error, fallback: '家庭暫時無法切換，請稍後再試一次。');
-      notifyListeners();
-    }
+  Future<bool> switchHousehold(String householdId) async {
+    if (context?.activeHouseholdId == householdId) return true;
+    return _changeHousehold(
+      () => _api.setActiveHousehold(householdId),
+      success: '已切換樹伴圈。',
+    );
   }
 
   Future<HouseholdInviteModel?> createHouseholdInvite() async {
+    if (!_beginMembershipAction()) return null;
     try {
       final invite = await _api.createHouseholdInvite();
-      notice = '邀請碼 ${invite.code}，24 小時內可使用一次。';
-      notifyListeners();
+      if (_disposed) return null;
+      notice = '邀請碼已準備好，請私下傳給一位想邀請的人。';
       return invite;
     } catch (error) {
-      notice = _friendlyActionError(error, fallback: '邀請碼暫時無法建立，請稍後再試一次。');
+      if (!_disposed) membershipError = _membershipFailure(error);
+      return null;
+    } finally {
+      _finishMembershipAction();
+    }
+  }
+
+  Future<bool> joinHousehold(String code, String relationship) async {
+    return _changeHousehold(
+      () => _api.joinHousehold(code.trim().toUpperCase(), relationship.trim()),
+      success: '已加入樹伴圈，可以一起展開旅程了。',
+    );
+  }
+
+  Future<bool> createCircle({
+    required String name,
+    required String kind,
+    required String idempotencyKey,
+  }) => _changeHousehold(
+    () => _api.createCircle(
+      name: name.trim(),
+      kind: kind,
+      idempotencyKey: idempotencyKey,
+    ),
+    success: '新樹伴圈已建立，可以邀請同行的人了。',
+  );
+
+  Future<bool> updateCircle({
+    required String circleId,
+    required String name,
+    required String kind,
+    required int expectedRevision,
+  }) => _changeHousehold(
+    () => _api.updateCircle(
+      circleId: circleId,
+      name: name.trim(),
+      kind: kind,
+      expectedRevision: expectedRevision,
+    ),
+    success: '樹伴圈設定已儲存。',
+  );
+
+  Future<void> deferCircleSetup() async {
+    final id = context?.activeHouseholdId;
+    if (_disposed || id == null || membershipBusy) return;
+    _deferredCircleSetups.add(id);
+    notifyListeners();
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setStringList(
+        'deferredCircleSetups',
+        _deferredCircleSetups.toList(),
+      );
+    } catch (_) {
+      if (!_disposed) {
+        notice = '已暫時略過設定，下次開啟時可能再次提醒。';
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<HouseholdSummaryModel?> reloadCircleProfile(String circleId) async {
+    if (_disposed || membershipBusy) return null;
+    final epoch = _circleEpoch;
+    final generation = ++_refreshGeneration;
+    loading = false;
+    try {
+      final updated = await _api.getContext();
+      if (_disposed ||
+          epoch != _circleEpoch ||
+          generation != _refreshGeneration) {
+        return null;
+      }
+      _adoptContext(updated);
+      final profile = updated.households
+          .where((item) => item.id == circleId)
+          .firstOrNull;
+      membershipError = profile == null ? '找不到這個樹伴圈，請返回重新整理。' : null;
       notifyListeners();
+      return profile;
+    } catch (error) {
+      if (!_disposed &&
+          epoch == _circleEpoch &&
+          generation == _refreshGeneration) {
+        membershipError = _membershipFailure(error);
+        notifyListeners();
+      }
       return null;
     }
   }
 
-  Future<void> joinHousehold(String code, String relationship) async {
-    try {
-      context = await _api.joinHousehold(code.trim(), relationship.trim());
-      await refresh();
-      notice = '已加入 ${context?.activeHousehold.name ?? '新的家庭'}。';
+  bool _beginMembershipAction() {
+    if (_disposed || membershipBusy || journeyStarting || messageSending) {
+      return false;
+    }
+    membershipError = null;
+    if (offlineDemo) {
+      membershipError = '離線示範只能瀏覽。連上服務後，才能建立、設定、邀請或加入樹伴圈。';
       notifyListeners();
+      return false;
+    }
+    membershipBusy = true;
+    notifyListeners();
+    return true;
+  }
+
+  Future<bool> _changeHousehold(
+    Future<AppContextModel> Function() request, {
+    required String success,
+  }) async {
+    if (!_beginMembershipAction()) return false;
+    _changingHousehold = true;
+    ++_circleEpoch;
+    ++_journeyRequestGeneration;
+    journeyLoading = false;
+    journeyShelf = null;
+    ++_refreshGeneration; // A previous circle's late refresh must not win.
+    loading = false;
+    try {
+      final updated = await request();
+      if (_disposed) return false;
+      _adoptContext(updated);
+      _changingHousehold = false;
+      await refresh();
+      if (_disposed) return false;
+      // Joining succeeded even if a subsequent content refresh is unavailable.
+      offlineDemo = false;
+      notice = notice == null ? success : '$success $notice';
+      return true;
     } catch (error) {
-      notice = _friendlyActionError(error, fallback: '暫時無法加入家庭，請確認邀請碼後再試一次。');
+      if (!_disposed) membershipError = _membershipFailure(error);
+      return false;
+    } finally {
+      _changingHousehold = false;
+      _finishMembershipAction();
+    }
+  }
+
+  void _finishMembershipAction() {
+    membershipBusy = false;
+    if (!_disposed) {
+      if (membershipError != null) notice = membershipError;
       notifyListeners();
     }
+  }
+
+  String _membershipFailure(Object error) {
+    final message = error.toString().toLowerCase();
+    if (message.contains('settings changed')) {
+      return '樹伴圈設定已更新。請重新載入最新設定，再決定要如何修改。';
+    }
+    if (message.contains('manager permission')) return '只有這個樹伴圈的管理者可以修改名稱與類型。';
+    if (message.contains('creation key')) {
+      return '這次建立要求已送出。請先重新整理樹伴圈，確認結果後再建立其他圈。';
+    }
+    if (message.contains('already a household member')) {
+      return '你已經在這個樹伴圈裡了，請從「我的樹伴圈」切換。';
+    }
+    if (message.contains('expired') || message.contains('already used')) {
+      return '邀請碼已過期或已使用，請邀請人產生一組新的邀請碼。';
+    }
+    if (message.contains('invite not found')) {
+      return '找不到這組邀請碼，請核對 8 碼英文字母與數字後重試。';
+    }
+    return _friendlyActionError(error, fallback: '暫時無法更新樹伴圈，請稍後再試一次。');
+  }
+
+  void _adoptContext(AppContextModel updated) {
+    if (context?.activeHouseholdId != updated.activeHouseholdId) {
+      ++_circleEpoch;
+      ++_journeyRequestGeneration;
+      journeyShelf = null;
+      journeyLoading = false;
+      journeyStarting = false;
+      journeyError = null;
+      messageSending = false;
+      messageError = null;
+      // Never retain another circle's private data after a partial refresh.
+      home = null;
+      tasks = [];
+      tree = _emptyTree;
+      circle = _emptyCircle;
+      messages = [];
+      companionPrompts = [];
+      devices = [];
+      reviews = [];
+      lineBindings = [];
+      latestLineBindingCode = null;
+      impact = _emptyImpact;
+      exploration = _emptyExploration;
+      radar = _emptyRadar;
+      discoveredTrees = [];
+      lastGrowthAwardPoints = null;
+      lastGrowthAwardTitle = null;
+      exploring = false;
+      _locationSubscription?.cancel();
+      _locationSubscription = null;
+    }
+    context = updated;
   }
 
   Future<LineBindingCodeModel?> createLineBindingCode() async {
@@ -334,87 +667,122 @@ class AppController extends ChangeNotifier {
     CooperativeActionChapterModel chapter, {
     required bool useAlternative,
   }) async {
+    if (membershipBusy || journeyStarting) return;
+    final epoch = _circleEpoch;
+    bool current() => !_disposed && epoch == _circleEpoch;
     final action = circle.activeAction;
     if (action == null || action.runId == null || chapter.completed) return;
     try {
       if (offlineDemo) {
         notice = '離線示範不會建立多人接力紀錄；請連上服務後再認領。';
       } else {
-        circle = await _api.claimCooperativeActionChapter(
+        final updated = await _api.claimCooperativeActionChapter(
           runId: action.runId!,
           chapterId: chapter.id,
           useAlternative: useAlternative,
         );
+        if (!current()) return;
+        circle = updated;
         notice = useAlternative
             ? '你已認領無障礙替代方案，請在到期前完成或轉交。'
             : '接力棒交到你手上了，請在到期前完成或轉交。';
       }
     } catch (error) {
+      if (!current()) return;
       notice = _friendlyActionError(error, fallback: '目前無法認領這一棒，請重新整理後再試一次。');
     }
-    notifyListeners();
+    if (current()) notifyListeners();
   }
 
   Future<void> handoffCooperativeActionChapter(
     CooperativeActionChapterModel chapter,
     CircleMemberModel target,
   ) async {
+    if (membershipBusy || journeyStarting) return;
+    final epoch = _circleEpoch;
+    bool current() => !_disposed && epoch == _circleEpoch;
     final action = circle.activeAction;
     if (action == null || action.runId == null || chapter.completed) return;
     try {
       if (offlineDemo) {
         notice = '離線示範不會建立轉棒紀錄；請連上服務後再轉交。';
       } else {
-        circle = await _api.handoffCooperativeActionChapter(
+        final updated = await _api.handoffCooperativeActionChapter(
           runId: action.runId!,
           chapterId: chapter.id,
           memberId: target.id,
         );
+        if (!current()) return;
+        circle = updated;
         notice = '接力棒已轉交給 ${target.displayName}，請對方在到期前完成。';
       }
     } catch (error) {
+      if (!current()) return;
       notice = _friendlyActionError(error, fallback: '目前無法轉交這一棒，請重新整理後再試一次。');
     }
-    notifyListeners();
+    if (current()) notifyListeners();
   }
 
   Future<void> releaseExpiredCooperativeActionClaim(
     CooperativeActionChapterModel chapter,
   ) async {
+    if (membershipBusy || journeyStarting) return;
+    final epoch = _circleEpoch;
+    bool current() => !_disposed && epoch == _circleEpoch;
     final action = circle.activeAction;
     if (action == null || action.runId == null || chapter.completed) return;
     try {
       if (offlineDemo) {
         notice = '離線示範不會變更接力狀態；請連上服務後再釋出。';
       } else {
-        circle = await _api.releaseExpiredCooperativeActionClaim(
+        final updated = await _api.releaseExpiredCooperativeActionClaim(
           runId: action.runId!,
           chapterId: chapter.id,
         );
+        if (!current()) return;
+        circle = updated;
         notice = '逾時的接力棒已釋出，樹伴成員可以重新認領。';
       }
     } catch (error) {
+      if (!current()) return;
       notice = _friendlyActionError(error, fallback: '目前無法釋出這一棒，請重新整理後再試一次。');
     }
-    notifyListeners();
+    if (current()) notifyListeners();
   }
 
   Future<void> completeCooperativeActionChapter(
     CooperativeActionChapterModel chapter,
   ) async {
+    if (membershipBusy || journeyStarting) return;
+    final epoch = _circleEpoch;
+    bool current() => !_disposed && epoch == _circleEpoch;
     final action = circle.activeAction;
     if (action == null || action.runId == null || chapter.completed) return;
     try {
       if (offlineDemo) {
         notice = '離線示範不會假裝完成多人見證；請連上 API 後再接棒。';
       } else {
-        circle = await _api.completeCooperativeActionChapter(
+        final updated = await _api.completeCooperativeActionChapter(
           runId: action.runId!,
           chapterId: chapter.id,
         );
+        if (!current()) return;
+        circle = updated;
         final completedAction = circle.activeAction;
         if (completedAction?.completed ?? false) {
-          tree = await _api.getTree();
+          ++_journeyRequestGeneration;
+          journeyLoading = false;
+          journeyShelf = null;
+          try {
+            final updatedTree = await _api.getTree();
+            if (!current()) return;
+            tree = updatedTree;
+          } catch (_) {
+            if (!current()) return;
+            notice = '旅程已完成，共同紀錄已保存；生命樹資料暫時讀不到，請稍後重新整理。';
+            notifyListeners();
+            return;
+          }
           lastGrowthAwardPoints = completedAction!.growthPoints;
           lastGrowthAwardTitle = completedAction.keepsakeName;
           notice =
@@ -424,9 +792,10 @@ class AppController extends ChangeNotifier {
         }
       }
     } catch (error) {
+      if (!current()) return;
       notice = _friendlyActionError(error, fallback: '這一棒暫時無法送出，請重新整理後再試一次。');
     }
-    notifyListeners();
+    if (current()) notifyListeners();
   }
 
   Future<void> startTask(DailyTask task) async {
@@ -844,25 +1213,41 @@ class AppController extends ChangeNotifier {
     return _api.createVenueRedemptionCode(missionId);
   }
 
-  Future<void> sendFamilyMessage(String body) async {
-    if (body.trim().isEmpty) return;
-    try {
-      final message = offlineDemo
-          ? FamilyMessageModel(
-              id: DateTime.now().microsecondsSinceEpoch.toString(),
-              authorName: '小晴',
-              body: body.trim(),
-              createdAt: DateTime.now(),
-              delivered: true,
-            )
-          : await _api.sendMessage(body.trim());
-      messages = [message, ...messages];
-      await _refreshHomeSummary();
-      notice = message.delivered ? '訊息已同步到客廳陪伴樹。' : '訊息已保存，裝置重新連線後會送達。';
-    } catch (error) {
-      notice = _friendlyActionError(error, fallback: '訊息暫時無法送出，請確認網路後再試一次。');
+  Future<bool> sendFamilyMessage(String body) async {
+    if (_disposed || messageSending || membershipBusy || body.trim().isEmpty) {
+      return false;
     }
+    if (offlineDemo || context == null) {
+      messageError = '連上服務並進入樹伴圈後，才能傳送訊息。離線示範不會代為送出。';
+      notifyListeners();
+      return false;
+    }
+    final epoch = _circleEpoch;
+    final circleId = context!.activeHouseholdId;
+    bool current() => !_disposed && epoch == _circleEpoch;
+    messageSending = true;
+    messageError = null;
     notifyListeners();
+    try {
+      final message = await _api.sendMessage(body.trim());
+      if (!current()) return false;
+      messages = [message, ...messages.where((item) => item.id != message.id)];
+      if (_messageDrafts[circleId]?.trim() == body.trim()) {
+        _messageDrafts.remove(circleId);
+      }
+      notice = '訊息已存入樹伴圈，夥伴可在 App 裡查看。';
+      return true;
+    } catch (_) {
+      if (current()) {
+        messageError = '尚未收到送出確認，文字已保留。先重新整理最近訊息，再決定是否重送。';
+      }
+      return false;
+    } finally {
+      if (current()) {
+        messageSending = false;
+        notifyListeners();
+      }
+    }
   }
 
   Future<void> scanForCompanionTrees() async {

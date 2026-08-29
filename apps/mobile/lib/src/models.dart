@@ -287,6 +287,97 @@ class CircleOverviewModel {
       );
 }
 
+class JourneyResultModel {
+  const JourneyResultModel({
+    required this.runId,
+    required this.title,
+    required this.keepsakeName,
+    required this.completedAt,
+    required this.growthPoints,
+    required this.contributions,
+    this.historicalImport = false,
+  });
+  final String runId, title, keepsakeName;
+  final DateTime completedAt;
+  final int growthPoints;
+  final bool historicalImport;
+  final List<CooperativeActionContributorModel> contributions;
+  factory JourneyResultModel.fromJson(Map<String, dynamic> json) =>
+      JourneyResultModel(
+        runId: json['runId'] as String,
+        title: json['title'] as String,
+        keepsakeName: json['keepsakeName'] as String,
+        completedAt: DateTime.parse(json['completedAt'] as String),
+        growthPoints: json['growthPoints'] as int,
+        historicalImport: json['historicalImport'] == true,
+        contributions: (json['contributions'] as List)
+            .cast<Map<String, dynamic>>()
+            .map(CooperativeActionContributorModel.fromJson)
+            .toList(),
+      );
+}
+
+class JourneyChoiceModel {
+  const JourneyChoiceModel({
+    required this.actionId,
+    required this.title,
+    required this.description,
+    required this.keepsakeName,
+    required this.minimumContributors,
+    required this.chapterCount,
+    required this.growthPoints,
+    this.availableAt,
+    this.unavailableReason,
+  });
+  final String actionId, title, description, keepsakeName;
+  final int minimumContributors, chapterCount, growthPoints;
+  final DateTime? availableAt;
+  final String? unavailableReason;
+  factory JourneyChoiceModel.fromJson(Map<String, dynamic> json) =>
+      JourneyChoiceModel(
+        actionId: json['actionId'] as String,
+        title: json['title'] as String,
+        description: json['description'] as String,
+        keepsakeName: json['keepsakeName'] as String,
+        minimumContributors: json['minimumContributors'] as int,
+        chapterCount: json['chapterCount'] as int,
+        growthPoints: json['growthPoints'] as int,
+        availableAt: DateTime.tryParse(json['availableAt'] as String? ?? ''),
+        unavailableReason: json['unavailableReason'] as String?,
+      );
+}
+
+class JourneyShelfModel {
+  const JourneyShelfModel({
+    required this.circleId,
+    required this.currentRunId,
+    required this.completedCount,
+    required this.results,
+    required this.choices,
+    this.nextCursor,
+  });
+  final String circleId;
+  final String? currentRunId, nextCursor;
+  final int completedCount;
+  final List<JourneyResultModel> results;
+  final List<JourneyChoiceModel> choices;
+  factory JourneyShelfModel.fromJson(Map<String, dynamic> json) =>
+      JourneyShelfModel(
+        circleId: json['circleId'] as String,
+        currentRunId: json['currentRunId'] as String?,
+        completedCount: json['completedCount'] as int,
+        results: (json['results'] as List)
+            .cast<Map<String, dynamic>>()
+            .map(JourneyResultModel.fromJson)
+            .toList(),
+        choices: (json['choices'] as List)
+            .cast<Map<String, dynamic>>()
+            .map(JourneyChoiceModel.fromJson)
+            .toList(),
+        nextCursor: json['nextCursor'] as String?,
+      );
+}
+
 class DailyTask {
   const DailyTask({
     required this.id,
@@ -368,17 +459,29 @@ class HouseholdSummaryModel {
     required this.id,
     required this.name,
     required this.relationship,
+    this.kind = 'FAMILY',
+    this.canManageCircle = false,
+    this.settingsRevision = 0,
+    this.needsSetup = false,
   });
 
   final String id;
   final String name;
   final String relationship;
+  final String kind;
+  final bool canManageCircle;
+  final int settingsRevision;
+  final bool needsSetup;
 
   factory HouseholdSummaryModel.fromJson(Map<String, dynamic> json) =>
       HouseholdSummaryModel(
         id: json['id'] as String,
         name: json['name'] as String,
         relationship: json['relationship'] as String,
+        kind: json['kind'] as String? ?? 'FAMILY',
+        canManageCircle: json['canManageCircle'] as bool? ?? false,
+        settingsRevision: json['settingsRevision'] as int? ?? 0,
+        needsSetup: json['needsSetup'] as bool? ?? false,
       );
 }
 

@@ -10,8 +10,29 @@
 | 2026-08-22 | 確立正式工作名稱「同行成林」、加速交付週期與主要負責人證據制度 | 品牌、時程、治理與研究所呈現方式 | 由 `@z1nnz` 負責名稱採用、版本整合與驗收 | [總目標議題 #33](https://github.com/z1nnz/elder-tree-esg/issues/33)、[`docs/brand-guidelines.md`](../brand-guidelines.md)、[`docs/roadmap/tongxing-chenglin-delivery-plan.md`](../roadmap/tongxing-chenglin-delivery-plan.md)、[`PROJECT_LEADERSHIP.md`](../../PROJECT_LEADERSHIP.md) |
 | 2026-08-22 | 完成接力旅程認領、轉棒、逾時釋出、無障礙替代方案與離線唯讀邊界 | 核心玩法、資料一致性、應用程式互動與驗收 | 由 `@z1nnz` 負責規格取捨、跨端整合、兩軸審查與正式版本驗收 | [議題 #35](https://github.com/z1nnz/elder-tree-esg/issues/35)、[合併請求 #36](https://github.com/z1nnz/elder-tree-esg/pull/36)、提交 `ff87d14` |
 | 2026-08-22 | 完成核心 App 視覺基礎與長者友善首頁，讓樹伴圈接力旅程、下一棒與共同收藏成為首頁主要入口 | 產品層級、視覺系統、核心介面實作、無障礙與跨平台驗收 | 由 `@z1nnz` 負責需求定義、視覺決策、程式整合、實際畫面驗收與 Android 安裝包驗收 | [議題 #37](https://github.com/z1nnz/elder-tree-esg/issues/37)、[合併請求 #38](https://github.com/z1nnz/elder-tree-esg/pull/38)、[390 × 844 畫面與驗證紀錄](issue-37-mobile-visual-evidence.md)、提交 `f87a6b7` |
+| 2026-08-29 | 將正式工作名稱統一為「樹伴」，重整首頁、陪伴與生命樹核心頁面，建立資料驅動的生命樹動畫容器、美術資產登記與降低動態退化 | 品牌採用、核心介面、美術技術管線、訊息一致性、無障礙與版本驗收 | 由 `@z1nnz` 負責產品與畫風決策、程式整合、失敗案例修正、畫面人工檢視及建置驗收 | [前後畫面、152 項回歸、建置雜湊與證據界線](app-core-art-and-companion-evidence.md)、[生命樹美術規格](../art/life-tree-art-direction.md) |
 
 ## 待補的本人實作證據
+
+### 2026-08-29：App 入圈流程與三人接力驗收
+
+- 使用者決策：App 優先，韌體延後；原硬體開發分支與未提交檔案保留。
+- 主要負責人 `@z1nnz` 所主導的整合範圍：獨立樹伴圈邀請／加入／切換、錯誤回復、舊回應隔離、中文介面與跨尺寸驗收。
+- 可核驗資料：`codex/app-ready-circle-flow` 分支、[前後畫面與三個手機客戶端實際 HTTP／資料庫紀錄](app-circle-membership-evidence.md)。包含三人各接一棒、重讀進度與群體獎勵不重複的檢查。
+- 不把測試身分、Flutter 渲染或自動測試等同本人已操作真機、正式 Firebase 驗收、真人試辦或 App 全部完成。正式合併與 CI 結果以本次合併請求為準。
+
+### 2026-08-29：App 首次使用與樹伴圈設定
+
+- 延續 App 優先決策：完成初始取名／類型、按圈略過引導、建立另一圈、設定管理權、建立回執與版本衝突回復。
+- 主要負責人 `@z1nnz` 所主導的規格與整合範圍：朋友／社區不限家庭、保留舊圈、不猜測多人舊圈管理者、免費核心與真實植樹分離。
+- [畫面、資料遷移、28 項新增手機測試與三人 HTTP 驗收](app-circle-setup-evidence.md)可重現；完整手機回歸 87 項通過。版本沿用 [#44](https://github.com/z1nnz/elder-tree-esg/pull/44)，未以自動測試代替本人真機操作或真人試辦。
+
+### 2026-08-29：共同年輪與下一段旅程
+
+- 延續 App 優先決策：成果冊、兩段新增免費接力、二人圈可選旅程、七日後再次同行、不可變成果快照與分頁；保存原圈與舊旅程。
+- 主要負責人 `@z1nnz` 所主導的核心系統整合範圍：群體旅程銜接、多人選擇／接棒競態、一次性成長回執、過期旅程回復、繁體中文介面與驗收標準。
+- [實際畫面、31 項新增手機測試、資料庫遷移與兩段旅程的真實 HTTP 驗收](app-journey-continuation-evidence.md)保存可重現證據；完整手機回歸 118 通過，版本續於 [#44](https://github.com/z1nnz/elder-tree-esg/pull/44)。
+- 不將自我確認當成客觀行動驗證，不代填本人已操作真機、研究留存效果、已合作或已植樹；正式合併與 CI 以最新提交為準。
 
 ### 2026-08-27：共創夥伴台與旅程審核發布
 

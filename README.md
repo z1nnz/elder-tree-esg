@@ -1,6 +1,6 @@
-# 同行成林
+# 樹伴
 
-同行成林是一個以「樹伴圈」為群體單位的真實世界共行旅程平台。樹伴成員透過分級行動見證留下真實足跡，共同培養樹伴生命樹；在資金、種植名額與合作責任都確認後，再連結真實生命樹與世界共生林。
+樹伴是一個以「樹伴圈」為群體單位的真實世界共行旅程平台，也是「同行成林計畫」的主要 App。樹伴成員透過分級行動見證留下真實足跡，共同培養樹伴生命樹；在資金、種植名額與合作責任都確認後，再連結真實生命樹與世界共生林。
 
 > 讓每一次真實行動，長成我們共同留下的森林。
 
@@ -8,7 +8,7 @@
 
 產品定位與品牌使用見 [`docs/brand-guidelines.md`](docs/brand-guidelines.md)，加速交付計畫見 [`docs/roadmap/tongxing-chenglin-delivery-plan.md`](docs/roadmap/tongxing-chenglin-delivery-plan.md)，專案責任與可核驗貢獻方式見 [`PROJECT_LEADERSHIP.md`](PROJECT_LEADERSHIP.md)。
 
-手機與網頁設計使用共用的[介面工藝庫](docs/design/skill-library.md)：包含已審查的開源技能、固定版本與授權，以及同行成林的大字、互動和真實畫面驗收方式。
+手機與網頁設計使用共用的[介面工藝庫](docs/design/skill-library.md)：包含已審查的開源技能、固定版本與授權，以及樹伴的大字、互動和真實畫面驗收方式。
 
 ## Repository layout
 

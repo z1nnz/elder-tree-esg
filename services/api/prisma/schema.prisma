@@ -139,6 +139,7 @@ model User {
   activeHouseholdId        String?
   activeHousehold          Household?                      @relation("ActiveHousehold", fields: [activeHouseholdId], references: [id], onDelete: SetNull)
   householdLinks           HouseholdMember[]
+  circleCreations          CircleCreation[]
   assignments              TaskAssignment[]
   messages                 FamilyMessage[]
   createdInvites           HouseholdInvite[]               @relation("InviteCreator")
@@ -169,6 +170,9 @@ model Household {
   id                    String                  @id @default(uuid())
   name                  String
   circleKind            CircleKind              @default(FAMILY)
+  settingsRevision      Int                     @default(0)
+  configuredAt          DateTime?
+  creationReceipts      CircleCreation[]
   activeUsers           User[]                  @relation("ActiveHousehold")
   members               HouseholdMember[]
   assignments           TaskAssignment[]
@@ -192,13 +196,26 @@ model Household {
 }
 
 model HouseholdMember {
-  householdId  String
-  userId       String
-  relationship String
-  household    Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  householdId     String
+  userId          String
+  relationship    String
+  canManageCircle Boolean   @default(false)
+  household       Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([householdId, userId])
+}
+
+model CircleCreation {
+  userId         String
+  idempotencyKey String
+  fingerprint    String
+  householdId    String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  household      Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  createdAt      DateTime  @default(now())
+
+  @@id([userId, idempotencyKey])
 }
 
 model Device {
@@ -293,6 +310,11 @@ model CooperativeActionRun {
   status           CooperativeActionRunStatus      @default(ACTIVE)
   startedAt        DateTime                        @default(now())
   completedAt      DateTime?
+  isCurrent        Boolean                         @default(true)
+  previousRunId    String?                         @unique
+  previousRun      CooperativeActionRun?           @relation("JourneyChain", fields: [previousRunId], references: [id], onDelete: SetNull)
+  nextRun          CooperativeActionRun?           @relation("JourneyChain")
+  resultSnapshot   Json?
   claimedChapterId String?
   claimedById      String?
   claimedTaskId    String?
@@ -307,7 +329,7 @@ model CooperativeActionRun {
   createdAt        DateTime                        @default(now())
   updatedAt        DateTime                        @updatedAt
 
-  @@unique([actionId, householdId])
+  @@index([actionId, householdId, startedAt])
   @@index([householdId, status])
   @@index([claimedById, claimExpiresAt])
 }
