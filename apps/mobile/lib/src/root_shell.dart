@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_controller.dart';
+import 'circle_membership_screen.dart';
 import 'screens.dart';
 import 'theme.dart';
 
@@ -66,7 +67,10 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
         controller: widget.controller,
         onNavigate: _selectIndex,
       ),
-      FamilyScreen(controller: widget.controller),
+      FamilyScreen(
+        key: ValueKey(widget.controller.context?.activeHouseholdId),
+        controller: widget.controller,
+      ),
       ImpactScreen(controller: widget.controller),
       TreeGrowthScreen(
         controller: widget.controller,
@@ -96,86 +100,15 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
                 onPressed: () => _selectIndex(2),
                 icon: const Icon(Icons.close_rounded),
               ),
-              title: Row(
-                children: [
-                  const Icon(Icons.eco_outlined, color: forest, size: 24),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        '同行成林',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.4,
-                        ),
-                      ),
-                      Text(
-                        widget.controller.context?.activeHousehold.name ??
-                            '今天也慢慢來',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF6B756F),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+              title: const Text(
+                '樹伴',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
               ),
               actions: [
-                if ((widget.controller.context?.households.length ?? 0) > 1)
-                  PopupMenuButton<String>(
-                    tooltip: '切換樹伴圈',
-                    icon: const Icon(Icons.swap_horiz_rounded),
-                    onSelected: widget.controller.membershipBusy
-                        ? null
-                        : widget.controller.switchHousehold,
-                    itemBuilder: (context) => widget
-                        .controller
-                        .context!
-                        .households
-                        .map(
-                          (household) => PopupMenuItem(
-                            value: household.id,
-                            child: Row(
-                              children: [
-                                Icon(
-                                  household.id ==
-                                          widget
-                                              .controller
-                                              .context!
-                                              .activeHouseholdId
-                                      ? Icons.check_circle_rounded
-                                      : Icons.circle_outlined,
-                                  size: 18,
-                                ),
-                                const SizedBox(width: 8),
-                                Flexible(child: Text(household.name)),
-                              ],
-                            ),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                Semantics(
-                  label: '長者友善顯示',
-                  toggled: widget.controller.elderMode,
-                  child: TextButton(
-                    onPressed: () => widget.controller.toggleElderMode(
-                      !widget.controller.elderMode,
-                    ),
-                    style: TextButton.styleFrom(
-                      foregroundColor: widget.controller.elderMode
-                          ? forest
-                          : mutedInk,
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                    ),
-                    child: Text(widget.controller.elderMode ? '大字 ✓' : '大字'),
-                  ),
-                ),
                 IconButton(
-                  onPressed: widget.controller.refresh,
+                  onPressed: widget.controller.loading
+                      ? null
+                      : widget.controller.refresh,
                   tooltip: '重新整理',
                   icon: widget.controller.loading
                       ? const SizedBox(
@@ -184,6 +117,30 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.refresh_rounded),
+                ),
+                PopupMenuButton<String>(
+                  tooltip: '頁面選項',
+                  icon: const Icon(Icons.more_horiz_rounded),
+                  onSelected: (value) {
+                    if (value == 'circle') {
+                      openCircleMembership(context, widget.controller);
+                    } else {
+                      widget.controller.toggleElderMode(
+                        !widget.controller.elderMode,
+                      );
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(
+                      value: 'circle',
+                      child: Text('管理與切換樹伴圈'),
+                    ),
+                    CheckedPopupMenuItem(
+                      value: 'text',
+                      checked: widget.controller.elderMode,
+                      child: const Text('長者友善顯示'),
+                    ),
+                  ],
                 ),
                 const SizedBox(width: 6),
               ],
@@ -198,7 +155,17 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
               Expanded(
                 child: KeyedSubtree(
                   key: ValueKey(index),
-                  child: screens[index],
+                  child: immersiveExploration
+                      ? screens[index]
+                      : SafeArea(
+                          top: false,
+                          child: Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 760),
+                              child: screens[index],
+                            ),
+                          ),
+                        ),
                 ),
               ),
             ],

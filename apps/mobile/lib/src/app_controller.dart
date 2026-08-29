@@ -75,6 +75,15 @@ class AppController extends ChangeNotifier {
   int _refreshGeneration = 0;
   int _circleEpoch = 0;
   bool membershipBusy = false;
+  bool messageSending = false;
+  String? messageError;
+  final Map<String, String> _messageDrafts = {};
+  String get messageDraft => _messageDrafts[context?.activeHouseholdId] ?? '';
+  void saveMessageDraft(String value) {
+    final id = context?.activeHouseholdId;
+    if (id != null) _messageDrafts[id] = value;
+  }
+
   String? membershipError;
   bool _changingHousehold = false;
   Set<String> _deferredCircleSetups = {};
@@ -259,7 +268,8 @@ class AppController extends ChangeNotifier {
     _deferredCircleSetups =
         (preferences.getStringList('deferredCircleSetups') ?? []).toSet();
     await refresh();
-    if (context?.displayName == '同行成林使用者' &&
+    if ((context?.displayName == '同行成林使用者' ||
+            context?.displayName == '樹伴使用者') &&
         (_initialDisplayName?.trim().isNotEmpty ?? false)) {
       try {
         context = await _api.updateDisplayName(_initialDisplayName!.trim());
@@ -474,7 +484,9 @@ class AppController extends ChangeNotifier {
   }
 
   bool _beginMembershipAction() {
-    if (_disposed || membershipBusy || journeyStarting) return false;
+    if (_disposed || membershipBusy || journeyStarting || messageSending) {
+      return false;
+    }
     membershipError = null;
     if (offlineDemo) {
       membershipError = '離線示範只能瀏覽。連上服務後，才能建立、設定、邀請或加入樹伴圈。';
@@ -555,6 +567,8 @@ class AppController extends ChangeNotifier {
       journeyLoading = false;
       journeyStarting = false;
       journeyError = null;
+      messageSending = false;
+      messageError = null;
       // Never retain another circle's private data after a partial refresh.
       home = null;
       tasks = [];
@@ -1199,25 +1213,41 @@ class AppController extends ChangeNotifier {
     return _api.createVenueRedemptionCode(missionId);
   }
 
-  Future<void> sendFamilyMessage(String body) async {
-    if (body.trim().isEmpty) return;
-    try {
-      final message = offlineDemo
-          ? FamilyMessageModel(
-              id: DateTime.now().microsecondsSinceEpoch.toString(),
-              authorName: '小晴',
-              body: body.trim(),
-              createdAt: DateTime.now(),
-              delivered: true,
-            )
-          : await _api.sendMessage(body.trim());
-      messages = [message, ...messages];
-      await _refreshHomeSummary();
-      notice = message.delivered ? '訊息已同步到客廳陪伴樹。' : '訊息已保存，裝置重新連線後會送達。';
-    } catch (error) {
-      notice = _friendlyActionError(error, fallback: '訊息暫時無法送出，請確認網路後再試一次。');
+  Future<bool> sendFamilyMessage(String body) async {
+    if (_disposed || messageSending || membershipBusy || body.trim().isEmpty) {
+      return false;
     }
+    if (offlineDemo || context == null) {
+      messageError = '連上服務並進入樹伴圈後，才能傳送訊息。離線示範不會代為送出。';
+      notifyListeners();
+      return false;
+    }
+    final epoch = _circleEpoch;
+    final circleId = context!.activeHouseholdId;
+    bool current() => !_disposed && epoch == _circleEpoch;
+    messageSending = true;
+    messageError = null;
     notifyListeners();
+    try {
+      final message = await _api.sendMessage(body.trim());
+      if (!current()) return false;
+      messages = [message, ...messages.where((item) => item.id != message.id)];
+      if (_messageDrafts[circleId]?.trim() == body.trim()) {
+        _messageDrafts.remove(circleId);
+      }
+      notice = '訊息已存入樹伴圈，夥伴可在 App 裡查看。';
+      return true;
+    } catch (_) {
+      if (current()) {
+        messageError = '尚未收到送出確認，文字已保留。先重新整理最近訊息，再決定是否重送。';
+      }
+      return false;
+    } finally {
+      if (current()) {
+        messageSending = false;
+        notifyListeners();
+      }
+    }
   }
 
   Future<void> scanForCompanionTrees() async {

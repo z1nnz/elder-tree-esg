@@ -10,6 +10,7 @@
 | 2026-08-22 | 確立正式工作名稱「同行成林」、加速交付週期與主要負責人證據制度 | 品牌、時程、治理與研究所呈現方式 | 由 `@z1nnz` 負責名稱採用、版本整合與驗收 | [總目標議題 #33](https://github.com/z1nnz/elder-tree-esg/issues/33)、[`docs/brand-guidelines.md`](../brand-guidelines.md)、[`docs/roadmap/tongxing-chenglin-delivery-plan.md`](../roadmap/tongxing-chenglin-delivery-plan.md)、[`PROJECT_LEADERSHIP.md`](../../PROJECT_LEADERSHIP.md) |
 | 2026-08-22 | 完成接力旅程認領、轉棒、逾時釋出、無障礙替代方案與離線唯讀邊界 | 核心玩法、資料一致性、應用程式互動與驗收 | 由 `@z1nnz` 負責規格取捨、跨端整合、兩軸審查與正式版本驗收 | [議題 #35](https://github.com/z1nnz/elder-tree-esg/issues/35)、[合併請求 #36](https://github.com/z1nnz/elder-tree-esg/pull/36)、提交 `ff87d14` |
 | 2026-08-22 | 完成核心 App 視覺基礎與長者友善首頁，讓樹伴圈接力旅程、下一棒與共同收藏成為首頁主要入口 | 產品層級、視覺系統、核心介面實作、無障礙與跨平台驗收 | 由 `@z1nnz` 負責需求定義、視覺決策、程式整合、實際畫面驗收與 Android 安裝包驗收 | [議題 #37](https://github.com/z1nnz/elder-tree-esg/issues/37)、[合併請求 #38](https://github.com/z1nnz/elder-tree-esg/pull/38)、[390 × 844 畫面與驗證紀錄](issue-37-mobile-visual-evidence.md)、提交 `f87a6b7` |
+| 2026-08-29 | 將正式工作名稱統一為「樹伴」，重整首頁、陪伴與生命樹核心頁面，建立資料驅動的生命樹動畫容器、美術資產登記與降低動態退化 | 品牌採用、核心介面、美術技術管線、訊息一致性、無障礙與版本驗收 | 由 `@z1nnz` 負責產品與畫風決策、程式整合、失敗案例修正、畫面人工檢視及建置驗收 | [前後畫面、152 項回歸、建置雜湊與證據界線](app-core-art-and-companion-evidence.md)、[生命樹美術規格](../art/life-tree-art-direction.md) |
 
 ## 待補的本人實作證據
 

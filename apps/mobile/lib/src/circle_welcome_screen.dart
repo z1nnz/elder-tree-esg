@@ -11,7 +11,7 @@ class CircleWelcomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('同行成林')),
+    appBar: AppBar(title: const Text('樹伴')),
     body: SafeArea(
       top: false,
       child: Center(

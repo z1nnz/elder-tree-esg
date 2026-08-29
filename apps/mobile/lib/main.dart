@@ -54,7 +54,7 @@ class _ElderTreeAppState extends State<ElderTreeApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '同行成林',
+      title: '樹伴',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(true),
       locale: appLocale,

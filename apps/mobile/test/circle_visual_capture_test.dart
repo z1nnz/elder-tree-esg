@@ -8,6 +8,7 @@ import 'package:elder_tree_mobile/src/circle_welcome_screen.dart';
 import 'package:elder_tree_mobile/src/models.dart';
 import 'package:elder_tree_mobile/src/journey_library_screen.dart';
 import 'package:elder_tree_mobile/src/screens.dart';
+import 'package:elder_tree_mobile/src/root_shell.dart';
 import 'package:elder_tree_mobile/src/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -40,6 +41,7 @@ void main() {
       final controller = label == 'journey'
           ? journeyController(JourneyApi())
           : (AppController()..offlineDemo = true);
+      controller.loading = false;
       if (label == 'setup') {
         controller.offlineDemo = false;
         controller.context = const AppContextModel(
@@ -110,12 +112,23 @@ void main() {
                 ),
               ),
             ),
-            home: label == 'journey'
+            home: label.startsWith('core-')
+                ? RootShell(
+                    controller: controller,
+                    accountEmail: 'preview@example.invalid',
+                    onSignOut: () async {},
+                    initialIndex: label.contains('home')
+                        ? 0
+                        : label.contains('companion')
+                        ? 3
+                        : 5,
+                  )
+                : label == 'journey'
                 ? JourneyLibraryScreen(controller: controller)
                 : label == 'setup'
                 ? CircleWelcomeScreen(controller: controller)
                 : Scaffold(
-                    appBar: AppBar(title: const Text('同行成林 · 示範畫面')),
+                    appBar: AppBar(title: const Text('樹伴 · 示範畫面')),
                     body: CircleScreen(controller: controller),
                   ),
           ),
@@ -138,7 +151,9 @@ void main() {
       }
 
       await capture(
-        label == 'journey'
+        label.startsWith('core-')
+            ? label
+            : label == 'journey'
             ? 'journey-records'
             : label == 'setup'
             ? 'circle-welcome'
