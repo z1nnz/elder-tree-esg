@@ -4,6 +4,8 @@
 
 追蹤議題：[GitHub #45](https://github.com/z1nnz/elder-tree-esg/issues/45)
 
+合併請求：[GitHub #46](https://github.com/z1nnz/elder-tree-esg/pull/46)
+
 工作分支：`codex/relay-timer-witness`
 
 ## 問題與主要負責人決策
