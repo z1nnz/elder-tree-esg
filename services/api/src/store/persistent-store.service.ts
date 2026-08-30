@@ -82,6 +82,10 @@ import {
   advanceJourneyWitness,
   type JourneyWitnessRequirements,
 } from "./journey-witness";
+import {
+  closeExplorationSessionWithPrivacyClear,
+  expireStaleExplorationSessions,
+} from "./exploration-privacy-cleanup.service";
 
 const TASK_SEEDS = [
   {
@@ -3823,25 +3827,9 @@ export class PersistentStoreService {
 
   async getExplorationState(firebaseUid: string): Promise<ExplorationState> {
     const active = await this.getActiveUser(firebaseUid);
-    const expirationCutoff = new Date(
-      this.clock.now().getTime() - 4 * 60 * 60 * 1000,
-    );
-    await this.prisma.explorationSession.updateMany({
-      where: {
-        userId: active.id,
-        householdId: active.activeHouseholdId,
-        status: "ACTIVE",
-        startedAt: { lt: expirationCutoff },
-      },
-      data: {
-        status: "EXPIRED",
-        endedAt: this.clock.now(),
-        lastLatitude: null,
-        lastLongitude: null,
-        lastAccuracy: null,
-        lastStepTotal: null,
-        stepSource: null,
-      },
+    await expireStaleExplorationSessions(this.prisma, this.clock.now(), {
+      userId: active.id,
+      householdId: active.activeHouseholdId,
     });
     const [progress, latestReceipt, routes, activeSession] = await Promise.all([
       this.prisma.explorationProgress.findUnique({
@@ -4030,23 +4018,9 @@ export class PersistentStoreService {
     if (!route)
       throw new NotFoundException("Published exploration route not found");
     const now = this.clock.now();
-    const expirationCutoff = new Date(now.getTime() - 4 * 60 * 60 * 1000);
-    await this.prisma.explorationSession.updateMany({
-      where: {
-        userId: active.id,
-        householdId: active.activeHouseholdId,
-        status: "ACTIVE",
-        startedAt: { lt: expirationCutoff },
-      },
-      data: {
-        status: "EXPIRED",
-        endedAt: now,
-        lastLatitude: null,
-        lastLongitude: null,
-        lastAccuracy: null,
-        lastStepTotal: null,
-        stepSource: null,
-      },
+    await expireStaleExplorationSessions(this.prisma, now, {
+      userId: active.id,
+      householdId: active.activeHouseholdId,
     });
     const current = await this.prisma.explorationSession.findFirst({
       where: {
@@ -4069,18 +4043,12 @@ export class PersistentStoreService {
       };
     }
     if (current) {
-      await this.prisma.explorationSession.update({
-        where: { id: current.id },
-        data: {
-          status: "ENDED",
-          endedAt: now,
-          lastLatitude: null,
-          lastLongitude: null,
-          lastAccuracy: null,
-          lastStepTotal: null,
-          stepSource: null,
-        },
-      });
+      await closeExplorationSessionWithPrivacyClear(
+        this.prisma,
+        current.id,
+        now,
+        { status: "ENDED" },
+      );
     }
     const session = await this.prisma.explorationSession.create({
       data: {
@@ -4149,26 +4117,10 @@ export class PersistentStoreService {
       ? (event.stepSource! as ExplorationStepSource)
       : null;
     const active = await this.getActiveUser(firebaseUid);
-    const expirationCutoff = new Date(
-      this.clock.now().getTime() - 4 * 60 * 60 * 1000,
-    );
-    await this.prisma.explorationSession.updateMany({
-      where: {
-        id: sessionId,
-        userId: active.id,
-        householdId: active.activeHouseholdId,
-        status: "ACTIVE",
-        startedAt: { lt: expirationCutoff },
-      },
-      data: {
-        status: "EXPIRED",
-        endedAt: this.clock.now(),
-        lastLatitude: null,
-        lastLongitude: null,
-        lastAccuracy: null,
-        lastStepTotal: null,
-        stepSource: null,
-      },
+    await expireStaleExplorationSessions(this.prisma, this.clock.now(), {
+      id: sessionId,
+      userId: active.id,
+      householdId: active.activeHouseholdId,
     });
     const occurredAt = new Date(event.occurredAt);
     if (Number.isNaN(occurredAt.getTime())) {
@@ -4555,18 +4507,12 @@ export class PersistentStoreService {
     });
     if (!session) throw new NotFoundException("Exploration session not found");
     if (session.status === "ACTIVE") {
-      await this.prisma.explorationSession.update({
-        where: { id: session.id },
-        data: {
-          status: "ENDED",
-          endedAt: this.clock.now(),
-          lastLatitude: null,
-          lastLongitude: null,
-          lastAccuracy: null,
-          lastStepTotal: null,
-          stepSource: null,
-        },
-      });
+      await closeExplorationSessionWithPrivacyClear(
+        this.prisma,
+        session.id,
+        this.clock.now(),
+        { status: "ENDED" },
+      );
     }
     return this.getExplorationState(firebaseUid);
   }

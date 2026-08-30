@@ -4,11 +4,76 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from "@nestjs/common";
+import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../database/prisma.service";
 import { ClockService } from "../time/clock.service";
 
 const EXPLORATION_SESSION_RETENTION_MS = 4 * 60 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 60 * 1000;
+
+const privacyClearData = (status: "ENDED" | "EXPIRED", endedAt: Date) => ({
+  status,
+  endedAt,
+  lastLatitude: null,
+  lastLongitude: null,
+  lastAccuracy: null,
+  lastStepTotal: null,
+  stepSource: null,
+});
+
+export async function closeExplorationSessionWithPrivacyClear(
+  prisma: PrismaService,
+  sessionId: string,
+  endedAt: Date,
+  options: {
+    status: "ENDED" | "EXPIRED";
+    startedBefore?: Date;
+  },
+) {
+  return prisma.$transaction(async (transaction) => {
+    await transaction.$executeRaw`
+      SELECT pg_advisory_xact_lock(hashtext(${`exploration-session:${sessionId}`}))
+    `;
+    return transaction.explorationSession.updateMany({
+      where: {
+        id: sessionId,
+        status: "ACTIVE",
+        ...(options.startedBefore
+          ? { startedAt: { lt: options.startedBefore } }
+          : {}),
+      },
+      data: privacyClearData(options.status, endedAt),
+    });
+  });
+}
+
+export async function expireStaleExplorationSessions(
+  prisma: PrismaService,
+  now: Date,
+  scope?: Prisma.ExplorationSessionWhereInput,
+) {
+  const cutoff = new Date(now.getTime() - EXPLORATION_SESSION_RETENTION_MS);
+  const sessions = await prisma.explorationSession.findMany({
+    where: {
+      AND: [
+        scope ?? {},
+        { status: "ACTIVE", startedAt: { lt: cutoff } },
+      ],
+    },
+    select: { id: true },
+  });
+  let count = 0;
+  for (const session of sessions) {
+    const result = await closeExplorationSessionWithPrivacyClear(
+      prisma,
+      session.id,
+      now,
+      { status: "EXPIRED", startedBefore: cutoff },
+    );
+    count += result.count;
+  }
+  return { count };
+}
 
 @Injectable()
 export class ExplorationPrivacyCleanupService
@@ -38,24 +103,10 @@ export class ExplorationPrivacyCleanupService
   }
 
   async expireStaleSessions() {
-    const cutoff = new Date(
-      this.clock.now().getTime() - EXPLORATION_SESSION_RETENTION_MS,
+    return expireStaleExplorationSessions(
+      this.prisma,
+      this.clock.now(),
     );
-    return this.prisma.explorationSession.updateMany({
-      where: {
-        status: "ACTIVE",
-        startedAt: { lt: cutoff },
-      },
-      data: {
-        status: "EXPIRED",
-        endedAt: this.clock.now(),
-        lastLatitude: null,
-        lastLongitude: null,
-        lastAccuracy: null,
-        lastStepTotal: null,
-        stepSource: null,
-      },
-    });
   }
 
   private async runCleanup(): Promise<void> {
