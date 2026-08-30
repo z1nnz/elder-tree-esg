@@ -7,6 +7,7 @@ import 'package:elder_tree_mobile/src/app_locale.dart';
 import 'package:elder_tree_mobile/src/circle_welcome_screen.dart';
 import 'package:elder_tree_mobile/src/models.dart';
 import 'package:elder_tree_mobile/src/journey_library_screen.dart';
+import 'package:elder_tree_mobile/src/journey_witness_progress.dart';
 import 'package:elder_tree_mobile/src/screens.dart';
 import 'package:elder_tree_mobile/src/root_shell.dart';
 import 'package:elder_tree_mobile/src/theme.dart';
@@ -133,6 +134,55 @@ void main() {
                 ? JourneyLibraryScreen(controller: controller)
                 : label == 'setup'
                 ? CircleWelcomeScreen(controller: controller)
+                : label == 'journey-witness'
+                ? Scaffold(
+                    appBar: AppBar(title: const Text('樹伴 · 場域同行')),
+                    body: const SingleChildScrollView(
+                      padding: EdgeInsets.fromLTRB(18, 20, 18, 32),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '大安森林公園同行篇章',
+                            style: TextStyle(
+                              color: forestDark,
+                              fontSize: 24,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          SizedBox(height: 7),
+                          Text(
+                            '在場域內連續散步，三項條件都完成後，才會為樹伴圈留下這次真實足跡。',
+                            style: TextStyle(
+                              color: Color(0xFF5D6C63),
+                              height: 1.5,
+                            ),
+                          ),
+                          SizedBox(height: 16),
+                          JourneyWitnessProgress(
+                            witness: ExplorationJourneyWitnessModel(
+                              tier: 'COMPOSITE',
+                              status: 'IN_PROGRESS',
+                              dwellSeconds: 120,
+                              minimumDwellSeconds: 180,
+                              stepCount: 160,
+                              minimumStepCount: 240,
+                              distanceMeters: 210,
+                              minimumDistanceMeters: 300,
+                              stepSource: 'APPLE_HEALTH',
+                              firstInsideAt: null,
+                              lastInsideAt: null,
+                              completedAt: null,
+                            ),
+                            healthAccessLabel:
+                                '健康步數已準備；只讀取並上傳這趟探索的步數總量。',
+                          ),
+                          SizedBox(height: 14),
+                          _CaptureEvidenceBoundary(),
+                        ],
+                      ),
+                    ),
+                  )
                 : Scaffold(
                     appBar: AppBar(title: const Text('樹伴 · 示範畫面')),
                     body: CircleScreen(controller: controller),
@@ -163,6 +213,8 @@ void main() {
             ? 'journey-records'
             : label == 'setup'
             ? 'circle-welcome'
+            : label == 'journey-witness'
+            ? 'journey-witness-progress'
             : 'circle-$label',
       );
       if (label == 'journey') {
@@ -219,4 +271,24 @@ void main() {
     },
     skip: output.isEmpty || fontPath.isEmpty,
   );
+}
+
+class _CaptureEvidenceBoundary extends StatelessWidget {
+  const _CaptureEvidenceBoundary();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7E2),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: const Text(
+        '這項見證只代表裝置回報的步數與伺服器接受的位置、時間條件共同成立，不代表醫療效果或完全排除裝置造假。',
+        style: TextStyle(color: Color(0xFF635B49), height: 1.5),
+      ),
+    );
+  }
 }

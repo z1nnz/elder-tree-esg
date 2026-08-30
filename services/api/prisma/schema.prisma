@@ -98,6 +98,11 @@ enum ExplorationSessionStatus {
   EXPIRED
 }
 
+enum ExplorationStepSource {
+  APPLE_HEALTH
+  HEALTH_CONNECT
+}
+
 enum RadarMissionPublicationStatus {
   DRAFT
   PUBLISHED
@@ -147,6 +152,7 @@ model User {
   reviews                  VerificationRun[]               @relation("VerificationReviewer")
   explorationProgress      ExplorationProgress[]
   explorationSessions      ExplorationSession[]
+  explorationWitnesses     ExplorationQuestWitness[]
   explorationAwards        ExplorationRouteAward[]
   locationReceipts         LocationEventReceipt[]
   questUnlocks             QuestUnlock[]
@@ -182,6 +188,7 @@ model Household {
   invites               HouseholdInvite[]
   explorationProgress   ExplorationProgress[]
   explorationSessions   ExplorationSession[]
+  explorationWitnesses  ExplorationQuestWitness[]
   explorationAwards     ExplorationRouteAward[]
   locationReceipts      LocationEventReceipt[]
   questUnlocks          QuestUnlock[]
@@ -375,6 +382,7 @@ model MapQuest {
   task                 Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
   route                ExplorationRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
   unlocks              QuestUnlock[]
+  witnesses            ExplorationQuestWitness[]
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
 
@@ -411,12 +419,15 @@ model ExplorationSession {
   lastLongitude  Float?
   lastAccuracy   Float?
   lastEventAt    DateTime?
+  lastStepTotal  Int?
+  stepSource     ExplorationStepSource?
   startedAt      DateTime                 @default(now())
   endedAt        DateTime?
   route          ExplorationRoute         @relation(fields: [routeId], references: [id], onDelete: Cascade)
   user           User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
   household      Household                @relation(fields: [householdId], references: [id], onDelete: Cascade)
   receipts       LocationEventReceipt[]
+  witnesses      ExplorationQuestWitness[]
 
   @@index([userId, householdId, status])
   @@index([routeId, status])
@@ -458,6 +469,8 @@ model LocationEventReceipt {
   householdId    String
   coarseCell     String
   distanceMeters Int
+  stepTotal      Int?
+  stepSource     ExplorationStepSource?
   occurredAt     DateTime
   user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   household      Household           @relation(fields: [householdId], references: [id], onDelete: Cascade)
@@ -465,6 +478,32 @@ model LocationEventReceipt {
   createdAt      DateTime            @default(now())
 
   @@index([sessionId, occurredAt])
+}
+
+model ExplorationQuestWitness {
+  id             String                @id @default(uuid())
+  sessionId      String
+  questId        String
+  userId         String
+  householdId    String
+  witnessTier    ActionWitnessTier     @default(COMPOSITE)
+  dwellSeconds   Int                   @default(0)
+  stepCount      Int                   @default(0)
+  distanceMeters Int                   @default(0)
+  firstInsideAt  DateTime
+  lastInsideAt   DateTime
+  stepSource     ExplorationStepSource?
+  completedAt    DateTime?
+  session        ExplorationSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  quest          MapQuest              @relation(fields: [questId], references: [id], onDelete: Cascade)
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  household      Household             @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  @@unique([sessionId, questId])
+  @@index([questId, userId, householdId, completedAt])
+  @@index([userId, householdId, createdAt])
 }
 
 model QuestUnlock {

@@ -1122,6 +1122,71 @@ class ImpactSummaryModel {
       );
 }
 
+class ExplorationJourneyWitnessModel {
+  const ExplorationJourneyWitnessModel({
+    required this.tier,
+    required this.status,
+    required this.dwellSeconds,
+    required this.minimumDwellSeconds,
+    required this.stepCount,
+    required this.minimumStepCount,
+    required this.distanceMeters,
+    required this.minimumDistanceMeters,
+    required this.stepSource,
+    required this.firstInsideAt,
+    required this.lastInsideAt,
+    required this.completedAt,
+  });
+
+  final String tier;
+  final String status;
+  final int dwellSeconds;
+  final int minimumDwellSeconds;
+  final int stepCount;
+  final int minimumStepCount;
+  final int distanceMeters;
+  final int minimumDistanceMeters;
+  final String? stepSource;
+  final DateTime? firstInsideAt;
+  final DateTime? lastInsideAt;
+  final DateTime? completedAt;
+
+  factory ExplorationJourneyWitnessModel.fromJson(Map<String, dynamic> json) =>
+      ExplorationJourneyWitnessModel(
+        tier: json['tier'] as String,
+        status: json['status'] as String,
+        dwellSeconds: json['dwellSeconds'] as int,
+        minimumDwellSeconds: json['minimumDwellSeconds'] as int,
+        stepCount: json['stepCount'] as int,
+        minimumStepCount: json['minimumStepCount'] as int,
+        distanceMeters: json['distanceMeters'] as int,
+        minimumDistanceMeters: json['minimumDistanceMeters'] as int,
+        stepSource: json['stepSource'] as String?,
+        firstInsideAt: _nullableDateTime(json['firstInsideAt']),
+        lastInsideAt: _nullableDateTime(json['lastInsideAt']),
+        completedAt: _nullableDateTime(json['completedAt']),
+      );
+
+  double get dwellProgress =>
+      _boundedProgress(value: dwellSeconds, requirement: minimumDwellSeconds);
+
+  double get stepProgress =>
+      _boundedProgress(value: stepCount, requirement: minimumStepCount);
+
+  double get distanceProgress => _boundedProgress(
+    value: distanceMeters,
+    requirement: minimumDistanceMeters,
+  );
+
+  static DateTime? _nullableDateTime(Object? value) =>
+      value is String ? DateTime.parse(value) : null;
+
+  static double _boundedProgress({
+    required int value,
+    required int requirement,
+  }) => requirement <= 0 ? 0 : (value / requirement).clamp(0, 1).toDouble();
+}
+
 class ExplorationQuestModel {
   const ExplorationQuestModel({
     required this.id,
@@ -1133,6 +1198,10 @@ class ExplorationQuestModel {
     required this.accessibilityTags,
     required this.title,
     required this.description,
+    required this.verificationMode,
+    required this.minimumSeconds,
+    required this.minimumStepCount,
+    required this.minimumDistanceMeters,
     required this.triggerType,
     required this.latitude,
     required this.longitude,
@@ -1140,6 +1209,7 @@ class ExplorationQuestModel {
     required this.unlockDistanceMeters,
     required this.unlocked,
     required this.completed,
+    required this.journeyWitness,
   });
 
   final String id;
@@ -1151,6 +1221,10 @@ class ExplorationQuestModel {
   final List<String> accessibilityTags;
   final String title;
   final String description;
+  final String verificationMode;
+  final int? minimumSeconds;
+  final int? minimumStepCount;
+  final int? minimumDistanceMeters;
   final String triggerType;
   final double? latitude;
   final double? longitude;
@@ -1158,6 +1232,7 @@ class ExplorationQuestModel {
   final int? unlockDistanceMeters;
   final bool unlocked;
   final bool completed;
+  final ExplorationJourneyWitnessModel? journeyWitness;
 
   factory ExplorationQuestModel.fromJson(Map<String, dynamic> json) =>
       ExplorationQuestModel(
@@ -1170,6 +1245,10 @@ class ExplorationQuestModel {
         accessibilityTags: (json['accessibilityTags'] as List).cast<String>(),
         title: json['title'] as String,
         description: json['description'] as String,
+        verificationMode: json['verificationMode'] as String? ?? 'SELF_CHECK',
+        minimumSeconds: json['minimumSeconds'] as int?,
+        minimumStepCount: json['minimumStepCount'] as int?,
+        minimumDistanceMeters: json['minimumDistanceMeters'] as int?,
         triggerType: json['triggerType'] as String,
         latitude: (json['latitude'] as num?)?.toDouble(),
         longitude: (json['longitude'] as num?)?.toDouble(),
@@ -1177,6 +1256,11 @@ class ExplorationQuestModel {
         unlockDistanceMeters: json['unlockDistanceMeters'] as int?,
         unlocked: json['unlocked'] as bool,
         completed: json['completed'] as bool,
+        journeyWitness: json['journeyWitness'] == null
+            ? null
+            : ExplorationJourneyWitnessModel.fromJson(
+                json['journeyWitness'] as Map<String, dynamic>,
+              ),
       );
 }
 
@@ -1186,6 +1270,8 @@ class ExplorationSessionModel {
     required this.routeId,
     required this.status,
     required this.distanceMeters,
+    required this.lastStepTotal,
+    required this.stepSource,
     required this.startedAt,
     required this.lastEventAt,
   });
@@ -1194,6 +1280,8 @@ class ExplorationSessionModel {
   final String routeId;
   final String status;
   final int distanceMeters;
+  final int? lastStepTotal;
+  final String? stepSource;
   final DateTime startedAt;
   final DateTime? lastEventAt;
 
@@ -1203,6 +1291,8 @@ class ExplorationSessionModel {
         routeId: json['routeId'] as String,
         status: json['status'] as String,
         distanceMeters: json['distanceMeters'] as int,
+        lastStepTotal: json['lastStepTotal'] as int?,
+        stepSource: json['stepSource'] as String?,
         startedAt: DateTime.parse(json['startedAt'] as String),
         lastEventAt: json['lastEventAt'] == null
             ? null

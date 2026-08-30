@@ -1806,6 +1806,216 @@ describeWithDatabase("PersistentStoreService", () => {
   );
 
   it(
+    "completes a composite journey witness only from consecutive in-area location, dwell, and health steps",
+    async () => {
+      const explorerUid = `integration-journey-witness-${randomUUID()}`;
+      const routeId = randomUUID();
+      const taskId = randomUUID();
+      createdFirebaseUids.add(explorerUid);
+      createdRouteIds.add(routeId);
+      createdTaskIds.add(taskId);
+      let now = new Date("2026-08-30T01:00:00.000Z");
+      const explorationStore = new PersistentStoreService(prisma, {
+        now: () => now,
+      } as ClockService);
+      const center = { latitude: 25.0338, longitude: 121.5357 };
+      const westInside = { ...center, longitude: center.longitude - 0.001 };
+      const westOutside = { ...center, longitude: center.longitude - 0.002 };
+
+      await prisma.explorationRoute.create({
+        data: {
+          id: routeId,
+          slug: `integration-journey-witness-${randomUUID()}`,
+          name: "連續場域見證測試路線",
+          description: "驗證停留、步數與場域內距離必須同時完成。",
+          badgeName: "完整行程葉",
+          badgeAssetKey: "composite-journey-leaf",
+          status: "PUBLISHED",
+          publishedAt: now,
+          quests: {
+            create: {
+              sequence: 1,
+              locationName: "測試步行場域",
+              category: "WALK",
+              triggerType: "GEOFENCE",
+              latitude: center.latitude,
+              longitude: center.longitude,
+              radiusMeters: 150,
+              task: {
+                create: {
+                  id: taskId,
+                  title: "完成一段場域內同行",
+                  description: "在場域內連續停留並完成步數與距離。",
+                  verificationMode: "LOCATION_CHECK_IN",
+                  verificationRule: {
+                    source: "exploration",
+                    minimumSeconds: 60,
+                    minimumStepCount: 100,
+                    minimumDistanceMeters: 200,
+                    maximumSampleGapSeconds: 120,
+                    stepSources: ["APPLE_HEALTH", "HEALTH_CONNECT"],
+                    excludesManualEntries: true,
+                  },
+                  growthPoints: 9,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const treeBefore = await explorationStore.getTree(explorerUid);
+      const session = await explorationStore.startExplorationSession(
+        explorerUid,
+        routeId,
+      );
+      const record = async (
+        eventKey: string,
+        location: { latitude: number; longitude: number },
+        stepCountSinceStart: number,
+      ) =>
+        explorationStore.recordExplorationSessionEvent(
+          explorerUid,
+          session.id,
+          {
+            eventKey,
+            ...location,
+            accuracyMeters: 8,
+            occurredAt: now.toISOString(),
+            stepCountSinceStart,
+            stepSource: "APPLE_HEALTH",
+            stepsExcludeManualEntries: true,
+          },
+        );
+
+      await record(`outside-${randomUUID()}`, westOutside, 0);
+      expect(
+        await prisma.explorationQuestWitness.count({
+          where: { sessionId: session.id },
+        }),
+      ).toBe(0);
+
+      now = new Date(now.getTime() + 60_000);
+      await record(`inside-anchor-${randomUUID()}`, westInside, 20);
+      let state = await explorationStore.getExplorationState(explorerUid);
+      expect(state.routes[0]?.quests[0]?.journeyWitness).toMatchObject({
+        status: "IN_PROGRESS",
+        dwellSeconds: 0,
+        stepCount: 0,
+        distanceMeters: 0,
+      });
+      const assignment = (await explorationStore.listTasks(explorerUid)).find(
+        (task) => task.title === "完成一段場域內同行",
+      );
+      await expect(
+        explorationStore.completeTask(explorerUid, assignment!.id),
+      ).rejects.toThrow("require location, dwell, and step evidence");
+
+      now = new Date(now.getTime() + 30_000);
+      await record(`inside-progress-${randomUUID()}`, center, 70);
+      state = await explorationStore.getExplorationState(explorerUid);
+      expect(state.routes[0]?.quests[0]?.journeyWitness).toMatchObject({
+        status: "IN_PROGRESS",
+        dwellSeconds: 30,
+        stepCount: 50,
+      });
+      const firstDistance =
+        state.routes[0]?.quests[0]?.journeyWitness?.distanceMeters ?? 0;
+      expect(firstDistance).toBeGreaterThanOrEqual(100);
+
+      now = new Date(now.getTime() + 121_000);
+      await record(`inside-gap-${randomUUID()}`, westInside, 120);
+      now = new Date(now.getTime() + 30_000);
+      await record(`outside-again-${randomUUID()}`, westOutside, 170);
+      now = new Date(now.getTime() + 30_000);
+      await record(`reentry-anchor-${randomUUID()}`, westInside, 220);
+      state = await explorationStore.getExplorationState(explorerUid);
+      expect(state.routes[0]?.quests[0]?.journeyWitness).toMatchObject({
+        dwellSeconds: 30,
+        stepCount: 50,
+        distanceMeters: firstDistance,
+      });
+
+      now = new Date(now.getTime() + 10_000);
+      await expect(
+        record(`implausible-steps-${randomUUID()}`, center, 400),
+      ).rejects.toThrow("step increase is too fast");
+      state = await explorationStore.getExplorationState(explorerUid);
+      expect(state.activeSession?.lastStepTotal).toBe(220);
+      expect(state.routes[0]?.quests[0]?.journeyWitness?.stepCount).toBe(50);
+
+      now = new Date(now.getTime() + 30_000);
+      const completionEventKey = `inside-complete-${randomUUID()}`;
+      const completed = await record(completionEventKey, center, 270);
+      expect(completed.routes[0]?.quests[0]?.journeyWitness).toMatchObject({
+        tier: "COMPOSITE",
+        status: "COMPLETED",
+        dwellSeconds: 60,
+        stepCount: 100,
+      });
+      expect(
+        completed.routes[0]?.quests[0]?.journeyWitness?.distanceMeters,
+      ).toBeGreaterThanOrEqual(200);
+      expect(completed.routes[0]?.quests[0]?.completed).toBe(true);
+      expect(completed.routes[0]?.badgeAwarded).toBe(true);
+
+      const duplicate = await record(completionEventKey, center, 270);
+      expect(duplicate.duplicate).toBe(true);
+      expect((await explorationStore.getTree(explorerUid)).growthPoints).toBe(
+        treeBefore.growthPoints + 9,
+      );
+      expect(
+        await prisma.growthEntry.count({
+          where: { idempotencyKey: `assignment:${assignment!.id}` },
+        }),
+      ).toBe(1);
+
+      await explorationStore.endExplorationSession(explorerUid, session.id);
+      const ended = await prisma.explorationSession.findUniqueOrThrow({
+        where: { id: session.id },
+      });
+      expect(ended.lastLatitude).toBeNull();
+      expect(ended.lastLongitude).toBeNull();
+      const receipts = await prisma.locationEventReceipt.findMany({
+        where: { sessionId: session.id },
+      });
+      expect(receipts.every((receipt) => receipt.coarseCell.length > 0)).toBe(
+        true,
+      );
+      expect(receipts.every((receipt) => receipt.stepSource === "APPLE_HEALTH"))
+        .toBe(true);
+
+      now = new Date(now.getTime() + 60_000);
+      const laterSession = await explorationStore.startExplorationSession(
+        explorerUid,
+        routeId,
+      );
+      await explorationStore.recordExplorationSessionEvent(
+        explorerUid,
+        laterSession.id,
+        {
+          eventKey: `after-completion-${randomUUID()}`,
+          ...center,
+          accuracyMeters: 8,
+          occurredAt: now.toISOString(),
+          stepCountSinceStart: 0,
+          stepSource: "APPLE_HEALTH",
+          stepsExcludeManualEntries: true,
+        },
+      );
+      expect(
+        await prisma.explorationQuestWitness.count({
+          where: { sessionId: laterSession.id },
+        }),
+      ).toBe(0);
+      expect((await explorationStore.getTree(explorerUid)).growthPoints).toBe(
+        treeBefore.growthPoints + 9,
+      );
+    },
+    60_000,
+  );
+
+  it(
     "unlocks and completes radar missions idempotently per household",
     async () => {
       const radarUid = `integration-radar-${randomUUID()}`;

@@ -306,6 +306,9 @@ class ApiClient {
     required double longitude,
     required double accuracyMeters,
     required DateTime occurredAt,
+    int? stepCountSinceStart,
+    String? stepSource,
+    bool? stepsExcludeManualEntries,
   }) async {
     return ExplorationStateModel.fromJson(
       await _post('/exploration/sessions/$sessionId/events', {
@@ -314,6 +317,9 @@ class ApiClient {
         'longitude': longitude,
         'accuracyMeters': accuracyMeters,
         'occurredAt': occurredAt.toUtc().toIso8601String(),
+        'stepCountSinceStart': ?stepCountSinceStart,
+        'stepSource': ?stepSource,
+        'stepsExcludeManualEntries': ?stepsExcludeManualEntries,
       }),
     );
   }

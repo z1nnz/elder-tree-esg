@@ -38,9 +38,9 @@
 	<key>NSCameraUsageDescription</key>
 	<string>用來拍攝生活任務的完成證明。</string>
 	<key>NSHealthShareUsageDescription</key>
-	<string>取得你主動授權的步數與活動資料，以完成生活任務。</string>
+	<string>只讀取你主動授權的步數總量，用來完成需要停留、步數與距離的同行旅程；不讀取心率、睡眠或診斷資料。</string>
 	<key>NSHealthUpdateUsageDescription</key>
-	<string>樹伴不會寫入醫療資料，系統需要此說明以啟用健康資料整合。</string>
+	<string>樹伴不會寫入健康或醫療資料；此版本只申請讀取步數。</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>開發模式下連接同一網路中的樹伴服務與陪伴樹。</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
