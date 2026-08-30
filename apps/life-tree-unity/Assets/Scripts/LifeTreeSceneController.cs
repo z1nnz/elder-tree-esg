@@ -107,6 +107,8 @@ namespace TreeCompanion.LifeTree
 
         private void Awake()
         {
+            QualitySettings.vSyncCount = 0;
+            Application.targetFrameRate = 30;
             if (treeRoot != null)
             {
                 BindHierarchy(treeRoot);
