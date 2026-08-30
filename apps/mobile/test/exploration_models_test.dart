@@ -114,7 +114,10 @@ void main() {
       expect(state.activeSession?.stepSource, 'APPLE_HEALTH');
       expect(state.routes.single.badgeAwarded, isTrue);
       expect(state.quests.single.completed, isTrue);
-      expect(state.quests.single.verificationMode, 'LOCATION_CHECK_IN');
+      expect(
+        state.quests.single.verificationMode,
+        VerificationMode.locationCheckIn,
+      );
       expect(state.quests.single.journeyWitness?.dwellSeconds, 120);
       expect(state.quests.single.journeyWitness?.stepCount, 160);
       expect(state.quests.single.journeyWitness?.distanceMeters, 210);

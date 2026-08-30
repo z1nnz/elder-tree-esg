@@ -165,6 +165,7 @@ void main() {
 
       expect(controller.explorationLocationStatus, '定位已更新');
       expect(controller.journeyStepAccessState, JourneyStepAccessState.denied);
+      expect(controller.journeyStepAccessLabel, contains('無法形成三項同行見證'));
       expect(source.readCount, 0);
       expect(api.sentStepCount, isNull);
       expect(api.sentStepSource, isNull);

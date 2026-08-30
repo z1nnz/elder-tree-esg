@@ -1221,7 +1221,7 @@ class ExplorationQuestModel {
   final List<String> accessibilityTags;
   final String title;
   final String description;
-  final String verificationMode;
+  final VerificationMode verificationMode;
   final int? minimumSeconds;
   final int? minimumStepCount;
   final int? minimumDistanceMeters;
@@ -1245,7 +1245,7 @@ class ExplorationQuestModel {
         accessibilityTags: (json['accessibilityTags'] as List).cast<String>(),
         title: json['title'] as String,
         description: json['description'] as String,
-        verificationMode: json['verificationMode'] as String? ?? 'SELF_CHECK',
+        verificationMode: _verificationModeFromJson(json['verificationMode']),
         minimumSeconds: json['minimumSeconds'] as int?,
         minimumStepCount: json['minimumStepCount'] as int?,
         minimumDistanceMeters: json['minimumDistanceMeters'] as int?,

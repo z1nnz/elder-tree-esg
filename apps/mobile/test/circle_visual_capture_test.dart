@@ -174,8 +174,7 @@ void main() {
                               lastInsideAt: null,
                               completedAt: null,
                             ),
-                            healthAccessLabel:
-                                '健康步數已準備；只讀取並上傳這趟探索的步數總量。',
+                            healthAccessLabel: '健康步數已準備；只讀取並上傳這趟探索的步數總量。',
                           ),
                           SizedBox(height: 14),
                           _CaptureEvidenceBoundary(),

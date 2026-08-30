@@ -19,6 +19,7 @@ import { PrismaService } from "./database/prisma.service";
 import { PersistentStoreService } from "./store/persistent-store.service";
 import { CircleSettingsService } from "./store/circle-settings.service";
 import { JourneyLibraryService } from "./store/journey-library.service";
+import { ExplorationPrivacyCleanupService } from "./store/exploration-privacy-cleanup.service";
 import { ClockService } from "./time/clock.service";
 import { EvidenceStorageService } from "./evidence/evidence-storage.service";
 import { PhotoVerifierService } from "./evidence/photo-verifier.service";
@@ -52,6 +53,7 @@ import { LineMessagingService } from "./line/line-messaging.service";
     PersistentStoreService,
     CircleSettingsService,
     JourneyLibraryService,
+    ExplorationPrivacyCleanupService,
     {
       provide: APP_GUARD,
       useClass: ApiAuthGuard,

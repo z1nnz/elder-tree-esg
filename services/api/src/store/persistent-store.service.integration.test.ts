@@ -1821,6 +1821,7 @@ describeWithDatabase("PersistentStoreService", () => {
       const center = { latitude: 25.0338, longitude: 121.5357 };
       const westInside = { ...center, longitude: center.longitude - 0.001 };
       const westOutside = { ...center, longitude: center.longitude - 0.002 };
+      const farOutside = { ...center, longitude: center.longitude - 0.03 };
 
       await prisma.explorationRoute.create({
         data: {
@@ -1924,10 +1925,13 @@ describeWithDatabase("PersistentStoreService", () => {
       expect(firstDistance).toBeGreaterThanOrEqual(100);
 
       now = new Date(now.getTime() + 121_000);
-      await record(`inside-gap-${randomUUID()}`, westInside, 120);
-      now = new Date(now.getTime() + 30_000);
-      await record(`outside-again-${randomUUID()}`, westOutside, 170);
-      now = new Date(now.getTime() + 30_000);
+      const gapAnchor = await record(
+        `far-gap-anchor-${randomUUID()}`,
+        farOutside,
+        120,
+      );
+      expect(gapAnchor.acceptedDistanceMeters).toBe(0);
+      now = new Date(now.getTime() + 121_000);
       await record(`reentry-anchor-${randomUUID()}`, westInside, 220);
       state = await explorationStore.getExplorationState(explorerUid);
       expect(state.routes[0]?.quests[0]?.journeyWitness).toMatchObject({
@@ -1982,8 +1986,9 @@ describeWithDatabase("PersistentStoreService", () => {
       expect(receipts.every((receipt) => receipt.coarseCell.length > 0)).toBe(
         true,
       );
-      expect(receipts.every((receipt) => receipt.stepSource === "APPLE_HEALTH"))
-        .toBe(true);
+      expect(
+        receipts.every((receipt) => !receipt.coarseCell.includes(".")),
+      ).toBe(true);
 
       now = new Date(now.getTime() + 60_000);
       const laterSession = await explorationStore.startExplorationSession(

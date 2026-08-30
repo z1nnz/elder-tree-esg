@@ -4,10 +4,6 @@ ALTER TABLE "ExplorationSession"
 ADD COLUMN "lastStepTotal" INTEGER,
 ADD COLUMN "stepSource" "ExplorationStepSource";
 
-ALTER TABLE "LocationEventReceipt"
-ADD COLUMN "stepTotal" INTEGER,
-ADD COLUMN "stepSource" "ExplorationStepSource";
-
 CREATE TABLE "ExplorationQuestWitness" (
   "id" TEXT NOT NULL,
   "sessionId" TEXT NOT NULL,
@@ -33,6 +29,10 @@ CREATE TABLE "ExplorationQuestWitness" (
 
 CREATE UNIQUE INDEX "ExplorationQuestWitness_sessionId_questId_key"
 ON "ExplorationQuestWitness"("sessionId", "questId");
+
+CREATE UNIQUE INDEX "ExplorationQuestWitness_one_completion_per_circle_key"
+ON "ExplorationQuestWitness"("questId", "userId", "householdId")
+WHERE "completedAt" IS NOT NULL;
 
 CREATE INDEX "ExplorationQuestWitness_questId_userId_householdId_completedAt_idx"
 ON "ExplorationQuestWitness"("questId", "userId", "householdId", "completedAt");
@@ -63,7 +63,3 @@ ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "ExplorationSession"
 ADD CONSTRAINT "ExplorationSession_lastStepTotal_check"
 CHECK ("lastStepTotal" IS NULL OR "lastStepTotal" >= 0);
-
-ALTER TABLE "LocationEventReceipt"
-ADD CONSTRAINT "LocationEventReceipt_stepTotal_check"
-CHECK ("stepTotal" IS NULL OR "stepTotal" >= 0);

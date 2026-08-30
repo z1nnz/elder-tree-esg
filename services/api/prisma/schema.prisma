@@ -469,8 +469,6 @@ model LocationEventReceipt {
   householdId    String
   coarseCell     String
   distanceMeters Int
-  stepTotal      Int?
-  stepSource     ExplorationStepSource?
   occurredAt     DateTime
   user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   household      Household           @relation(fields: [householdId], references: [id], onDelete: Cascade)

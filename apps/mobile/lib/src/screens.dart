@@ -7844,7 +7844,7 @@ class _SensorCell extends StatelessWidget {
 
 String _questUnlockText(ExplorationQuestModel quest) {
   if (quest.completed) return '已完成，樹成長值已記錄';
-  if (quest.verificationMode == 'LOCATION_CHECK_IN') {
+  if (quest.verificationMode == VerificationMode.locationCheckIn) {
     if (quest.unlocked) return '已進入場域；保持定位，直到停留、步數與距離都完成';
     return '進入地標 ${quest.radiusMeters ?? 0} 公尺範圍後，開始三項同行見證';
   }
@@ -7998,7 +7998,7 @@ IconData _homeActionIcon(HomeNextActionKind? kind) => switch (kind) {
 IconData _questIcon(ExplorationQuestModel quest) {
   if (quest.completed) return Icons.check_rounded;
   if (!quest.unlocked) return Icons.lock_rounded;
-  if (quest.verificationMode == 'LOCATION_CHECK_IN') {
+  if (quest.verificationMode == VerificationMode.locationCheckIn) {
     return Icons.directions_walk_rounded;
   }
   if (quest.triggerType == 'DISTANCE') return Icons.route_rounded;

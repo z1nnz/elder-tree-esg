@@ -1083,7 +1083,8 @@ class AppController extends ChangeNotifier {
   ) async {
     final needsSteps = route.quests.any(
       (quest) =>
-          quest.verificationMode == 'LOCATION_CHECK_IN' && !quest.completed,
+          quest.verificationMode == VerificationMode.locationCheckIn &&
+          !quest.completed,
     );
     if (!needsSteps) {
       journeyStepAccessState = JourneyStepAccessState.notNeeded;
@@ -1107,7 +1108,8 @@ class AppController extends ChangeNotifier {
       if (route.id != routeId) continue;
       return route.quests.any(
         (quest) =>
-            quest.verificationMode == 'LOCATION_CHECK_IN' && !quest.completed,
+            quest.verificationMode == VerificationMode.locationCheckIn &&
+            !quest.completed,
       );
     }
     return false;
@@ -1118,7 +1120,7 @@ class AppController extends ChangeNotifier {
     JourneyStepAccessState.notRequested => '尚未詢問健康步數權限',
     JourneyStepAccessState.requesting => '正在詢問健康步數權限',
     JourneyStepAccessState.ready => '健康步數已準備；只上傳這趟的步數總量',
-    JourneyStepAccessState.denied => '未取得健康步數，位置探索仍可繼續',
+    JourneyStepAccessState.denied => '未取得健康步數；位置探索可繼續，但本篇章無法形成三項同行見證',
     JourneyStepAccessState.unavailable => '這台裝置目前無法提供健康步數',
     JourneyStepAccessState.readError => '暫時讀不到健康步數，下一個定位點會再試一次',
   };

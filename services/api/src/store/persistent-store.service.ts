@@ -188,14 +188,6 @@ const COOPERATIVE_ACTION_SEED = {
 const COOPERATIVE_CLAIM_DURATION_MS = 30 * 60 * 1000;
 const JOURNEY_WITNESS_MAX_SAMPLE_GAP_SECONDS = 120;
 
-function timerMinimumSeconds(rule: Prisma.JsonValue): number | null {
-  if (!rule || typeof rule !== "object" || Array.isArray(rule)) return null;
-  const value = (rule as Prisma.JsonObject).minimumSeconds;
-  return typeof value === "number" && Number.isInteger(value) && value > 0
-    ? value
-    : null;
-}
-
 function positiveWholeRuleValue(
   rule: Prisma.JsonValue,
   key: string,
@@ -205,6 +197,10 @@ function positiveWholeRuleValue(
   return typeof value === "number" && Number.isInteger(value) && value > 0
     ? value
     : null;
+}
+
+function timerMinimumSeconds(rule: Prisma.JsonValue): number | null {
+  return positiveWholeRuleValue(rule, "minimumSeconds");
 }
 
 function journeyWitnessRequirements(
@@ -4263,7 +4259,8 @@ export class PersistentStoreService {
         if (
           session.lastLatitude !== null &&
           session.lastLongitude !== null &&
-          session.lastEventAt
+          session.lastEventAt &&
+          elapsedSeconds <= JOURNEY_WITNESS_MAX_SAMPLE_GAP_SECONDS
         ) {
           const preciseDistance = distanceBetweenMeters(
             {
@@ -4324,8 +4321,6 @@ export class PersistentStoreService {
             householdId: active.activeHouseholdId,
             coarseCell,
             distanceMeters: acceptedDistanceMeters,
-            stepTotal,
-            stepSource,
             occurredAt,
           },
         });
@@ -4400,17 +4395,7 @@ export class PersistentStoreService {
             task: { verificationMode: VerificationMode.LOCATION_CHECK_IN },
           },
           include: {
-            task: {
-              include: {
-                assignments: {
-                  where: {
-                    userId: active.id,
-                    householdId: active.activeHouseholdId,
-                  },
-                  take: 1,
-                },
-              },
-            },
+            task: true,
             witnesses: {
               where: { sessionId: session.id },
               take: 1,
@@ -4418,10 +4403,6 @@ export class PersistentStoreService {
           },
         });
         for (const quest of journeyQuests) {
-          const currentAssignment = quest.task.assignments[0] ?? null;
-          if (currentAssignment?.status === AssignmentStatus.COMPLETED) {
-            continue;
-          }
           if (
             quest.latitude === null ||
             quest.longitude === null ||
@@ -4437,6 +4418,26 @@ export class PersistentStoreService {
               { latitude: event.latitude, longitude: event.longitude },
             ) <= quest.radiusMeters;
           if (!currentInside) continue;
+
+          await transaction.$executeRaw`
+            SELECT pg_advisory_xact_lock(hashtext(${`journey-witness:${quest.id}:${active.id}:${active.activeHouseholdId}`}))
+          `;
+          const assignment = await transaction.taskAssignment.findUnique({
+            where: {
+              taskId_userId_householdId: {
+                taskId: quest.taskId,
+                userId: active.id,
+                householdId: active.activeHouseholdId,
+              },
+            },
+            include: { task: true },
+          });
+          if (!assignment) {
+            throw new ConflictException(
+              "Journey witness assignment was not unlocked",
+            );
+          }
+          if (assignment.status === AssignmentStatus.COMPLETED) continue;
 
           const requirements = journeyWitnessRequirements(
             quest.task.verificationRule,
@@ -4503,21 +4504,6 @@ export class PersistentStoreService {
           }
           if (!completedAt) continue;
 
-          const assignment = await transaction.taskAssignment.findUnique({
-            where: {
-              taskId_userId_householdId: {
-                taskId: quest.taskId,
-                userId: active.id,
-                householdId: active.activeHouseholdId,
-              },
-            },
-            include: { task: true },
-          });
-          if (!assignment) {
-            throw new ConflictException(
-              "Journey witness assignment was not unlocked",
-            );
-          }
           await this.awardTaskGrowth(
             transaction,
             assignment,
