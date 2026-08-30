@@ -13,6 +13,8 @@ void main() {
           'routeId': 'route-1',
           'status': 'ACTIVE',
           'distanceMeters': 120,
+          'lastStepTotal': 84,
+          'stepSource': 'APPLE_HEALTH',
           'startedAt': '2026-07-06T05:00:00.000Z',
           'lastEventAt': '2026-07-06T05:02:00.000Z',
         },
@@ -38,6 +40,10 @@ void main() {
                 'accessibilityTags': ['待確認'],
                 'title': '聆聽自然',
                 'description': '停留三分鐘',
+                'verificationMode': 'LOCATION_CHECK_IN',
+                'minimumSeconds': 180,
+                'minimumStepCount': 240,
+                'minimumDistanceMeters': 300,
                 'triggerType': 'GEOFENCE',
                 'latitude': 25.0306,
                 'longitude': 121.5366,
@@ -45,6 +51,20 @@ void main() {
                 'unlockDistanceMeters': null,
                 'unlocked': true,
                 'completed': true,
+                'journeyWitness': {
+                  'tier': 'COMPOSITE',
+                  'status': 'IN_PROGRESS',
+                  'dwellSeconds': 120,
+                  'minimumDwellSeconds': 180,
+                  'stepCount': 160,
+                  'minimumStepCount': 240,
+                  'distanceMeters': 210,
+                  'minimumDistanceMeters': 300,
+                  'stepSource': 'APPLE_HEALTH',
+                  'firstInsideAt': '2026-07-06T05:00:00.000Z',
+                  'lastInsideAt': '2026-07-06T05:02:00.000Z',
+                  'completedAt': null,
+                },
               },
             ],
           },
@@ -90,8 +110,17 @@ void main() {
       });
 
       expect(state.activeSession?.distanceMeters, 120);
+      expect(state.activeSession?.lastStepTotal, 84);
+      expect(state.activeSession?.stepSource, 'APPLE_HEALTH');
       expect(state.routes.single.badgeAwarded, isTrue);
       expect(state.quests.single.completed, isTrue);
+      expect(
+        state.quests.single.verificationMode,
+        VerificationMode.locationCheckIn,
+      );
+      expect(state.quests.single.journeyWitness?.dwellSeconds, 120);
+      expect(state.quests.single.journeyWitness?.stepCount, 160);
+      expect(state.quests.single.journeyWitness?.distanceMeters, 210);
       expect(photo.capabilityEnabled, isFalse);
       expect(photo.capabilityReason, 'BLAZE_REQUIRED');
       expect(radar.missions.single.isUnlocked, isTrue);

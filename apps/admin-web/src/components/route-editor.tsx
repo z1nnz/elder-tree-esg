@@ -20,8 +20,10 @@ interface QuestDraft {
   sourceUrl: string;
   title: string;
   description: string;
-  verificationMode: "SELF_CHECK" | "TIMER";
+  verificationMode: "SELF_CHECK" | "TIMER" | "LOCATION_CHECK_IN";
   minimumSeconds: number;
+  minimumStepCount: number;
+  minimumDistanceMeters: number;
   growthPoints: number;
   triggerType: "GEOFENCE" | "DISTANCE";
   latitude: number;
@@ -40,6 +42,8 @@ const emptyQuest: QuestDraft = {
   description: "",
   verificationMode: "SELF_CHECK" as const,
   minimumSeconds: 180,
+  minimumStepCount: 300,
+  minimumDistanceMeters: 300,
   growthPoints: 5,
   triggerType: "GEOFENCE" as const,
   latitude: 25.0316,
@@ -164,6 +168,8 @@ export function RouteEditor({
       description: item.description,
       verificationMode: item.verificationMode,
       minimumSeconds: item.minimumSeconds ?? 180,
+      minimumStepCount: item.minimumStepCount ?? 300,
+      minimumDistanceMeters: item.minimumDistanceMeters ?? 300,
       growthPoints: item.growthPoints,
       triggerType: item.triggerType,
       latitude: item.latitude ?? 25.0316,
@@ -202,7 +208,18 @@ export function RouteEditor({
         description: quest.description,
         verificationMode: quest.verificationMode,
         minimumSeconds:
-          quest.verificationMode === "TIMER" ? quest.minimumSeconds : null,
+          quest.verificationMode === "TIMER" ||
+          quest.verificationMode === "LOCATION_CHECK_IN"
+            ? quest.minimumSeconds
+            : null,
+        minimumStepCount:
+          quest.verificationMode === "LOCATION_CHECK_IN"
+            ? quest.minimumStepCount
+            : null,
+        minimumDistanceMeters:
+          quest.verificationMode === "LOCATION_CHECK_IN"
+            ? quest.minimumDistanceMeters
+            : null,
         growthPoints: quest.growthPoints,
         triggerType: quest.triggerType,
         latitude: quest.triggerType === "GEOFENCE" ? quest.latitude : null,
@@ -390,7 +407,10 @@ export function RouteEditor({
                         | "DISTANCE",
                     })
                   }
-                  disabled={selected.status !== "DRAFT"}
+                  disabled={
+                    selected.status !== "DRAFT" ||
+                    quest.verificationMode === "LOCATION_CHECK_IN"
+                  }
                 >
                   <option value="GEOFENCE">地標範圍</option>
                   <option value="DISTANCE">累積距離</option>
@@ -405,13 +425,20 @@ export function RouteEditor({
                       ...quest,
                       verificationMode: event.target.value as
                         | "SELF_CHECK"
-                        | "TIMER",
+                        | "TIMER"
+                        | "LOCATION_CHECK_IN",
+                      ...(event.target.value === "LOCATION_CHECK_IN"
+                        ? { triggerType: "GEOFENCE" as const }
+                        : {}),
                     })
                   }
                   disabled={selected.status !== "DRAFT"}
                 >
                   <option value="SELF_CHECK">自我確認</option>
                   <option value="TIMER">計時</option>
+                  <option value="LOCATION_CHECK_IN">
+                    場域行程見證
+                  </option>
                 </select>
               </label>
             </div>
@@ -470,6 +497,67 @@ export function RouteEditor({
                   disabled={selected.status !== "DRAFT"}
                 />
               </label>
+            ) : null}
+            {quest.verificationMode === "LOCATION_CHECK_IN" ? (
+              <fieldset className="form-section">
+                <legend>場域行程見證門檻</legend>
+                <p className="form-help">
+                  參與者必須同時達成場域內連續停留、健康步數與場域內移動距離；樣本中斷或離開範圍都不補算。
+                </p>
+                <div className="form-pair">
+                  <label>
+                    最低停留秒數
+                    <input
+                      type="number"
+                      min={30}
+                      max={3600}
+                      value={quest.minimumSeconds}
+                      onChange={(event) =>
+                        setQuest({
+                          ...quest,
+                          minimumSeconds: Number(event.target.value),
+                        })
+                      }
+                      disabled={selected.status !== "DRAFT"}
+                    />
+                  </label>
+                  <label>
+                    最低健康步數
+                    <input
+                      type="number"
+                      min={50}
+                      max={20000}
+                      value={quest.minimumStepCount}
+                      onChange={(event) =>
+                        setQuest({
+                          ...quest,
+                          minimumStepCount: Number(event.target.value),
+                        })
+                      }
+                      disabled={selected.status !== "DRAFT"}
+                    />
+                  </label>
+                </div>
+                <label>
+                  最低場域內距離（公尺）
+                  <input
+                    type="number"
+                    min={20}
+                    max={20000}
+                    value={quest.minimumDistanceMeters}
+                    onChange={(event) =>
+                      setQuest({
+                        ...quest,
+                        minimumDistanceMeters: Number(event.target.value),
+                      })
+                    }
+                    disabled={selected.status !== "DRAFT"}
+                  />
+                </label>
+                <p className="form-help">
+                  手機只在包含此類篇章的路線詢問健康步數讀取權限。試辦路線應另備不需健康資料的替代篇章，避免排除無法授權或不便步行的人。
+                </p>
+              </fieldset>
             ) : null}
             {quest.triggerType === "GEOFENCE" ? (
               <div className="form-pair">

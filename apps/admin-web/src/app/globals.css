@@ -2216,6 +2216,30 @@ body {
   background: white;
 }
 
+.form-section {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid rgba(34, 105, 64, 0.18);
+  border-radius: 12px;
+  background: #f7fbf6;
+}
+
+.form-section legend {
+  padding: 0 6px;
+  color: #245737;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.form-help {
+  margin: 0;
+  color: #5d6b62;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
 .template-strip {
   display: flex;
   flex-wrap: wrap;

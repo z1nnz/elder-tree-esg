@@ -427,8 +427,10 @@ export interface ExplorationQuest {
   sourceUrl: string | null;
   title: string;
   description: string;
-  verificationMode: "SELF_CHECK" | "TIMER";
+  verificationMode: "SELF_CHECK" | "TIMER" | "LOCATION_CHECK_IN";
   minimumSeconds: number | null;
+  minimumStepCount: number | null;
+  minimumDistanceMeters: number | null;
   growthPoints: number;
   triggerType: "DISTANCE" | "GEOFENCE";
   latitude: number | null;
@@ -437,6 +439,24 @@ export interface ExplorationQuest {
   unlockDistanceMeters: number | null;
   unlocked: boolean;
   completed: boolean;
+  journeyWitness: ExplorationJourneyWitnessSummary | null;
+}
+
+export type ExplorationStepSource = "APPLE_HEALTH" | "HEALTH_CONNECT";
+
+export interface ExplorationJourneyWitnessSummary {
+  tier: "COMPOSITE";
+  status: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
+  dwellSeconds: number;
+  minimumDwellSeconds: number;
+  stepCount: number;
+  minimumStepCount: number;
+  distanceMeters: number;
+  minimumDistanceMeters: number;
+  stepSource: ExplorationStepSource | null;
+  firstInsideAt: string | null;
+  lastInsideAt: string | null;
+  completedAt: string | null;
 }
 
 export interface ExplorationSessionSummary {
@@ -444,6 +464,8 @@ export interface ExplorationSessionSummary {
   routeId: string;
   status: "ACTIVE" | "ENDED" | "EXPIRED";
   distanceMeters: number;
+  lastStepTotal: number | null;
+  stepSource: ExplorationStepSource | null;
   startedAt: string;
   lastEventAt: string | null;
 }
@@ -579,8 +601,10 @@ export interface ExplorationQuestInput {
   sourceUrl?: string | null;
   title: string;
   description: string;
-  verificationMode: "SELF_CHECK" | "TIMER";
+  verificationMode: "SELF_CHECK" | "TIMER" | "LOCATION_CHECK_IN";
   minimumSeconds?: number | null;
+  minimumStepCount?: number | null;
+  minimumDistanceMeters?: number | null;
   growthPoints: number;
   triggerType: "DISTANCE" | "GEOFENCE";
   latitude?: number | null;

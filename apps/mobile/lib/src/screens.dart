@@ -10,6 +10,7 @@ import 'package:maplibre/maplibre.dart';
 import 'app_controller.dart';
 import 'circle_membership_screen.dart';
 import 'journey_library_screen.dart';
+import 'journey_witness_progress.dart';
 import 'exploration_map_config.dart';
 import 'life_tree_art.dart';
 import 'models.dart';
@@ -3240,7 +3241,10 @@ class _AdventureBottomSheet extends StatelessWidget {
               ...route!.quests.map(
                 (quest) => Padding(
                   padding: const EdgeInsets.only(bottom: 10),
-                  child: _QuestEventCard(quest: quest),
+                  child: _QuestEventCard(
+                    quest: quest,
+                    healthAccessLabel: controller.journeyStepAccessLabel,
+                  ),
                 ),
               ),
           ],
@@ -4779,9 +4783,10 @@ class _RouteSummaryCard extends StatelessWidget {
 }
 
 class _QuestEventCard extends StatelessWidget {
-  const _QuestEventCard({required this.quest});
+  const _QuestEventCard({required this.quest, required this.healthAccessLabel});
 
   final ExplorationQuestModel quest;
+  final String healthAccessLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -4890,6 +4895,13 @@ class _QuestEventCard extends StatelessWidget {
                   ],
                 ),
               ),
+              if (quest.journeyWitness != null) ...[
+                const SizedBox(height: 12),
+                JourneyWitnessProgress(
+                  witness: quest.journeyWitness!,
+                  healthAccessLabel: healthAccessLabel,
+                ),
+              ],
               if (quest.safetyNote != null) ...[
                 const SizedBox(height: 10),
                 Row(
@@ -4952,6 +4964,8 @@ class _QuestStatusChip extends StatelessWidget {
       child: Text(
         quest.completed
             ? '完成'
+            : quest.journeyWitness?.status == 'IN_PROGRESS'
+            ? '見證中'
             : quest.unlocked
             ? '事件開啟'
             : '未解鎖',
@@ -7830,6 +7844,10 @@ class _SensorCell extends StatelessWidget {
 
 String _questUnlockText(ExplorationQuestModel quest) {
   if (quest.completed) return '已完成，樹成長值已記錄';
+  if (quest.verificationMode == VerificationMode.locationCheckIn) {
+    if (quest.unlocked) return '已進入場域；保持定位，直到停留、步數與距離都完成';
+    return '進入地標 ${quest.radiusMeters ?? 0} 公尺範圍後，開始三項同行見證';
+  }
   if (quest.unlocked) return '已解鎖，可前往任務頁完成行動';
   if (quest.triggerType == 'DISTANCE') {
     return '本次路線累積 ${quest.unlockDistanceMeters ?? 0} 公尺後開啟';
@@ -7980,6 +7998,9 @@ IconData _homeActionIcon(HomeNextActionKind? kind) => switch (kind) {
 IconData _questIcon(ExplorationQuestModel quest) {
   if (quest.completed) return Icons.check_rounded;
   if (!quest.unlocked) return Icons.lock_rounded;
+  if (quest.verificationMode == VerificationMode.locationCheckIn) {
+    return Icons.directions_walk_rounded;
+  }
   if (quest.triggerType == 'DISTANCE') return Icons.route_rounded;
   return switch (quest.category) {
     'NATURE' => Icons.eco_rounded,

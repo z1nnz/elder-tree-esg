@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_client.dart';
 import 'evidence_uploader.dart';
+import 'journey_step_source.dart';
 import 'models.dart';
 import 'venue_witness_models.dart';
 
@@ -16,10 +17,12 @@ class AppController extends ChangeNotifier {
   AppController({
     ApiClient? api,
     EvidenceUploader? evidenceUploader,
+    JourneyStepSource? journeyStepSource,
     String? initialDisplayName,
     bool allowOfflineDemo = true,
   }) : _api = api ?? ApiClient(),
        _evidenceUploader = evidenceUploader,
+       _journeyStepSource = journeyStepSource ?? HealthJourneyStepSource(),
        _initialDisplayName = initialDisplayName,
        _allowOfflineDemo = allowOfflineDemo {
     if (!allowOfflineDemo) {
@@ -33,6 +36,7 @@ class AppController extends ChangeNotifier {
 
   final ApiClient _api;
   final EvidenceUploader? _evidenceUploader;
+  final JourneyStepSource _journeyStepSource;
   final String? _initialDisplayName;
   final bool _allowOfflineDemo;
   final ImagePicker _picker = ImagePicker();
@@ -67,6 +71,8 @@ class AppController extends ChangeNotifier {
   double? latestAccuracyMeters;
   DateTime? latestLocationAt;
   String explorationLocationStatus = '準備定位';
+  JourneyStepAccessState journeyStepAccessState =
+      JourneyStepAccessState.notNeeded;
   int? lastGrowthAwardPoints;
   String? lastGrowthAwardTitle;
   bool _sendingLocation = false;
@@ -959,10 +965,19 @@ class AppController extends ChangeNotifier {
     try {
       explorationLocationStatus = '正在確認定位權限';
       notifyListeners();
+      final activeRouteId = exploration.activeSession?.routeId;
       final route = exploration.routes.isEmpty
           ? null
-          : exploration.routes.first;
+          : exploration.routes.firstWhere(
+              (item) => item.id == activeRouteId,
+              orElse: () => exploration.routes.first,
+            );
       await _ensureLocationPermission();
+      if (route != null) {
+        await prepareJourneyStepAccessForRoute(route);
+      } else {
+        journeyStepAccessState = JourneyStepAccessState.notNeeded;
+      }
       ExplorationSessionModel? session;
       if (route != null) {
         session =
@@ -978,7 +993,7 @@ class AppController extends ChangeNotifier {
       await _captureCurrentLocationPreview(notify: false);
       final previewPosition = _latestPositionSnapshot();
       if (previewPosition != null) {
-        unawaited(_recordPosition(previewPosition));
+        unawaited(recordExplorationPosition(previewPosition));
       }
       lastGrowthAwardPoints = null;
       lastGrowthAwardTitle = null;
@@ -995,7 +1010,7 @@ class AppController extends ChangeNotifier {
               distanceFilter: 20,
             ),
           ).listen(
-            _recordPosition,
+            recordExplorationPosition,
             onError: (Object error) {
               notice = _friendlyActionError(
                 error,
@@ -1063,7 +1078,54 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _recordPosition(Position position) async {
+  Future<void> prepareJourneyStepAccessForRoute(
+    ExplorationRouteModel route,
+  ) async {
+    final needsSteps = route.quests.any(
+      (quest) =>
+          quest.verificationMode == VerificationMode.locationCheckIn &&
+          !quest.completed,
+    );
+    if (!needsSteps) {
+      journeyStepAccessState = JourneyStepAccessState.notNeeded;
+      notifyListeners();
+      return;
+    }
+    journeyStepAccessState = JourneyStepAccessState.requesting;
+    notifyListeners();
+    try {
+      journeyStepAccessState = await _journeyStepSource.requestReadAccess();
+    } catch (_) {
+      journeyStepAccessState = JourneyStepAccessState.unavailable;
+    }
+    notifyListeners();
+  }
+
+  bool get activeRouteNeedsJourneySteps {
+    final routeId = exploration.activeSession?.routeId;
+    if (routeId == null) return false;
+    for (final route in exploration.routes) {
+      if (route.id != routeId) continue;
+      return route.quests.any(
+        (quest) =>
+            quest.verificationMode == VerificationMode.locationCheckIn &&
+            !quest.completed,
+      );
+    }
+    return false;
+  }
+
+  String get journeyStepAccessLabel => switch (journeyStepAccessState) {
+    JourneyStepAccessState.notNeeded => '這趟路線不需要讀取健康步數',
+    JourneyStepAccessState.notRequested => '尚未詢問健康步數權限',
+    JourneyStepAccessState.requesting => '正在詢問健康步數權限',
+    JourneyStepAccessState.ready => '健康步數已準備；只上傳這趟的步數總量',
+    JourneyStepAccessState.denied => '未取得健康步數；位置探索可繼續，但本篇章無法形成三項同行見證',
+    JourneyStepAccessState.unavailable => '這台裝置目前無法提供健康步數',
+    JourneyStepAccessState.readError => '暫時讀不到健康步數，下一個定位點會再試一次',
+  };
+
+  Future<void> recordExplorationPosition(Position position) async {
     if (!exploring || _sendingLocation) return;
     _updateLatestPosition(position);
     if (position.accuracy > 50) {
@@ -1079,6 +1141,22 @@ class AppController extends ChangeNotifier {
     notifyListeners();
     try {
       if (sessionId != null) {
+        JourneyStepReading? stepReading;
+        if (activeRouteNeedsJourneySteps &&
+            (journeyStepAccessState == JourneyStepAccessState.ready ||
+                journeyStepAccessState == JourneyStepAccessState.readError)) {
+          try {
+            stepReading = await _journeyStepSource.readTotal(
+              startedAt: exploration.activeSession!.startedAt,
+              endedAt: position.timestamp,
+            );
+            journeyStepAccessState = stepReading == null
+                ? JourneyStepAccessState.readError
+                : JourneyStepAccessState.ready;
+          } catch (_) {
+            journeyStepAccessState = JourneyStepAccessState.readError;
+          }
+        }
         exploration = await _api.recordExplorationEvent(
           sessionId: sessionId,
           eventKey: 'mobile-${DateTime.now().microsecondsSinceEpoch}',
@@ -1086,6 +1164,9 @@ class AppController extends ChangeNotifier {
           longitude: position.longitude,
           accuracyMeters: position.accuracy,
           occurredAt: position.timestamp,
+          stepCountSinceStart: stepReading?.total,
+          stepSource: stepReading?.source,
+          stepsExcludeManualEntries: stepReading == null ? null : true,
         );
       }
       await _unlockNearbyRadarMissions(position);

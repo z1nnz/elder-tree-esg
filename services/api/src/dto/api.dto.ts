@@ -268,6 +268,23 @@ export class ExplorationEventDto {
   @ApiProperty()
   @IsDateString()
   occurredAt!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100_000)
+  stepCountSinceStart?: number;
+
+  @ApiPropertyOptional({ enum: ["APPLE_HEALTH", "HEALTH_CONNECT"] })
+  @IsOptional()
+  @IsIn(["APPLE_HEALTH", "HEALTH_CONNECT"])
+  stepSource?: "APPLE_HEALTH" | "HEALTH_CONNECT";
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  stepsExcludeManualEntries?: boolean;
 }
 
 export class StartExplorationSessionDto {
@@ -378,9 +395,9 @@ export class CreateExplorationQuestDto {
   @Length(4, 500)
   description!: string;
 
-  @ApiProperty({ enum: ["SELF_CHECK", "TIMER"] })
-  @IsIn(["SELF_CHECK", "TIMER"])
-  verificationMode!: "SELF_CHECK" | "TIMER";
+  @ApiProperty({ enum: ["SELF_CHECK", "TIMER", "LOCATION_CHECK_IN"] })
+  @IsIn(["SELF_CHECK", "TIMER", "LOCATION_CHECK_IN"])
+  verificationMode!: "SELF_CHECK" | "TIMER" | "LOCATION_CHECK_IN";
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -388,6 +405,20 @@ export class CreateExplorationQuestDto {
   @Min(30)
   @Max(3600)
   minimumSeconds?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(50)
+  @Max(20_000)
+  minimumStepCount?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(20)
+  @Max(20_000)
+  minimumDistanceMeters?: number;
 
   @ApiProperty()
   @IsInt()

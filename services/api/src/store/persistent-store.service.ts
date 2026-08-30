@@ -55,6 +55,7 @@ import {
 import {
   AssignmentStatus,
   EvidenceStatus,
+  ExplorationStepSource,
   Prisma,
   QuestTriggerType,
   TreeStage as PrismaTreeStage,
@@ -77,6 +78,14 @@ import { ClockService } from "../time/clock.service";
 import { nextStageAt, stageForPoints } from "./tree-growth";
 import { buildJourneyResult } from "./journey-result";
 import { evaluateRelayTimerWitness } from "./relay-witness";
+import {
+  advanceJourneyWitness,
+  type JourneyWitnessRequirements,
+} from "./journey-witness";
+import {
+  closeExplorationSessionWithPrivacyClear,
+  expireStaleExplorationSessions,
+} from "./exploration-privacy-cleanup.service";
 
 const TASK_SEEDS = [
   {
@@ -181,13 +190,58 @@ const COOPERATIVE_ACTION_SEED = {
 } as const;
 
 const COOPERATIVE_CLAIM_DURATION_MS = 30 * 60 * 1000;
+const JOURNEY_WITNESS_MAX_SAMPLE_GAP_SECONDS = 120;
 
-function timerMinimumSeconds(rule: Prisma.JsonValue): number | null {
+function positiveWholeRuleValue(
+  rule: Prisma.JsonValue,
+  key: string,
+): number | null {
   if (!rule || typeof rule !== "object" || Array.isArray(rule)) return null;
-  const value = (rule as Prisma.JsonObject).minimumSeconds;
+  const value = (rule as Prisma.JsonObject)[key];
   return typeof value === "number" && Number.isInteger(value) && value > 0
     ? value
     : null;
+}
+
+function timerMinimumSeconds(rule: Prisma.JsonValue): number | null {
+  return positiveWholeRuleValue(rule, "minimumSeconds");
+}
+
+function journeyWitnessRequirements(
+  rule: Prisma.JsonValue,
+): JourneyWitnessRequirements | null {
+  const minimumDwellSeconds = positiveWholeRuleValue(rule, "minimumSeconds");
+  const minimumStepCount = positiveWholeRuleValue(rule, "minimumStepCount");
+  const minimumDistanceMeters = positiveWholeRuleValue(
+    rule,
+    "minimumDistanceMeters",
+  );
+  return minimumDwellSeconds && minimumStepCount && minimumDistanceMeters
+    ? { minimumDwellSeconds, minimumStepCount, minimumDistanceMeters }
+    : null;
+}
+
+function explorationVerificationRule(
+  input: ExplorationQuestInput,
+): Prisma.InputJsonValue {
+  if (input.verificationMode === "TIMER") {
+    return {
+      source: "exploration",
+      minimumSeconds: input.minimumSeconds,
+    };
+  }
+  if (input.verificationMode === "LOCATION_CHECK_IN") {
+    return {
+      source: "exploration",
+      minimumSeconds: input.minimumSeconds,
+      minimumStepCount: input.minimumStepCount,
+      minimumDistanceMeters: input.minimumDistanceMeters,
+      maximumSampleGapSeconds: JOURNEY_WITNESS_MAX_SAMPLE_GAP_SECONDS,
+      stepSources: ["APPLE_HEALTH", "HEALTH_CONNECT"],
+      excludesManualEntries: true,
+    };
+  }
+  return { source: "exploration", confirmationRequired: true };
 }
 type AssignmentWithTask = Prisma.TaskAssignmentGetPayload<{
   include: { task: true };
@@ -1707,6 +1761,13 @@ export class PersistentStoreService {
       if (assignment.task.verificationMode === VerificationMode.PHOTO_AI) {
         throw new BadRequestException("PHOTO_AI tasks require evidence");
       }
+      if (
+        assignment.task.verificationMode === VerificationMode.LOCATION_CHECK_IN
+      ) {
+        throw new BadRequestException(
+          "Journey witness tasks require location, dwell, and step evidence",
+        );
+      }
       if (assignment.task.verificationMode === VerificationMode.TIMER) {
         const rule = assignment.task.verificationRule as Record<
           string,
@@ -2591,13 +2652,7 @@ export class PersistentStoreService {
             title: input.title.trim(),
             description: input.description.trim(),
             verificationMode: input.verificationMode,
-            verificationRule:
-              input.verificationMode === "TIMER"
-                ? {
-                    source: "exploration",
-                    minimumSeconds: input.minimumSeconds,
-                  }
-                : { source: "exploration", confirmationRequired: true },
+            verificationRule: explorationVerificationRule(input),
             growthPoints: input.growthPoints,
           },
         },
@@ -2628,13 +2683,7 @@ export class PersistentStoreService {
           title: input.title.trim(),
           description: input.description.trim(),
           verificationMode: input.verificationMode,
-          verificationRule:
-            input.verificationMode === "TIMER"
-              ? {
-                  source: "exploration",
-                  minimumSeconds: input.minimumSeconds,
-                }
-              : { source: "exploration", confirmationRequired: true },
+          verificationRule: explorationVerificationRule(input),
           growthPoints: input.growthPoints,
         },
       }),
@@ -2711,9 +2760,18 @@ export class PersistentStoreService {
         sourceUrl: quest.sourceUrl,
         title: quest.task.title,
         description: quest.task.description,
-        verificationMode: quest.task.verificationMode as "SELF_CHECK" | "TIMER",
+        verificationMode: quest.task.verificationMode as
+          | "SELF_CHECK"
+          | "TIMER"
+          | "LOCATION_CHECK_IN",
         minimumSeconds: (quest.task.verificationRule as Record<string, unknown>)
           .minimumSeconds as number | undefined,
+        minimumStepCount: (
+          quest.task.verificationRule as Record<string, unknown>
+        ).minimumStepCount as number | undefined,
+        minimumDistanceMeters: (
+          quest.task.verificationRule as Record<string, unknown>
+        ).minimumDistanceMeters as number | undefined,
         growthPoints: quest.task.growthPoints,
         triggerType: quest.triggerType,
         latitude: quest.latitude,
@@ -3769,23 +3827,9 @@ export class PersistentStoreService {
 
   async getExplorationState(firebaseUid: string): Promise<ExplorationState> {
     const active = await this.getActiveUser(firebaseUid);
-    const expirationCutoff = new Date(
-      this.clock.now().getTime() - 4 * 60 * 60 * 1000,
-    );
-    await this.prisma.explorationSession.updateMany({
-      where: {
-        userId: active.id,
-        householdId: active.activeHouseholdId,
-        status: "ACTIVE",
-        startedAt: { lt: expirationCutoff },
-      },
-      data: {
-        status: "EXPIRED",
-        endedAt: this.clock.now(),
-        lastLatitude: null,
-        lastLongitude: null,
-        lastAccuracy: null,
-      },
+    await expireStaleExplorationSessions(this.prisma, this.clock.now(), {
+      userId: active.id,
+      householdId: active.activeHouseholdId,
     });
     const [progress, latestReceipt, routes, activeSession] = await Promise.all([
       this.prisma.explorationProgress.findUnique({
@@ -3834,6 +3878,14 @@ export class PersistentStoreService {
                 },
                 take: 1,
               },
+              witnesses: {
+                where: {
+                  userId: active.id,
+                  householdId: active.activeHouseholdId,
+                },
+                orderBy: { createdAt: "desc" },
+                take: 5,
+              },
             },
             orderBy: { sequence: "asc" },
           },
@@ -3858,6 +3910,8 @@ export class PersistentStoreService {
             routeId: activeSession.routeId,
             status: activeSession.status,
             distanceMeters: activeSession.distanceMeters,
+            lastStepTotal: activeSession.lastStepTotal,
+            stepSource: activeSession.stepSource,
             startedAt: activeSession.startedAt.toISOString(),
             lastEventAt: activeSession.lastEventAt?.toISOString() ?? null,
           }
@@ -3879,7 +3933,19 @@ export class PersistentStoreService {
           completedQuestCount,
           totalQuestCount: route.quests.length,
           badgeAwarded: route.awards.length > 0,
-          quests: route.quests.map((quest) => ({
+          quests: route.quests.map((quest) => {
+            const requirements = journeyWitnessRequirements(
+              quest.task.verificationRule,
+            );
+            const completed =
+              quest.task.assignments[0]?.status === "COMPLETED";
+            const witness = completed
+              ? (quest.witnesses.find((item) => item.completedAt !== null) ??
+                null)
+              : (quest.witnesses.find(
+                  (item) => item.sessionId === activeSession?.id,
+                ) ?? null);
+            return {
             id: quest.id,
             taskId: quest.taskId,
             sequence: quest.sequence,
@@ -3891,13 +3957,21 @@ export class PersistentStoreService {
             title: quest.task.title,
             description: quest.task.description,
             verificationMode: quest.task.verificationMode as
-              "SELF_CHECK" | "TIMER",
-            minimumSeconds:
-              typeof (quest.task.verificationRule as Record<string, unknown>)
-                .minimumSeconds === "number"
-                ? (quest.task.verificationRule as Record<string, number>)
-                    .minimumSeconds
-                : null,
+              | "SELF_CHECK"
+              | "TIMER"
+              | "LOCATION_CHECK_IN",
+            minimumSeconds: positiveWholeRuleValue(
+              quest.task.verificationRule,
+              "minimumSeconds",
+            ),
+            minimumStepCount: positiveWholeRuleValue(
+              quest.task.verificationRule,
+              "minimumStepCount",
+            ),
+            minimumDistanceMeters: positiveWholeRuleValue(
+              quest.task.verificationRule,
+              "minimumDistanceMeters",
+            ),
             growthPoints: quest.task.growthPoints,
             triggerType: quest.triggerType,
             latitude: quest.latitude,
@@ -3905,8 +3979,32 @@ export class PersistentStoreService {
             radiusMeters: quest.radiusMeters,
             unlockDistanceMeters: quest.unlockDistanceMeters,
             unlocked: quest.unlocks.length > 0,
-            completed: quest.task.assignments[0]?.status === "COMPLETED",
-          })),
+            completed,
+            journeyWitness:
+              requirements &&
+              quest.task.verificationMode === VerificationMode.LOCATION_CHECK_IN
+                ? {
+                    tier: "COMPOSITE" as const,
+                    status: witness?.completedAt
+                      ? ("COMPLETED" as const)
+                      : witness
+                        ? ("IN_PROGRESS" as const)
+                        : ("NOT_STARTED" as const),
+                    dwellSeconds: witness?.dwellSeconds ?? 0,
+                    minimumDwellSeconds: requirements.minimumDwellSeconds,
+                    stepCount: witness?.stepCount ?? 0,
+                    minimumStepCount: requirements.minimumStepCount,
+                    distanceMeters: witness?.distanceMeters ?? 0,
+                    minimumDistanceMeters: requirements.minimumDistanceMeters,
+                    stepSource: witness?.stepSource ?? null,
+                    firstInsideAt:
+                      witness?.firstInsideAt.toISOString() ?? null,
+                    lastInsideAt: witness?.lastInsideAt.toISOString() ?? null,
+                    completedAt: witness?.completedAt?.toISOString() ?? null,
+                  }
+                : null,
+          };
+          }),
         };
       }),
     };
@@ -3920,21 +4018,9 @@ export class PersistentStoreService {
     if (!route)
       throw new NotFoundException("Published exploration route not found");
     const now = this.clock.now();
-    const expirationCutoff = new Date(now.getTime() - 4 * 60 * 60 * 1000);
-    await this.prisma.explorationSession.updateMany({
-      where: {
-        userId: active.id,
-        householdId: active.activeHouseholdId,
-        status: "ACTIVE",
-        startedAt: { lt: expirationCutoff },
-      },
-      data: {
-        status: "EXPIRED",
-        endedAt: now,
-        lastLatitude: null,
-        lastLongitude: null,
-        lastAccuracy: null,
-      },
+    await expireStaleExplorationSessions(this.prisma, now, {
+      userId: active.id,
+      householdId: active.activeHouseholdId,
     });
     const current = await this.prisma.explorationSession.findFirst({
       where: {
@@ -3950,21 +4036,19 @@ export class PersistentStoreService {
         routeId: current.routeId,
         status: current.status,
         distanceMeters: current.distanceMeters,
+        lastStepTotal: current.lastStepTotal,
+        stepSource: current.stepSource,
         startedAt: current.startedAt.toISOString(),
         lastEventAt: current.lastEventAt?.toISOString() ?? null,
       };
     }
     if (current) {
-      await this.prisma.explorationSession.update({
-        where: { id: current.id },
-        data: {
-          status: "ENDED",
-          endedAt: now,
-          lastLatitude: null,
-          lastLongitude: null,
-          lastAccuracy: null,
-        },
-      });
+      await closeExplorationSessionWithPrivacyClear(
+        this.prisma,
+        current.id,
+        now,
+        { status: "ENDED" },
+      );
     }
     const session = await this.prisma.explorationSession.create({
       data: {
@@ -3979,6 +4063,8 @@ export class PersistentStoreService {
       routeId: session.routeId,
       status: session.status,
       distanceMeters: session.distanceMeters,
+      lastStepTotal: session.lastStepTotal,
+      stepSource: session.stepSource,
       startedAt: session.startedAt.toISOString(),
       lastEventAt: null,
     };
@@ -3993,6 +4079,9 @@ export class PersistentStoreService {
       longitude: number;
       accuracyMeters: number;
       occurredAt: string;
+      stepCountSinceStart?: number;
+      stepSource?: "APPLE_HEALTH" | "HEALTH_CONNECT";
+      stepsExcludeManualEntries?: boolean;
     },
     options: { simulation?: boolean } = {},
   ): Promise<ExplorationEventResult> {
@@ -4001,25 +4090,37 @@ export class PersistentStoreService {
         "Location accuracy must be within 50 meters",
       );
     }
+    const stepFields = [
+      event.stepCountSinceStart,
+      event.stepSource,
+      event.stepsExcludeManualEntries,
+    ];
+    const hasAnyStepField = stepFields.some((value) => value !== undefined);
+    const hasAllStepFields = stepFields.every((value) => value !== undefined);
+    if (hasAnyStepField && !hasAllStepFields) {
+      throw new BadRequestException(
+        "Journey step witness requires count, source, and manual-entry policy",
+      );
+    }
+    if (
+      hasAllStepFields &&
+      (!Number.isInteger(event.stepCountSinceStart) ||
+        event.stepCountSinceStart! < 0 ||
+        event.stepCountSinceStart! > 100_000 ||
+        !["APPLE_HEALTH", "HEALTH_CONNECT"].includes(event.stepSource!) ||
+        event.stepsExcludeManualEntries !== true)
+    ) {
+      throw new BadRequestException("Journey step witness is invalid");
+    }
+    const stepTotal = hasAllStepFields ? event.stepCountSinceStart! : null;
+    const stepSource = hasAllStepFields
+      ? (event.stepSource! as ExplorationStepSource)
+      : null;
     const active = await this.getActiveUser(firebaseUid);
-    const expirationCutoff = new Date(
-      this.clock.now().getTime() - 4 * 60 * 60 * 1000,
-    );
-    await this.prisma.explorationSession.updateMany({
-      where: {
-        id: sessionId,
-        userId: active.id,
-        householdId: active.activeHouseholdId,
-        status: "ACTIVE",
-        startedAt: { lt: expirationCutoff },
-      },
-      data: {
-        status: "EXPIRED",
-        endedAt: this.clock.now(),
-        lastLatitude: null,
-        lastLongitude: null,
-        lastAccuracy: null,
-      },
+    await expireStaleExplorationSessions(this.prisma, this.clock.now(), {
+      id: sessionId,
+      userId: active.id,
+      householdId: active.activeHouseholdId,
     });
     const occurredAt = new Date(event.occurredAt);
     if (Number.isNaN(occurredAt.getTime())) {
@@ -4080,11 +4181,46 @@ export class PersistentStoreService {
             "Exploration events must be chronological",
           );
         }
+        if (
+          session.stepSource &&
+          stepSource &&
+          session.stepSource !== stepSource
+        ) {
+          throw new BadRequestException(
+            "Journey step source cannot change during an exploration session",
+          );
+        }
+        const elapsedSeconds = session.lastEventAt
+          ? (occurredAt.getTime() - session.lastEventAt.getTime()) / 1000
+          : 0;
+        try {
+          advanceJourneyWitness({
+            current: { dwellSeconds: 0, stepCount: 0, distanceMeters: 0 },
+            requirements: {
+              minimumDwellSeconds: 1,
+              minimumStepCount: 1,
+              minimumDistanceMeters: 1,
+            },
+            previousInside: false,
+            currentInside: false,
+            elapsedSeconds,
+            acceptedDistanceMeters: 0,
+            previousStepTotal: session.lastStepTotal,
+            currentStepTotal: stepTotal,
+          });
+        } catch (error) {
+          throw new BadRequestException(
+            error instanceof Error
+              ? error.message
+              : "Journey step witness is invalid",
+          );
+        }
         let acceptedDistanceMeters = 0;
         if (
           session.lastLatitude !== null &&
           session.lastLongitude !== null &&
-          session.lastEventAt
+          session.lastEventAt &&
+          elapsedSeconds <= JOURNEY_WITNESS_MAX_SAMPLE_GAP_SECONDS
         ) {
           const preciseDistance = distanceBetweenMeters(
             {
@@ -4093,8 +4229,6 @@ export class PersistentStoreService {
             },
             { latitude: event.latitude, longitude: event.longitude },
           );
-          const elapsedSeconds =
-            (occurredAt.getTime() - session.lastEventAt.getTime()) / 1000;
           const speedMetersPerSecond = preciseDistance / elapsedSeconds;
           if (
             !options.simulation &&
@@ -4135,6 +4269,8 @@ export class PersistentStoreService {
             lastLongitude: event.longitude,
             lastAccuracy: event.accuracyMeters,
             lastEventAt: occurredAt,
+            lastStepTotal: stepTotal,
+            stepSource: stepSource ?? session.stepSource,
           },
         });
         await transaction.locationEventReceipt.create({
@@ -4210,6 +4346,143 @@ export class PersistentStoreService {
             skipDuplicates: true,
           });
         }
+
+        const journeyQuests = await transaction.mapQuest.findMany({
+          where: {
+            routeId: session.routeId,
+            active: true,
+            triggerType: QuestTriggerType.GEOFENCE,
+            task: { verificationMode: VerificationMode.LOCATION_CHECK_IN },
+          },
+          include: {
+            task: true,
+            witnesses: {
+              where: { sessionId: session.id },
+              take: 1,
+            },
+          },
+        });
+        for (const quest of journeyQuests) {
+          if (
+            quest.latitude === null ||
+            quest.longitude === null ||
+            quest.radiusMeters === null
+          ) {
+            throw new ConflictException(
+              "Published journey witness is missing its geofence",
+            );
+          }
+          const currentInside =
+            distanceBetweenMeters(
+              { latitude: quest.latitude, longitude: quest.longitude },
+              { latitude: event.latitude, longitude: event.longitude },
+            ) <= quest.radiusMeters;
+          if (!currentInside) continue;
+
+          await transaction.$executeRaw`
+            SELECT pg_advisory_xact_lock(hashtext(${`journey-witness:${quest.id}:${active.id}:${active.activeHouseholdId}`}))
+          `;
+          const assignment = await transaction.taskAssignment.findUnique({
+            where: {
+              taskId_userId_householdId: {
+                taskId: quest.taskId,
+                userId: active.id,
+                householdId: active.activeHouseholdId,
+              },
+            },
+            include: { task: true },
+          });
+          if (!assignment) {
+            throw new ConflictException(
+              "Journey witness assignment was not unlocked",
+            );
+          }
+          if (assignment.status === AssignmentStatus.COMPLETED) continue;
+
+          const requirements = journeyWitnessRequirements(
+            quest.task.verificationRule,
+          );
+          if (!requirements) {
+            throw new ConflictException(
+              "Published journey witness has invalid requirements",
+            );
+          }
+          const existingWitness = quest.witnesses[0] ?? null;
+          if (existingWitness?.completedAt) continue;
+          const previousInside =
+            existingWitness !== null &&
+            session.lastLatitude !== null &&
+            session.lastLongitude !== null &&
+            distanceBetweenMeters(
+              { latitude: quest.latitude, longitude: quest.longitude },
+              {
+                latitude: session.lastLatitude,
+                longitude: session.lastLongitude,
+              },
+            ) <= quest.radiusMeters;
+          const result = advanceJourneyWitness({
+            current: existingWitness
+              ? {
+                  dwellSeconds: existingWitness.dwellSeconds,
+                  stepCount: existingWitness.stepCount,
+                  distanceMeters: existingWitness.distanceMeters,
+                }
+              : { dwellSeconds: 0, stepCount: 0, distanceMeters: 0 },
+            requirements,
+            previousInside,
+            currentInside,
+            elapsedSeconds,
+            acceptedDistanceMeters,
+            previousStepTotal: session.lastStepTotal,
+            currentStepTotal: stepTotal,
+          });
+          const completedAt = result.completed ? occurredAt : null;
+          if (existingWitness) {
+            await transaction.explorationQuestWitness.update({
+              where: { id: existingWitness.id },
+              data: {
+                ...result.progress,
+                lastInsideAt: occurredAt,
+                stepSource: stepSource ?? existingWitness.stepSource,
+                completedAt,
+              },
+            });
+          } else {
+            await transaction.explorationQuestWitness.create({
+              data: {
+                sessionId: session.id,
+                questId: quest.id,
+                userId: active.id,
+                householdId: active.activeHouseholdId,
+                ...result.progress,
+                firstInsideAt: occurredAt,
+                lastInsideAt: occurredAt,
+                stepSource,
+                completedAt,
+              },
+            });
+          }
+          if (!completedAt) continue;
+
+          await this.awardTaskGrowth(
+            transaction,
+            assignment,
+            active.activeHouseholdId,
+          );
+          await transaction.taskAssignment.update({
+            where: { id: assignment.id },
+            data: {
+              status: AssignmentStatus.COMPLETED,
+              completedAt: assignment.completedAt ?? occurredAt,
+            },
+          });
+          await this.awardCompletedRouteBadge(
+            transaction,
+            active.id,
+            active.activeHouseholdId,
+            quest.taskId,
+          );
+        }
         return {
           duplicate: false,
           acceptedDistanceMeters,
@@ -4234,16 +4507,12 @@ export class PersistentStoreService {
     });
     if (!session) throw new NotFoundException("Exploration session not found");
     if (session.status === "ACTIVE") {
-      await this.prisma.explorationSession.update({
-        where: { id: session.id },
-        data: {
-          status: "ENDED",
-          endedAt: this.clock.now(),
-          lastLatitude: null,
-          lastLongitude: null,
-          lastAccuracy: null,
-        },
-      });
+      await closeExplorationSessionWithPrivacyClear(
+        this.prisma,
+        session.id,
+        this.clock.now(),
+        { status: "ENDED" },
+      );
     }
     return this.getExplorationState(firebaseUid);
   }
@@ -4400,13 +4669,22 @@ export class PersistentStoreService {
         sourceUrl: quest.sourceUrl,
         title: quest.task.title,
         description: quest.task.description,
-        verificationMode: quest.task.verificationMode as "SELF_CHECK" | "TIMER",
-        minimumSeconds:
-          typeof (quest.task.verificationRule as Record<string, unknown>)
-            .minimumSeconds === "number"
-            ? (quest.task.verificationRule as Record<string, number>)
-                .minimumSeconds
-            : null,
+        verificationMode: quest.task.verificationMode as
+          | "SELF_CHECK"
+          | "TIMER"
+          | "LOCATION_CHECK_IN",
+        minimumSeconds: positiveWholeRuleValue(
+          quest.task.verificationRule,
+          "minimumSeconds",
+        ),
+        minimumStepCount: positiveWholeRuleValue(
+          quest.task.verificationRule,
+          "minimumStepCount",
+        ),
+        minimumDistanceMeters: positiveWholeRuleValue(
+          quest.task.verificationRule,
+          "minimumDistanceMeters",
+        ),
         growthPoints: quest.task.growthPoints,
         triggerType: quest.triggerType,
         latitude: quest.latitude,
@@ -4415,6 +4693,7 @@ export class PersistentStoreService {
         unlockDistanceMeters: quest.unlockDistanceMeters,
         unlocked: false,
         completed: false,
+        journeyWitness: null,
       })),
     };
   }
@@ -4433,9 +4712,30 @@ export class PersistentStoreService {
   }
 
   private assertValidQuestInput(input: ExplorationQuestInput): void {
-    if (!["SELF_CHECK", "TIMER"].includes(input.verificationMode)) {
+    if (
+      !["SELF_CHECK", "TIMER", "LOCATION_CHECK_IN"].includes(
+        input.verificationMode,
+      )
+    ) {
       throw new BadRequestException(
-        "Exploration quests only support SELF_CHECK or TIMER",
+        "Exploration quests only support SELF_CHECK, TIMER, or LOCATION_CHECK_IN",
+      );
+    }
+    if (
+      input.verificationMode === "LOCATION_CHECK_IN" &&
+      (input.triggerType !== "GEOFENCE" ||
+        !Number.isInteger(input.minimumSeconds) ||
+        input.minimumSeconds! < 30 ||
+        input.minimumSeconds! > 3600 ||
+        !Number.isInteger(input.minimumStepCount) ||
+        input.minimumStepCount! < 50 ||
+        input.minimumStepCount! > 20_000 ||
+        !Number.isInteger(input.minimumDistanceMeters) ||
+        input.minimumDistanceMeters! < 20 ||
+        input.minimumDistanceMeters! > 20_000)
+    ) {
+      throw new BadRequestException(
+        "Composite journey witnesses require a geofence, 30-3600 seconds, 50-20000 steps, and 20-20000 meters",
       );
     }
     if (
