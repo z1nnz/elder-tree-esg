@@ -3839,6 +3839,8 @@ export class PersistentStoreService {
         lastLatitude: null,
         lastLongitude: null,
         lastAccuracy: null,
+        lastStepTotal: null,
+        stepSource: null,
       },
     });
     const [progress, latestReceipt, routes, activeSession] = await Promise.all([
@@ -4042,6 +4044,8 @@ export class PersistentStoreService {
         lastLatitude: null,
         lastLongitude: null,
         lastAccuracy: null,
+        lastStepTotal: null,
+        stepSource: null,
       },
     });
     const current = await this.prisma.explorationSession.findFirst({
@@ -4073,6 +4077,8 @@ export class PersistentStoreService {
           lastLatitude: null,
           lastLongitude: null,
           lastAccuracy: null,
+          lastStepTotal: null,
+          stepSource: null,
         },
       });
     }
@@ -4160,6 +4166,8 @@ export class PersistentStoreService {
         lastLatitude: null,
         lastLongitude: null,
         lastAccuracy: null,
+        lastStepTotal: null,
+        stepSource: null,
       },
     });
     const occurredAt = new Date(event.occurredAt);
@@ -4555,6 +4563,8 @@ export class PersistentStoreService {
           lastLatitude: null,
           lastLongitude: null,
           lastAccuracy: null,
+          lastStepTotal: null,
+          stepSource: null,
         },
       });
     }

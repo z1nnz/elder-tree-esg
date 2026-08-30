@@ -1795,6 +1795,8 @@ describeWithDatabase("PersistentStoreService", () => {
       expect(ended.status).toBe("EXPIRED");
       expect(ended.lastLatitude).toBeNull();
       expect(ended.lastLongitude).toBeNull();
+      expect(ended.lastStepTotal).toBeNull();
+      expect(ended.stepSource).toBeNull();
       const receipts = await prisma.locationEventReceipt.findMany({
         where: { user: { firebaseUid: explorerUid } },
       });

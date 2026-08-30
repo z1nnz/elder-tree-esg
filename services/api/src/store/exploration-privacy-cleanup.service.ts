@@ -52,6 +52,8 @@ export class ExplorationPrivacyCleanupService
         lastLatitude: null,
         lastLongitude: null,
         lastAccuracy: null,
+        lastStepTotal: null,
+        stepSource: null,
       },
     });
   }
