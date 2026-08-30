@@ -1,0 +1,5 @@
+# Unity serializes empty YAML values with a trailing space. Treat that syntax as
+# generated data so `git diff --check` still catches whitespace in authored code.
+*.meta whitespace=-trailing-space
+*.asset whitespace=-trailing-space
+*.unity whitespace=-trailing-space

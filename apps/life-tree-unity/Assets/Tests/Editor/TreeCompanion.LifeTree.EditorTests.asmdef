@@ -1,0 +1,12 @@
+{
+  "name": "TreeCompanion.LifeTree.EditorTests",
+  "references": [
+    "TreeCompanion.LifeTree"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ]
+}

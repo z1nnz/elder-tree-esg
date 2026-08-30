@@ -19,6 +19,7 @@ Pods/
 *.tsbuildinfo
 __pycache__/
 *.pyc
+*.blend1
 *.log
 *.pem
 *.key
