@@ -1901,7 +1901,9 @@ describeWithDatabase("PersistentStoreService", () => {
       now = new Date(now.getTime() + 60_000);
       await record(`inside-anchor-${randomUUID()}`, westInside, 20);
       let state = await explorationStore.getExplorationState(explorerUid);
-      expect(state.routes[0]?.quests[0]?.journeyWitness).toMatchObject({
+      const journeyRoute = () =>
+        state.routes.find((route) => route.id === routeId);
+      expect(journeyRoute()?.quests[0]?.journeyWitness).toMatchObject({
         status: "IN_PROGRESS",
         dwellSeconds: 0,
         stepCount: 0,
@@ -1917,13 +1919,13 @@ describeWithDatabase("PersistentStoreService", () => {
       now = new Date(now.getTime() + 30_000);
       await record(`inside-progress-${randomUUID()}`, center, 70);
       state = await explorationStore.getExplorationState(explorerUid);
-      expect(state.routes[0]?.quests[0]?.journeyWitness).toMatchObject({
+      expect(journeyRoute()?.quests[0]?.journeyWitness).toMatchObject({
         status: "IN_PROGRESS",
         dwellSeconds: 30,
         stepCount: 50,
       });
       const firstDistance =
-        state.routes[0]?.quests[0]?.journeyWitness?.distanceMeters ?? 0;
+        journeyRoute()?.quests[0]?.journeyWitness?.distanceMeters ?? 0;
       expect(firstDistance).toBeGreaterThanOrEqual(100);
 
       now = new Date(now.getTime() + 121_000);
@@ -1936,7 +1938,7 @@ describeWithDatabase("PersistentStoreService", () => {
       now = new Date(now.getTime() + 121_000);
       await record(`reentry-anchor-${randomUUID()}`, westInside, 220);
       state = await explorationStore.getExplorationState(explorerUid);
-      expect(state.routes[0]?.quests[0]?.journeyWitness).toMatchObject({
+      expect(journeyRoute()?.quests[0]?.journeyWitness).toMatchObject({
         dwellSeconds: 30,
         stepCount: 50,
         distanceMeters: firstDistance,
@@ -1948,22 +1950,25 @@ describeWithDatabase("PersistentStoreService", () => {
       ).rejects.toThrow("step increase is too fast");
       state = await explorationStore.getExplorationState(explorerUid);
       expect(state.activeSession?.lastStepTotal).toBe(220);
-      expect(state.routes[0]?.quests[0]?.journeyWitness?.stepCount).toBe(50);
+      expect(journeyRoute()?.quests[0]?.journeyWitness?.stepCount).toBe(50);
 
       now = new Date(now.getTime() + 30_000);
       const completionEventKey = `inside-complete-${randomUUID()}`;
       const completed = await record(completionEventKey, center, 270);
-      expect(completed.routes[0]?.quests[0]?.journeyWitness).toMatchObject({
+      const completedRoute = completed.routes.find(
+        (route) => route.id === routeId,
+      );
+      expect(completedRoute?.quests[0]?.journeyWitness).toMatchObject({
         tier: "COMPOSITE",
         status: "COMPLETED",
         dwellSeconds: 60,
         stepCount: 100,
       });
       expect(
-        completed.routes[0]?.quests[0]?.journeyWitness?.distanceMeters,
+        completedRoute?.quests[0]?.journeyWitness?.distanceMeters,
       ).toBeGreaterThanOrEqual(200);
-      expect(completed.routes[0]?.quests[0]?.completed).toBe(true);
-      expect(completed.routes[0]?.badgeAwarded).toBe(true);
+      expect(completedRoute?.quests[0]?.completed).toBe(true);
+      expect(completedRoute?.badgeAwarded).toBe(true);
 
       const duplicate = await record(completionEventKey, center, 270);
       expect(duplicate.duplicate).toBe(true);
