@@ -1961,7 +1961,9 @@ describeWithDatabase("PersistentStoreService", () => {
       expect(completedRoute?.quests[0]?.journeyWitness).toMatchObject({
         tier: "COMPOSITE",
         status: "COMPLETED",
-        dwellSeconds: 60,
+        // The rejected event never advances the stored anchor, so its ten
+        // seconds remain part of the next valid in-area interval.
+        dwellSeconds: 70,
         stepCount: 100,
       });
       expect(
