@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using TreeCompanion.LifeTree;
 using UnityEditor;
+using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -111,6 +112,42 @@ namespace TreeCompanion.Editor
                 UnityEngine.Object.DestroyImmediate(image);
                 UnityEngine.Object.DestroyImmediate(renderTexture);
             }
+        }
+
+        [MenuItem("樹伴/匯出 iOS 生命樹程式庫")]
+        public static void ExportIosLibrary()
+        {
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) == null)
+            {
+                throw new InvalidOperationException(
+                    $"找不到已版控的生命樹場景：{ScenePath}。請先執行「樹伴/重建生命樹庭園」並審查差異。"
+                );
+            }
+            if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.iOS, BuildTarget.iOS))
+            {
+                throw new InvalidOperationException("尚未安裝 Unity iOS Build Support。");
+            }
+
+            var outputPath = Path.GetFullPath(Path.Combine(Application.dataPath, "../Builds/iOS"));
+            Directory.CreateDirectory(outputPath);
+            EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.iOS, BuildTarget.iOS);
+            PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.iOS, "tw.treecompanion.lifetreegarden");
+            PlayerSettings.iOS.targetOSVersionString = "15.0";
+            var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+            {
+                scenes = new[] { ScenePath },
+                locationPathName = outputPath,
+                target = BuildTarget.iOS,
+                options = BuildOptions.None,
+            });
+            if (report.summary.result != BuildResult.Succeeded)
+            {
+                throw new InvalidOperationException(
+                    $"iOS 生命樹程式庫匯出失敗：{report.summary.result}，錯誤 {report.summary.totalErrors}。"
+                );
+            }
+            Debug.Log($"iOS 生命樹程式庫已匯出：{outputPath}");
         }
 
         private static void ValidateImportedHierarchy(Transform root)

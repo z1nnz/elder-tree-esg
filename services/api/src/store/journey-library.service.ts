@@ -167,12 +167,25 @@ export class JourneyLibraryService {
       take: 13,
       ...(before ? { cursor: { id: before }, skip: 1 } : {}),
     });
+    const completedRuns = await this.prisma.cooperativeActionRun.findMany({
+      where: {
+        householdId: circle.id,
+        status: "COMPLETED",
+        completedAt: { not: null },
+      },
+      select: { id: true },
+      orderBy: [{ completedAt: "asc" }, { id: "asc" }],
+    });
+    const keepsakeSlotByRun = new Map(
+      completedRuns.map((run, index) => [run.id, index % 12]),
+    );
     const results: JourneyResult[] = [];
     for (const run of rows.slice(0, 12)) {
+      let snapshot: JourneyResult;
       if (run.resultSnapshot === null) {
         // Legacy results cannot recover past display names. Freeze the records
         // available now, mark the import, and never pretend it was captured then.
-        const snapshot = await buildJourneyResult(
+        const builtSnapshot = await buildJourneyResult(
           this.prisma,
           run.id,
           run.completedAt!,
@@ -181,14 +194,33 @@ export class JourneyLibraryService {
         await this.prisma.cooperativeActionRun.updateMany({
           where: { id: run.id, resultSnapshot: { equals: Prisma.DbNull } },
           data: {
-            resultSnapshot: snapshot as unknown as Prisma.InputJsonValue,
+            resultSnapshot: builtSnapshot as unknown as Prisma.InputJsonValue,
           },
         });
         const saved = await this.prisma.cooperativeActionRun.findUniqueOrThrow({
           where: { id: run.id },
         });
-        results.push(saved.resultSnapshot as unknown as JourneyResult);
-      } else results.push(run.resultSnapshot as unknown as JourneyResult);
+        snapshot = saved.resultSnapshot as unknown as JourneyResult;
+      } else snapshot = run.resultSnapshot as unknown as JourneyResult;
+      const keepsakeSlot = keepsakeSlotByRun.get(run.id);
+      if (keepsakeSlot === undefined)
+        throw new Error("Completed journey is missing from history");
+      if (
+        !Number.isInteger(snapshot.keepsakeSlot) ||
+        snapshot.keepsakeSlot < 0 ||
+        snapshot.keepsakeSlot >= 12
+      ) {
+        // Earlier immutable snapshots predate the 3D canopy. Add only the
+        // deterministic socket; names, witnesses and receipts stay untouched.
+        snapshot = { ...snapshot, keepsakeSlot };
+        await this.prisma.cooperativeActionRun.update({
+          where: { id: run.id },
+          data: {
+            resultSnapshot: snapshot as unknown as Prisma.InputJsonValue,
+          },
+        });
+      }
+      results.push(snapshot);
     }
     const actions = await this.prisma.cooperativeAction.findMany({
       where: {
@@ -245,9 +277,7 @@ export class JourneyLibraryService {
     return {
       circleId: circle.id,
       currentRunId: current?.id ?? null,
-      completedCount: await this.prisma.cooperativeActionRun.count({
-        where: { householdId: circle.id, status: "COMPLETED" },
-      }),
+      completedCount: completedRuns.length,
       results,
       choices,
       nextCursor: rows.length > 12 ? rows[11]!.id : null,
@@ -300,12 +330,20 @@ export class JourneyLibraryService {
         throw new ConflictException(
           "Finish the current journey before starting another",
         );
+      const memberCount = await tx.householdMember.count({
+        where: { householdId: input.circleId },
+      });
       if (
         current.actionId === input.actionId &&
         current.status === "ACTIVE" &&
         !expired
-      )
+      ) {
+        if (memberCount < current.action.minimumContributors)
+          throw new ConflictException(
+            "Invite more circle members before starting this journey",
+          );
         return;
+      }
       const action = await tx.cooperativeAction.findFirst({
         where: {
           id: input.actionId,
@@ -320,9 +358,6 @@ export class JourneyLibraryService {
       });
       if (!action || action.chapters.length === 0)
         throw new ConflictException("Journey is unavailable");
-      const memberCount = await tx.householdMember.count({
-        where: { householdId: input.circleId },
-      });
       if (memberCount < action.minimumContributors)
         throw new ConflictException(
           "Invite more circle members before starting this journey",

@@ -25,6 +25,7 @@ final sampleResult = JourneyResultModel(
   runId: 'finished',
   title: '讓春天回到生命樹',
   keepsakeName: '春日紀念枝',
+  keepsakeSlot: 0,
   completedAt: DateTime(2026, 8, 29, 9),
   growthPoints: 120,
   contributions: [

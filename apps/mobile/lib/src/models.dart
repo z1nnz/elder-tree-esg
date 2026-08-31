@@ -334,12 +334,14 @@ class JourneyResultModel {
     required this.runId,
     required this.title,
     required this.keepsakeName,
+    required this.keepsakeSlot,
     required this.completedAt,
     required this.growthPoints,
     required this.contributions,
     this.historicalImport = false,
   });
   final String runId, title, keepsakeName;
+  final int keepsakeSlot;
   final DateTime completedAt;
   final int growthPoints;
   final bool historicalImport;
@@ -349,6 +351,7 @@ class JourneyResultModel {
         runId: json['runId'] as String,
         title: json['title'] as String,
         keepsakeName: json['keepsakeName'] as String,
+        keepsakeSlot: json['keepsakeSlot'] as int,
         completedAt: DateTime.parse(json['completedAt'] as String),
         growthPoints: json['growthPoints'] as int,
         historicalImport: json['historicalImport'] == true,
