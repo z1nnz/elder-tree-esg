@@ -14,6 +14,7 @@
 | 2026-08-29 | 將三分鐘接力篇章由自我確認升級為伺服器完整計時，保存可追溯秒數、阻擋提前完成並支援轉棒重新計時 | 分級行動見證、資料規則、App 互動、無障礙與跨端驗收 | 由 `@z1nnz` 負責見證強度與倫理邊界、API／資料庫／App 整合、測試判讀及正式版本驗收 | [議題 #45](https://github.com/z1nnz/elder-tree-esg/issues/45)、[合併請求 #46](https://github.com/z1nnz/elder-tree-esg/pull/46)、[架構決策](../adr/0003-use-relay-claim-as-timer-start.md)、[畫面、測試與證據界線](relay-timer-witness-evidence.md) |
 | 2026-08-30 | 將城市探索升級為位置、連續停留、健康步數與場域內距離同時成立的第三級行程見證，完成跨端健康權限、資料留存與防重複成長 | 分級見證規則、隱私界線、後台設定、API／資料庫／App 整合、跨平台建置與驗收 | 由 `@z1nnz` 負責證據強度與限制、資料最小化、產品文案、跨端整合、測試判讀及正式版本驗收 | [議題 #47](https://github.com/z1nnz/elder-tree-esg/issues/47)、[合併請求 #48](https://github.com/z1nnz/elder-tree-esg/pull/48)、[架構決策](../adr/0004-use-consecutive-in-area-samples-for-journey-witness.md)、[畫面、測試、建置與未證明界線](journey-witness-evidence.md) |
 | 2026-08-31 | 建立全螢幕生命樹庭園的 Blender／Unity 三維管線，完成可重建成熟樹、十二個穩定紀念掛點、資料拒絕規則、低頻風動骨架、自動建場與第一輪實景 | 三維技術方向、資料邊界、美術資產管線、動畫架構、錯誤修正與版本驗收 | 由 `@z1nnz` 負責採用 Unity 全螢幕場景、保留 Flutter 主流程與二維退化、模型品質取捨、程式整合及建置結果判讀 | [議題 #49](https://github.com/z1nnz/elder-tree-esg/issues/49)、[架構決策](../adr/0005-use-fullscreen-unity-life-tree-garden.md)、[模型統計、雜湊、Unity 實景與 4 項編輯器測試](life-tree-3d-evidence.md) |
+| 2026-09-01 | 完成 Android 全螢幕生命樹程式庫、Flutter 原生通道、單一啟動入口、ARM64 完整與二維退化雙建置 | Android 架構採用、跨端狀態契約、失敗修正、資源清理、建置與版本驗收 | 由 `@z1nnz` 負責 Unity 6 實際結構判讀、Flutter／Gradle／Manifest 整合、APK 內容檢查及未完成實機界線 | [議題 #49](https://github.com/z1nnz/elder-tree-esg/issues/49)、[兩種 APK 雜湊、測試、失敗修正與限制](life-tree-android-integration-evidence.md) |
 
 ## 待補的本人實作證據
 

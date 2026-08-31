@@ -64,4 +64,17 @@ tools/unity/prepare_life_tree_ios.sh
 
 Flutter 的「走進生命樹庭園」會透過 iOS 原生通道傳入後端成長階段、固定紀念掛點與降低動態偏好。未準備 Unity 程式庫、原生載入失敗或其他尚未支援的平台會留在既有二維生命樹，不會假裝已開啟三維畫面。
 
-目前已驗證 ARM64 iPhone 程式庫與 Swift 橋接可編譯；完整 App 實機安裝、返回操作、幀率與記憶體仍須用已安裝 iOS Device Platform 的 Xcode 與實體 iPhone 驗收。Android Unity 程式庫尚未接入。
+目前已驗證 ARM64 iPhone 程式庫與 Swift 橋接可編譯；完整 App 實機安裝、返回操作、幀率與記憶體仍須用已安裝 iOS Device Platform 的 Xcode 與實體 iPhone 驗收。Android 的匯出與原生橋接方式如下，完整 APK 與實機結果必須分別驗證。
+
+## Android 程式庫與 App 串接
+
+安裝 Unity Android Build Support 後，在專案根目錄執行：
+
+```sh
+tools/unity/prepare_life_tree_android.sh
+tools/unity/verify_life_tree_android_bridge.sh
+```
+
+第一個腳本會匯出 ARM64 `unityLibrary`；Flutter 的 Gradle 設定只在本機成品存在時嵌入它，乾淨複製與自動測試仍可使用二維生命樹。第二個腳本會建置完整 Android APK，並核對 APK 確實包含 Unity 與 IL2CPP ARM64 程式庫。
+
+App 透過與 iOS 相同的原生通道開啟 Unity 6 的全螢幕 `UnityPlayerGameActivity`。生命樹狀態放在啟動資料中，由 Unity 場景讀取；Unity 活動不對外匯出，也不會產生第二個 App 啟動圖示。編譯成功不取代實體 Android 手機的開啟、返回、幀率與記憶體驗收。

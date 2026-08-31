@@ -41,8 +41,23 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+    packaging {
+        jniLibs {
+            // Unity 6 exports its launcher with legacy JNI extraction enabled.
+            // Mirror that only for the full 3D build; the Flutter-only fallback
+            // keeps the platform default.
+            useLegacyPackaging = findProject(":unityLibrary") != null
+        }
+    }
 }
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    if (findProject(":unityLibrary") != null) {
+        implementation(project(":unityLibrary"))
+    }
 }

@@ -41,6 +41,12 @@ namespace TreeCompanion.Tests
         }
 
         [Test]
+        public void UnconfiguredStateStartsAtSeedlingStage()
+        {
+            Assert.That(new LifeTreeState().stageIndex, Is.EqualTo(LifeTreeState.MinimumStageIndex));
+        }
+
+        [Test]
         public void ReduceMotionRestoresAuthoredBranchRotation()
         {
             var rootObject = new GameObject("生命樹_測試根節點");
