@@ -46,3 +46,9 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    if (findProject(":unityLibrary") != null) {
+        implementation(project(":unityLibrary"))
+    }
+}

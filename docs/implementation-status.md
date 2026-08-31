@@ -1,5 +1,13 @@
 # 實作狀態
 
+## 2026-09-01：Android 生命樹庭園原生串接
+
+- Unity 6000.0.82f1 可匯出 ARM64 `unityLibrary`，Flutter Android 只在本機匯出物存在時嵌入，乾淨複製仍能使用二維生命樹。
+- App 與 iOS 共用生命樹通道及狀態契約；Android 啟動全螢幕 `UnityPlayerGameActivity`，活動不對外匯出且不建立第二個啟動圖示。
+- 完整 227 MB APK 已確認包含 Unity 與 IL2CPP；無 Unity 的 ARM64 退化 APK亦建置成功。
+- Flutter 靜態檢查零問題、180 項通過且 3 項隔離略過；Unity 編輯器 4／4 通過。
+- Android／iOS 實體裝置目前未出現在系統部署清單，載入時間、返回、記憶體與幀率仍待實機驗收；詳見[證據紀錄](leadership-evidence/life-tree-android-integration-evidence.md)。
+
 ## 2026-08-29：接力旅程第二級完整計時見證（合併請求 #46 驗收中）
 
 - 「讓春天回到生命樹」第二篇章的一般舒展與無障礙慢呼吸改為伺服器 180 秒完整計時。

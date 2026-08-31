@@ -150,6 +150,49 @@ namespace TreeCompanion.Editor
             Debug.Log($"iOS 生命樹程式庫已匯出：{outputPath}");
         }
 
+        [MenuItem("樹伴/匯出 Android 生命樹程式庫")]
+        public static void ExportAndroidLibrary()
+        {
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) == null)
+            {
+                throw new InvalidOperationException(
+                    $"找不到已版控的生命樹場景：{ScenePath}。請先執行「樹伴/重建生命樹庭園」並審查差異。"
+                );
+            }
+            if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Android, BuildTarget.Android))
+            {
+                throw new InvalidOperationException("尚未安裝 Unity Android Build Support。");
+            }
+
+            var outputPath = Path.GetFullPath(Path.Combine(Application.dataPath, "../Builds/Android"));
+            if (Directory.Exists(outputPath))
+            {
+                Directory.Delete(outputPath, true);
+            }
+            Directory.CreateDirectory(outputPath);
+
+            EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android);
+            EditorUserBuildSettings.exportAsGoogleAndroidProject = true;
+            PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.Android, "tw.treecompanion.lifetreegarden");
+            PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel26;
+            PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+            var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+            {
+                scenes = new[] { ScenePath },
+                locationPathName = outputPath,
+                target = BuildTarget.Android,
+                options = BuildOptions.AcceptExternalModificationsToPlayer,
+            });
+            if (report.summary.result != BuildResult.Succeeded)
+            {
+                throw new InvalidOperationException(
+                    $"Android 生命樹程式庫匯出失敗：{report.summary.result}，錯誤 {report.summary.totalErrors}。"
+                );
+            }
+            Debug.Log($"Android 生命樹程式庫已匯出：{outputPath}/unityLibrary");
+        }
+
         private static void ValidateImportedHierarchy(Transform root)
         {
             var names = root.GetComponentsInChildren<Transform>(true).Select(item => item.name).ToArray();
