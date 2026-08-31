@@ -209,6 +209,7 @@
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				011081B9264A302F1747E988 /* [CP] Embed Pods Frameworks */,
+				A11F7E4E31D6000100BEE001 /* 嵌入生命樹庭園 */,
 			);
 			buildRules = (
 			);
@@ -378,6 +379,22 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" build";
+		};
+		A11F7E4E31D6000100BEE001 /* 嵌入生命樹庭園 */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "嵌入生命樹庭園";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ \"${PLATFORM_NAME:-}\" != \"iphoneos\" ] || [ -z \"${LIFE_TREE_UNITY_FRAMEWORK_DIR:-}\" ] || [ ! -d \"${LIFE_TREE_UNITY_FRAMEWORK_DIR}/UnityFramework.framework\" ]; then\n  echo \"生命樹庭園：此建置未提供 iPhone Unity 程式庫，保留二維生命樹。\"\n  exit 0\nfi\nDESTINATION=\"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/UnityFramework.framework\"\nmkdir -p \"$(dirname \"${DESTINATION}\")\"\n/usr/bin/rsync -a --delete \"${LIFE_TREE_UNITY_FRAMEWORK_DIR}/UnityFramework.framework/\" \"${DESTINATION}/\"\nif [ \"${CODE_SIGNING_ALLOWED:-NO}\" = \"YES\" ] && [ -n \"${EXPANDED_CODE_SIGN_IDENTITY:-}\" ]; then\n  /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --preserve-metadata=identifier,entitlements \"${DESTINATION}\"\nfi\n";
+			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
 

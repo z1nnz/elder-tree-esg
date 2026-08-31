@@ -739,6 +739,8 @@ export interface JourneyResult {
   actionId: string;
   title: string;
   keepsakeName: string;
+  /** Stable zero-based socket in the twelve-place life-tree canopy. */
+  keepsakeSlot: number;
   completedAt: string;
   growthPoints: number;
   historicalImport: boolean;

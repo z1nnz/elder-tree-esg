@@ -20,6 +20,7 @@ Pods/
 __pycache__/
 *.pyc
 *.blend1
+apps/mobile/ios/Flutter/LifeTreeUnity.local.xcconfig
 *.log
 *.pem
 *.key

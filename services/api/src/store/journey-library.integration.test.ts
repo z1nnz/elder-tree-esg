@@ -19,6 +19,7 @@ describe.runIf(Boolean(process.env.DATABASE_URL))(
     let library: JourneyLibraryService;
     let circleId: string;
     let firstRun: string;
+    let spring: string;
     let conversation: string;
     let kindness: string;
     let initialResult: JourneyResult;
@@ -34,15 +35,32 @@ describe.runIf(Boolean(process.env.DATABASE_URL))(
           (await store.createHouseholdInvite(uids[0]!)).code,
           "朋友",
         );
-      await store.getContext(uids[3]!);
       const shelf = await library.shelf(uids[0]!);
-      firstRun = shelf.currentRunId!;
+      spring = shelf.choices.find(
+        (item) => item.title === "讓春天回到生命樹",
+      )!.actionId;
       conversation = shelf.choices.find(
         (item) => item.title === "聽見彼此的日常",
       )!.actionId;
       kindness = shelf.choices.find(
         (item) => item.title === "把好意傳下去",
       )!.actionId;
+      firstRun = (
+        await library.start(uids[0]!, {
+          circleId,
+          actionId: spring,
+          previousRunId: shelf.currentRunId!,
+        })
+      ).activeAction!.runId!;
+
+      // The product catalog can already exist on a reused development
+      // database. Pin this isolated fixture to the intended three-person
+      // starter instead of depending on global publication order.
+      const soloShelf = await library.shelf(uids[3]!);
+      await prisma.cooperativeActionRun.update({
+        where: { id: soloShelf.currentRunId! },
+        data: { actionId: spring },
+      });
     });
 
     afterAll(async () => {
@@ -96,6 +114,7 @@ describe.runIf(Boolean(process.env.DATABASE_URL))(
       expect(initialResult).toMatchObject({
         runId: firstRun,
         growthPoints: 120,
+        keepsakeSlot: 0,
         historicalImport: false,
       });
       expect(initialResult.contributions).toHaveLength(3);
@@ -190,6 +209,25 @@ describe.runIf(Boolean(process.env.DATABASE_URL))(
       ).rejects.toThrow("revisit");
     });
 
+    it("adds a deterministic socket to an older immutable snapshot", async () => {
+      const { keepsakeSlot: _oldSlot, ...legacySnapshot } = initialResult;
+      await prisma.cooperativeActionRun.update({
+        where: { id: firstRun },
+        data: { resultSnapshot: legacySnapshot },
+      });
+      const migrated = (await library.shelf(uids[0]!)).results.find(
+        (item) => item.runId === firstRun,
+      );
+      expect(migrated).toEqual(initialResult);
+      expect(
+        (
+          await prisma.cooperativeActionRun.findUniqueOrThrow({
+            where: { id: firstRun },
+          })
+        ).resultSnapshot,
+      ).toMatchObject({ keepsakeSlot: 0 });
+    });
+
     it("reopens after seven days with a new run while preserving both old results", async () => {
       now = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
       const before = await library.shelf(uids[0]!);
@@ -275,6 +313,19 @@ describe.runIf(Boolean(process.env.DATABASE_URL))(
       const results = [...first.results, ...second.results];
       expect(new Set(results.map((item) => item.runId)).size).toBe(17);
       expect(results.filter((item) => item.historicalImport)).toHaveLength(14);
+      const imported = results
+        .filter((item) => item.historicalImport)
+        .sort(
+          (left, right) =>
+            left.completedAt.localeCompare(right.completedAt) ||
+            left.runId.localeCompare(right.runId),
+        );
+      expect(imported.map((item) => item.keepsakeSlot)).toEqual(
+        imported.map((_, index) => index % 12),
+      );
+      expect(results.find((item) => item.runId === firstRun)).toEqual(
+        initialResult,
+      );
     });
 
     it("serializes replacing an untouched journey against a simultaneous claim", async () => {

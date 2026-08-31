@@ -7,6 +7,7 @@ import 'package:elder_tree_mobile/src/models.dart';
 import 'package:elder_tree_mobile/src/root_shell.dart';
 import 'package:elder_tree_mobile/src/theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const longCircleName = '週末一起沿著河岸慢慢散步也願意聽彼此分享日常的朋友們樹伴圈';
@@ -191,6 +192,28 @@ void main() {
       controller.dispose();
     },
   );
+
+  testWidgets('tree opens the native garden with verified state JSON', (
+    tester,
+  ) async {
+    const channel = MethodChannel('tree-companion/life-tree-garden');
+    final calls = <MethodCall>[];
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      return true;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    final controller = coreController()..offlineDemo = true;
+    await showCorePage(tester, controller, index: 5);
+
+    await tester.tap(find.text('走進生命樹庭園'));
+    await tester.pumpAndSettle();
+
+    expect(calls.map((item) => item.method), ['isAvailable', 'open']);
+    expect((calls.last.arguments as Map)['state'], contains('"stageIndex":3'));
+  });
 
   for (final entry in {0: 'home', 3: 'companion', 5: 'tree'}.entries) {
     for (final width in [360.0, 390.0, 768.0]) {

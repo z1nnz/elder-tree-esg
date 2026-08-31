@@ -13,6 +13,7 @@ import 'journey_library_screen.dart';
 import 'journey_witness_progress.dart';
 import 'exploration_map_config.dart';
 import 'life_tree_art.dart';
+import 'life_tree_garden.dart';
 import 'models.dart';
 import 'theme.dart';
 import 'venue_witness_screen.dart';
@@ -6551,11 +6552,32 @@ class TreeGrowthScreen extends StatelessWidget {
   const TreeGrowthScreen({
     required this.controller,
     this.onOpenCircle,
+    this.gardenBridge = const LifeTreeGardenBridge(),
     super.key,
   });
 
   final AppController controller;
   final VoidCallback? onOpenCircle;
+  final LifeTreeGardenBridge gardenBridge;
+
+  Future<void> _openGarden(BuildContext context, _TreeGrowthStage stage) async {
+    if (!controller.offlineDemo && controller.journeyShelf == null) {
+      await controller.loadJourneyShelf();
+    }
+    if (!context.mounted) return;
+    final state = LifeTreeGardenState.fromVerifiedResults(
+      stageIndex: _TreeGrowthStage.values.indexOf(stage),
+      reduceMotion: MediaQuery.disableAnimationsOf(context),
+      results: controller.journeyShelf?.results ?? const [],
+    );
+    final opened = await gardenBridge.open(state);
+    if (!context.mounted || opened) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(content: Text('這台裝置目前使用安靜版生命樹；三維庭園資源完成安裝後會自動開放。')),
+      );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -6692,6 +6714,24 @@ class TreeGrowthScreen extends StatelessWidget {
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => _openGarden(context, stage),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: forestDark,
+                    minimumSize: const Size.fromHeight(54),
+                  ),
+                  icon: const Icon(Icons.view_in_ar_rounded),
+                  label: Text(
+                    MediaQuery.disableAnimationsOf(context)
+                        ? '走進靜態生命樹庭園'
+                        : '走進生命樹庭園',
+                  ),
+                ),
               ),
             ],
           ),
