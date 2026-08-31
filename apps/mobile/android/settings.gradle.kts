@@ -29,10 +29,26 @@ plugins {
 
 include(":app")
 
-val lifeTreeUnityLibrary = file("../../life-tree-unity/Builds/Android/unityLibrary")
-if (lifeTreeUnityLibrary.isDirectory) {
+val lifeTreeUnityExport = file("../../life-tree-unity/Builds/Android")
+val lifeTreeUnityLibrary = lifeTreeUnityExport.resolve("unityLibrary")
+val lifeTreeUnityRequiredFiles = listOf(
+    lifeTreeUnityExport.resolve("gradle.properties"),
+    lifeTreeUnityLibrary.resolve("build.gradle"),
+    lifeTreeUnityLibrary.resolve("src/main/AndroidManifest.xml"),
+    lifeTreeUnityLibrary.resolve(
+        "src/main/Il2CppOutputProject/IL2CPP/build/deploy/il2cpp",
+    ),
+    lifeTreeUnityLibrary.resolve(
+        "src/main/Il2CppOutputProject/Source/il2cppOutput/Il2CppCodeRegistration.cpp",
+    ),
+    lifeTreeUnityLibrary.resolve("src/main/jniLibs/arm64-v8a/libunity.so"),
+)
+val lifeTreeUnityExportIsComplete =
+    lifeTreeUnityLibrary.isDirectory && lifeTreeUnityRequiredFiles.all { it.isFile }
+
+if (lifeTreeUnityExportIsComplete) {
     val lifeTreeUnityProperties = java.util.Properties().apply {
-        file("../../life-tree-unity/Builds/Android/gradle.properties")
+        lifeTreeUnityExport.resolve("gradle.properties")
             .inputStream()
             .use(::load)
     }

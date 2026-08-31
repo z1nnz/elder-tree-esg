@@ -31,7 +31,7 @@ namespace TreeCompanion.LifeTree
         };
 
         public int schemaVersion = CurrentSchemaVersion;
-        public int stageIndex = MaximumStageIndex;
+        public int stageIndex = MinimumStageIndex;
         public bool reduceMotion;
         public LifeTreeKeepsake[] keepsakes = Array.Empty<LifeTreeKeepsake>();
 

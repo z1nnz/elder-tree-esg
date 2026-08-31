@@ -17,21 +17,22 @@ namespace TreeCompanion.LifeTree
             sceneController = controller;
         }
 
-        public void ApplyStateJson(string json)
+        public bool ApplyStateJson(string json)
         {
             if (sceneController == null)
             {
                 Debug.LogError("生命樹場景控制器尚未就緒。");
-                return;
+                return false;
             }
 
             if (!LifeTreeState.TryParse(json, out var state, out var error))
             {
                 Debug.LogWarning($"未套用生命樹資料：{error}");
-                return;
+                return false;
             }
 
             sceneController.ApplyState(state);
+            return true;
         }
 
 #if UNITY_ANDROID && !UNITY_EDITOR
@@ -60,7 +61,11 @@ namespace TreeCompanion.LifeTree
             }
 
             lastAppliedAndroidState = state;
-            ApplyStateJson(state);
+            if (!ApplyStateJson(state))
+            {
+                Debug.LogWarning("生命樹啟動資料驗證失敗，返回樹伴二維庭園。");
+                activity.Call("finish");
+            }
         }
 #endif
     }

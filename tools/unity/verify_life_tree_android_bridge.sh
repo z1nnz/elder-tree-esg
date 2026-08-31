@@ -7,15 +7,26 @@ MOBILE_DIR="${REPO_ROOT}/apps/mobile"
 UNITY_EXPORT="${REPO_ROOT}/apps/life-tree-unity/Builds/Android"
 APK_PATH="${MOBILE_DIR}/build/app/outputs/flutter-apk/app-debug.apk"
 
-if [[ ! -d "${UNITY_EXPORT}/unityLibrary" ]]; then
-  echo "找不到 Android 生命樹程式庫；請先執行 tools/unity/prepare_life_tree_android.sh。" >&2
-  exit 1
-fi
+required_paths=(
+  "${UNITY_EXPORT}/gradle.properties"
+  "${UNITY_EXPORT}/unityLibrary/build.gradle"
+  "${UNITY_EXPORT}/unityLibrary/src/main/AndroidManifest.xml"
+  "${UNITY_EXPORT}/unityLibrary/src/main/Il2CppOutputProject/IL2CPP/build/deploy/il2cpp"
+  "${UNITY_EXPORT}/unityLibrary/src/main/Il2CppOutputProject/Source/il2cppOutput/Il2CppCodeRegistration.cpp"
+  "${UNITY_EXPORT}/unityLibrary/src/main/jniLibs/arm64-v8a/libunity.so"
+)
+
+for required_path in "${required_paths[@]}"; do
+  if [[ ! -f "${required_path}" ]]; then
+    echo "Android 生命樹程式庫不完整，缺少：${required_path}" >&2
+    exit 1
+  fi
+done
 
 (
   cd "${MOBILE_DIR}"
   flutter pub get
-  flutter build apk --debug --target-platform android-arm64
+  flutter build apk --debug --no-pub
 )
 
 if [[ ! -f "${APK_PATH}" ]]; then
@@ -35,4 +46,10 @@ if ! grep -Fxq 'lib/arm64-v8a/libil2cpp.so' <<< "${APK_ENTRIES}"; then
   exit 1
 fi
 
-echo "生命樹 Android 原生橋接已完成建置，APK 包含 Unity 與 IL2CPP ARM64 程式庫。"
+if ! grep -Fxq 'lib/armeabi-v7a/libflutter.so' <<< "${APK_ENTRIES}" ||
+   ! grep -Fxq 'lib/x86_64/libflutter.so' <<< "${APK_ENTRIES}"; then
+  echo "APK 未包含低階或非 ARM64 裝置所需的 Flutter 二維備援執行時期。" >&2
+  exit 1
+fi
+
+echo "生命樹 Android 原生橋接已完成建置；單一 APK 同時包含 ARM64 Unity 與跨架構 Flutter 二維備援。"

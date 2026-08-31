@@ -32,6 +32,9 @@ required_paths=(
   "${EXPORT_DIR}/unityLibrary/build.gradle"
   "${EXPORT_DIR}/unityLibrary/libs/unity-classes.jar"
   "${EXPORT_DIR}/unityLibrary/src/main/java/com/unity3d/player/UnityPlayerGameActivity.java"
+  "${EXPORT_DIR}/unityLibrary/src/main/AndroidManifest.xml"
+  "${EXPORT_DIR}/unityLibrary/src/main/Il2CppOutputProject/IL2CPP/build/deploy/il2cpp"
+  "${EXPORT_DIR}/unityLibrary/src/main/Il2CppOutputProject/Source/il2cppOutput/Il2CppCodeRegistration.cpp"
   "${EXPORT_DIR}/unityLibrary/src/main/jniLibs/arm64-v8a/libunity.so"
 )
 

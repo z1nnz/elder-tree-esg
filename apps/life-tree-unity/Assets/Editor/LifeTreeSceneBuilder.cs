@@ -117,53 +117,21 @@ namespace TreeCompanion.Editor
         [MenuItem("樹伴/匯出 iOS 生命樹程式庫")]
         public static void ExportIosLibrary()
         {
-            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) == null)
-            {
-                throw new InvalidOperationException(
-                    $"找不到已版控的生命樹場景：{ScenePath}。請先執行「樹伴/重建生命樹庭園」並審查差異。"
-                );
-            }
-            if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.iOS, BuildTarget.iOS))
-            {
-                throw new InvalidOperationException("尚未安裝 Unity iOS Build Support。");
-            }
+            ValidateLibraryExport(BuildTargetGroup.iOS, BuildTarget.iOS, "iOS");
 
             var outputPath = Path.GetFullPath(Path.Combine(Application.dataPath, "../Builds/iOS"));
             Directory.CreateDirectory(outputPath);
             EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.iOS, BuildTarget.iOS);
             PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.iOS, "tw.treecompanion.lifetreegarden");
             PlayerSettings.iOS.targetOSVersionString = "15.0";
-            var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
-            {
-                scenes = new[] { ScenePath },
-                locationPathName = outputPath,
-                target = BuildTarget.iOS,
-                options = BuildOptions.None,
-            });
-            if (report.summary.result != BuildResult.Succeeded)
-            {
-                throw new InvalidOperationException(
-                    $"iOS 生命樹程式庫匯出失敗：{report.summary.result}，錯誤 {report.summary.totalErrors}。"
-                );
-            }
+            BuildLibrary(BuildTarget.iOS, outputPath, BuildOptions.None, "iOS");
             Debug.Log($"iOS 生命樹程式庫已匯出：{outputPath}");
         }
 
         [MenuItem("樹伴/匯出 Android 生命樹程式庫")]
         public static void ExportAndroidLibrary()
         {
-            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) == null)
-            {
-                throw new InvalidOperationException(
-                    $"找不到已版控的生命樹場景：{ScenePath}。請先執行「樹伴/重建生命樹庭園」並審查差異。"
-                );
-            }
-            if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Android, BuildTarget.Android))
-            {
-                throw new InvalidOperationException("尚未安裝 Unity Android Build Support。");
-            }
+            ValidateLibraryExport(BuildTargetGroup.Android, BuildTarget.Android, "Android");
 
             var outputPath = Path.GetFullPath(Path.Combine(Application.dataPath, "../Builds/Android"));
             if (Directory.Exists(outputPath))
@@ -177,20 +145,54 @@ namespace TreeCompanion.Editor
             PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.Android, "tw.treecompanion.lifetreegarden");
             PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel26;
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+            BuildLibrary(
+                BuildTarget.Android,
+                outputPath,
+                BuildOptions.AcceptExternalModificationsToPlayer,
+                "Android"
+            );
+            Debug.Log($"Android 生命樹程式庫已匯出：{outputPath}/unityLibrary");
+        }
+
+        private static void ValidateLibraryExport(
+            BuildTargetGroup buildTargetGroup,
+            BuildTarget buildTarget,
+            string platformName
+        )
+        {
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) == null)
+            {
+                throw new InvalidOperationException(
+                    $"找不到已版控的生命樹場景：{ScenePath}。請先執行「樹伴/重建生命樹庭園」並審查差異。"
+                );
+            }
+            if (!BuildPipeline.IsBuildTargetSupported(buildTargetGroup, buildTarget))
+            {
+                throw new InvalidOperationException($"尚未安裝 Unity {platformName} Build Support。");
+            }
+        }
+
+        private static void BuildLibrary(
+            BuildTarget buildTarget,
+            string outputPath,
+            BuildOptions options,
+            string platformName
+        )
+        {
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
                 scenes = new[] { ScenePath },
                 locationPathName = outputPath,
-                target = BuildTarget.Android,
-                options = BuildOptions.AcceptExternalModificationsToPlayer,
+                target = buildTarget,
+                options = options,
             });
             if (report.summary.result != BuildResult.Succeeded)
             {
                 throw new InvalidOperationException(
-                    $"Android 生命樹程式庫匯出失敗：{report.summary.result}，錯誤 {report.summary.totalErrors}。"
+                    $"{platformName} 生命樹程式庫匯出失敗：{report.summary.result}，錯誤 {report.summary.totalErrors}。"
                 );
             }
-            Debug.Log($"Android 生命樹程式庫已匯出：{outputPath}/unityLibrary");
         }
 
         private static void ValidateImportedHierarchy(Transform root)
