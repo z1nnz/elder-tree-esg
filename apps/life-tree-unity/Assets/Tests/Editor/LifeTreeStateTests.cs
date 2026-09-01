@@ -1,5 +1,6 @@
 using NUnit.Framework;
 using TreeCompanion.LifeTree;
+using UnityEditor;
 using UnityEngine;
 
 namespace TreeCompanion.Tests
@@ -74,6 +75,37 @@ namespace TreeCompanion.Tests
                 Object.DestroyImmediate(controllerObject);
                 Object.DestroyImmediate(rootObject);
             }
+        }
+
+        [Test]
+        public void HybridBackgroundMatchesPortraitCameraAspect()
+        {
+            const string backgroundPath =
+                "Assets/Art/Backgrounds/生命樹浮島世界_遠景背景_v1.png";
+            var background = AssetDatabase.LoadAssetAtPath<Texture2D>(backgroundPath);
+
+            Assert.That(background, Is.Not.Null, $"找不到遠景背景：{backgroundPath}");
+            Assert.That(
+                (float)background.width / background.height,
+                Is.EqualTo(0.75f).Within(0.005f),
+                "遠景背景必須與 3:4 生命樹主相機一致，避免手機裁切露出空白。"
+            );
+        }
+
+        [Test]
+        public void SharedBarkMaterialUsesTheReviewedTexture()
+        {
+            const string texturePath = "Assets/Art/Textures/生命樹_樹皮色彩_v1.png";
+            const string materialPath = "Assets/Art/Generated/Materials/生命樹_樹皮.mat";
+            var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(texturePath);
+            var material = AssetDatabase.LoadAssetAtPath<Material>(materialPath);
+
+            Assert.That(texture, Is.Not.Null, $"找不到樹皮貼圖：{texturePath}");
+            Assert.That(texture.width, Is.GreaterThanOrEqualTo(1024));
+            Assert.That(texture.height, Is.EqualTo(texture.width));
+            Assert.That(material, Is.Not.Null, $"找不到共用樹皮材質：{materialPath}");
+            Assert.That(material.mainTexture, Is.SameAs(texture));
+            Assert.That(material.mainTextureScale.y, Is.GreaterThan(2f));
         }
     }
 }

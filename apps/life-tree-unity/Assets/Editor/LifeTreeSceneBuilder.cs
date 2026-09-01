@@ -13,6 +13,9 @@ namespace TreeCompanion.Editor
     public static class LifeTreeSceneBuilder
     {
         private const string ModelPath = "Assets/Art/Generated/生命樹庭園.fbx";
+        private const string BackgroundPath = "Assets/Art/Backgrounds/生命樹浮島世界_遠景背景_v1.png";
+        private const string BarkTexturePath = "Assets/Art/Textures/生命樹_樹皮色彩_v1.png";
+        private const string BarkMaterialPath = "Assets/Art/Generated/Materials/生命樹_樹皮.mat";
         private const string ScenePath = "Assets/Scenes/生命樹庭園.unity";
 
         [MenuItem("樹伴/重建生命樹庭園")]
@@ -29,35 +32,38 @@ namespace TreeCompanion.Editor
             scene.name = "生命樹庭園";
 
             var environment = new GameObject("生命樹庭園_場景");
-            var tree = (GameObject)PrefabUtility.InstantiatePrefab(model, scene);
-            tree.name = "生命樹_展示模型";
-            tree.transform.SetParent(environment.transform, false);
-            // Blender's FBX uses centimetre file units. Keeping the scale on
-            // the authored root preserves a clear scene contract and lets the
-            // runtime stage controller apply relative growth without guessing.
-            tree.transform.localScale = Vector3.one * 100f;
+            var worldModel = (GameObject)PrefabUtility.InstantiatePrefab(model, scene);
+            worldModel.name = "生命樹_浮島世界模型";
+            worldModel.transform.SetParent(environment.transform, false);
+            // The generated FBX is authored in metres and Unity's importer has
+            // already converted its file units. A second 100x scale here would
+            // push the camera kilometres away and flatten every material into
+            // the fog colour.
+            worldModel.transform.localScale = Vector3.one;
 
-            ValidateImportedHierarchy(tree.transform);
+            ValidateImportedHierarchy(worldModel.transform);
+            var lifeTreeRoot = FindRequiredDescendant(worldModel.transform, "生命樹_根節點");
+            ApplyTreeMaterials(lifeTreeRoot);
 
             var controllerObject = new GameObject("生命樹_資料與動畫");
             controllerObject.transform.SetParent(environment.transform, false);
             var controller = controllerObject.AddComponent<LifeTreeSceneController>();
-            controller.BindHierarchy(tree.transform);
+            controller.BindHierarchy(lifeTreeRoot);
             var bridge = controllerObject.AddComponent<LifeTreeBridge>();
             bridge.Configure(controller);
 
-            CreateCamera(environment.transform);
+            var camera = CreateCamera(environment.transform, worldModel.transform);
             CreateLighting(environment.transform);
-            CreateBackdrop(environment.transform);
+            CreateBackdrop(environment.transform, camera);
 
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(0.42f, 0.56f, 0.46f);
-            RenderSettings.ambientEquatorColor = new Color(0.20f, 0.30f, 0.23f);
-            RenderSettings.ambientGroundColor = new Color(0.075f, 0.09f, 0.072f);
+            RenderSettings.ambientSkyColor = new Color(0.48f, 0.68f, 0.86f);
+            RenderSettings.ambientEquatorColor = new Color(0.30f, 0.54f, 0.67f);
+            RenderSettings.ambientGroundColor = new Color(0.09f, 0.20f, 0.25f);
             RenderSettings.fog = true;
-            RenderSettings.fogColor = new Color(0.035f, 0.075f, 0.058f);
+            RenderSettings.fogColor = new Color(0.46f, 0.68f, 0.80f);
             RenderSettings.fogMode = FogMode.ExponentialSquared;
-            RenderSettings.fogDensity = 0.012f;
+            RenderSettings.fogDensity = 0.0065f;
 
             PlayerSettings.companyName = "樹伴";
             PlayerSettings.productName = "樹伴生命樹庭園";
@@ -72,7 +78,7 @@ namespace TreeCompanion.Editor
 
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
             AssetDatabase.SaveAssets();
-            Debug.Log("生命樹庭園已建立：8 根主枝、16 組葉簇、12 個穩定紀念掛點。目標更新率為每秒 30 幀。");
+            Debug.Log("生命樹混合浮島世界已建立：三維主樹、1 座中央島、2 道近景瀑布與原創遠景背景。目標更新率為每秒 30 幀。");
         }
 
         public static void BuildAndCapture()
@@ -83,6 +89,16 @@ namespace TreeCompanion.Editor
             {
                 throw new InvalidOperationException("生命樹庭園缺少主相機。");
             }
+            var controller = UnityEngine.Object.FindFirstObjectByType<LifeTreeSceneController>();
+            if (controller == null)
+            {
+                throw new InvalidOperationException("生命樹庭園缺少資料與動畫控制器。");
+            }
+            controller.ApplyState(new LifeTreeState
+            {
+                stageIndex = LifeTreeState.MaximumStageIndex,
+                reduceMotion = true,
+            });
 
             const int width = 768;
             const int height = 1024;
@@ -202,6 +218,16 @@ namespace TreeCompanion.Editor
             RequireCount(names, "後景葉簇_", 8);
             RequireCount(names, "前景葉簇_", 8);
             RequireCount(names, "紀念掛點_", LifeTreeState.KeepsakeSlotCount);
+            RequireCount(names, "浮島_", 1);
+            RequireCount(names, "瀑布_", 2);
+            RequireCount(names, "雲海_", 0);
+        }
+
+        private static Transform FindRequiredDescendant(Transform root, string name)
+        {
+            var match = root.GetComponentsInChildren<Transform>(true)
+                .SingleOrDefault(item => item.name == name);
+            return match ?? throw new InvalidOperationException($"模型缺少必要節點：{name}。");
         }
 
         private static void RequireCount(string[] names, string prefix, int expected)
@@ -213,22 +239,144 @@ namespace TreeCompanion.Editor
             }
         }
 
-        private static void CreateCamera(Transform parent)
+        private static Camera CreateCamera(Transform parent, Transform content)
         {
+            // Clouds are edge dressing rather than a framing target. Including
+            // their outer lobes makes the portrait camera retreat so far that
+            // the life tree loses its role as the hero object.
+            var renderers = content.GetComponentsInChildren<Renderer>(true)
+                .Where(renderer => renderer.enabled && IsCameraFramingRenderer(renderer.transform, content))
+                .ToArray();
+            if (renderers.Length == 0)
+            {
+                throw new InvalidOperationException("生命樹浮島模型沒有可供相機取景的網格。");
+            }
+            var contentBounds = renderers[0].bounds;
+            foreach (var renderer in renderers.Skip(1))
+            {
+                contentBounds.Encapsulate(renderer.bounds);
+            }
+
             var cameraObject = new GameObject("生命樹庭園_主相機");
             cameraObject.transform.SetParent(parent, false);
-            cameraObject.transform.position = new Vector3(7.8f, 5.7f, -10.8f);
-            cameraObject.transform.rotation = Quaternion.LookRotation(new Vector3(0f, 2.55f, 0f) - cameraObject.transform.position, Vector3.up);
 
             var camera = cameraObject.AddComponent<Camera>();
-            camera.fieldOfView = 36f;
+            camera.fieldOfView = 37f;
+            camera.aspect = 0.75f;
             camera.nearClipPlane = 0.1f;
-            camera.farClipPlane = 80f;
-            camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = new Color(0.025f, 0.055f, 0.043f);
+            var verticalHalfAngle = camera.fieldOfView * 0.5f * Mathf.Deg2Rad;
+            var horizontalHalfAngle = Mathf.Atan(Mathf.Tan(verticalHalfAngle) * camera.aspect);
+            var verticalDistance = contentBounds.extents.y / Mathf.Tan(verticalHalfAngle);
+            var horizontalDistance = contentBounds.extents.x / Mathf.Tan(horizontalHalfAngle);
+            // A portrait hero view intentionally lets the far-island edges
+            // leave frame. Fitting the entire horizontal world would reduce
+            // the tree to roughly one quarter of the screen instead of the
+            // product target of a dominant life-tree silhouette.
+            var distance = Mathf.Max(
+                20f,
+                Mathf.Max(verticalDistance * 1.18f, horizontalDistance * 0.78f)
+            );
+            var viewDirection = new Vector3(0.49f, 0.34f, -0.80f).normalized;
+            var target = contentBounds.center + Vector3.up * contentBounds.extents.y * 0.15f;
+            cameraObject.transform.position = target + viewDirection * distance;
+            cameraObject.transform.rotation = Quaternion.LookRotation(target - cameraObject.transform.position, Vector3.up);
+            camera.farClipPlane = Mathf.Max(80f, distance * 4f);
+            camera.clearFlags = CameraClearFlags.Skybox;
+            camera.backgroundColor = new Color(0.18f, 0.48f, 0.72f);
             camera.allowHDR = true;
             camera.allowMSAA = true;
             cameraObject.tag = "MainCamera";
+            Debug.Log($"生命樹浮島取景邊界：中心 {contentBounds.center}、尺寸 {contentBounds.size}、相機距離 {distance:F2}。");
+            return camera;
+        }
+
+        private static bool HasNamedAncestor(
+            Transform item,
+            Transform contentRoot,
+            string[] prefixes
+        )
+        {
+            for (var current = item; current != null && current != contentRoot; current = current.parent)
+            {
+                if (prefixes.Any(prefix => current.name.StartsWith(prefix, StringComparison.Ordinal)))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static void ApplyTreeMaterials(Transform lifeTreeRoot)
+        {
+            var barkTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(BarkTexturePath);
+            if (barkTexture == null)
+            {
+                throw new InvalidOperationException($"找不到生命樹樹皮貼圖：{BarkTexturePath}");
+            }
+            var shader = Shader.Find("Standard") ?? Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null)
+            {
+                throw new InvalidOperationException("找不到生命樹樹皮需要的光照著色器。");
+            }
+
+            var materialDirectory = Path.GetDirectoryName(BarkMaterialPath);
+            if (!AssetDatabase.IsValidFolder(materialDirectory))
+            {
+                Directory.CreateDirectory(Path.Combine(Application.dataPath, "Art/Generated/Materials"));
+                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            }
+            var barkMaterial = AssetDatabase.LoadAssetAtPath<Material>(BarkMaterialPath);
+            if (barkMaterial == null)
+            {
+                barkMaterial = new Material(shader) { name = "生命樹_樹皮" };
+                AssetDatabase.CreateAsset(barkMaterial, BarkMaterialPath);
+            }
+            else
+            {
+                barkMaterial.shader = shader;
+            }
+            barkMaterial.mainTexture = barkTexture;
+            barkMaterial.mainTextureScale = new Vector2(1.35f, 2.8f);
+            barkMaterial.color = Color.white;
+            if (barkMaterial.HasProperty("_Glossiness"))
+            {
+                barkMaterial.SetFloat("_Glossiness", 0.18f);
+            }
+            if (barkMaterial.HasProperty("_Smoothness"))
+            {
+                barkMaterial.SetFloat("_Smoothness", 0.18f);
+            }
+
+            var barkPrefixes = new[]
+            {
+                "主幹",
+                "主枝_",
+                "次枝_",
+                "末梢枝_",
+                "樹根_",
+            };
+            foreach (var renderer in lifeTreeRoot.GetComponentsInChildren<Renderer>(true))
+            {
+                if (HasNamedAncestor(renderer.transform, lifeTreeRoot, barkPrefixes)
+                    || barkPrefixes.Any(prefix => renderer.name.StartsWith(prefix, StringComparison.Ordinal)))
+                {
+                    renderer.sharedMaterial = barkMaterial;
+                }
+            }
+            EditorUtility.SetDirty(barkMaterial);
+        }
+
+        private static bool IsCameraFramingRenderer(Transform item, Transform contentRoot)
+        {
+            for (var current = item; current != null && current != contentRoot; current = current.parent)
+            {
+                if (current.name.StartsWith("雲海_", StringComparison.Ordinal)
+                    || current.name.StartsWith("雲朵_", StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+            return true;
         }
 
         private static void CreateLighting(Transform parent)
@@ -238,10 +386,11 @@ namespace TreeCompanion.Editor
             sunObject.transform.rotation = Quaternion.Euler(42f, -34f, 0f);
             var sun = sunObject.AddComponent<Light>();
             sun.type = LightType.Directional;
-            sun.color = new Color(1f, 0.76f, 0.54f);
-            sun.intensity = 0.90f;
+            sun.color = new Color(1f, 0.82f, 0.62f);
+            sun.intensity = 1.05f;
             sun.shadows = LightShadows.Soft;
             sun.shadowStrength = 0.72f;
+            RenderSettings.sun = sun;
 
             var fillObject = new GameObject("葉冠柔光");
             fillObject.transform.SetParent(parent, false);
@@ -249,38 +398,63 @@ namespace TreeCompanion.Editor
             fillObject.transform.rotation = Quaternion.LookRotation(new Vector3(0f, 3.2f, 0f) - fillObject.transform.position);
             var fill = fillObject.AddComponent<Light>();
             fill.type = LightType.Spot;
-            fill.color = new Color(0.48f, 0.70f, 0.56f);
-            fill.intensity = 2.65f;
+            fill.color = new Color(0.40f, 0.68f, 0.92f);
+            fill.intensity = 2.10f;
             fill.range = 18f;
             fill.spotAngle = 78f;
             fill.shadows = LightShadows.None;
         }
 
-        private static void CreateBackdrop(Transform parent)
+        private static void CreateBackdrop(Transform parent, Camera camera)
         {
-            var backdrop = GameObject.CreatePrimitive(PrimitiveType.Plane);
-            backdrop.name = "庭園遠景地面";
-            backdrop.transform.SetParent(parent, false);
-            backdrop.transform.position = new Vector3(0f, -0.24f, 0f);
-            backdrop.transform.localScale = new Vector3(4.5f, 4.5f, 4.5f);
-
-            var renderer = backdrop.GetComponent<Renderer>();
-            var shader = Shader.Find("Standard") ?? Shader.Find("Universal Render Pipeline/Lit");
-            if (shader != null)
+            var skyboxShader = Shader.Find("Skybox/Procedural");
+            if (skyboxShader != null)
             {
-                var material = new Material(shader)
-                {
-                    name = "庭園地面_執行時材質",
-                    color = new Color(0.065f, 0.095f, 0.07f),
-                };
-                renderer.sharedMaterial = material;
+                var skybox = new Material(skyboxShader) { name = "浮島天空_執行時材質" };
+                skybox.SetColor("_SkyTint", new Color(0.18f, 0.50f, 0.82f));
+                skybox.SetColor("_GroundColor", new Color(0.13f, 0.32f, 0.42f));
+                skybox.SetFloat("_AtmosphereThickness", 0.78f);
+                skybox.SetFloat("_Exposure", 1.12f);
+                RenderSettings.skybox = skybox;
             }
+
+            var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(BackgroundPath);
+            if (texture == null)
+            {
+                throw new InvalidOperationException($"找不到生命樹遠景背景：{BackgroundPath}");
+            }
+
+            var shader = Shader.Find("Unlit/Texture");
+            if (shader == null)
+            {
+                throw new InvalidOperationException("找不到遠景背景需要的 Unlit/Texture 著色器。");
+            }
+
+            var backdrop = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            backdrop.name = "浮島世界_原創遠景背景";
+            backdrop.transform.SetParent(camera.transform, false);
+            const float plateDistance = 60f;
+            var plateHeight = 2f * plateDistance
+                * Mathf.Tan(camera.fieldOfView * 0.5f * Mathf.Deg2Rad);
+            var plateWidth = plateHeight * camera.aspect;
+            backdrop.transform.localPosition = new Vector3(0f, 0f, plateDistance);
+            backdrop.transform.localRotation = Quaternion.identity;
+            backdrop.transform.localScale = new Vector3(plateWidth, plateHeight, 1f);
+
+            var renderer = backdrop.GetComponent<MeshRenderer>();
+            var material = new Material(shader)
+            {
+                name = "浮島世界_遠景背景材質",
+                mainTexture = texture,
+            };
+            renderer.sharedMaterial = material;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            renderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
+            renderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
 
             var collider = backdrop.GetComponent<Collider>();
-            if (collider != null)
-            {
-                UnityEngine.Object.DestroyImmediate(collider);
-            }
+            UnityEngine.Object.DestroyImmediate(collider);
         }
     }
 }
