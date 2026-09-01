@@ -22,6 +22,7 @@ namespace TreeCompanion.Editor
         private const string RockTexturePath = "Assets/Art/Textures/生命樹_浮島岩層色彩_v1.png";
         private const string IslandMaterialPath = "Assets/Art/Generated/Materials/生命樹_浮島地表.mat";
         private const string RockMaterialPath = "Assets/Art/Generated/Materials/生命樹_島岩.mat";
+        private const string WaterfallMaterialPath = "Assets/Art/Generated/Materials/生命樹_瀑布流光.mat";
         private const string ScenePath = "Assets/Scenes/生命樹庭園.unity";
 
         [MenuItem("樹伴/重建生命樹庭園")]
@@ -51,6 +52,7 @@ namespace TreeCompanion.Editor
             var lifeTreeRoot = FindRequiredDescendant(worldModel.transform, "生命樹_根節點");
             ApplyTreeMaterials(lifeTreeRoot);
             ApplyFloatingIslandMaterials(worldModel.transform);
+            ApplyWaterfallMaterial(worldModel.transform);
 
             var controllerObject = new GameObject("生命樹_資料與動畫");
             controllerObject.transform.SetParent(environment.transform, false);
@@ -60,6 +62,12 @@ namespace TreeCompanion.Editor
             bridge.Configure(controller);
 
             var camera = CreateCamera(environment.transform, worldModel.transform);
+            var atmosphere = controllerObject.AddComponent<LifeTreeAtmosphereController>();
+            atmosphere.Bind(
+                camera,
+                camera.transform.position + camera.transform.forward * 20f
+            );
+            controller.ConfigureAtmosphere(atmosphere);
             CreateLighting(environment.transform);
             CreateBackdrop(environment.transform, camera);
 
@@ -112,33 +120,70 @@ namespace TreeCompanion.Editor
                 reduceMotion = true,
             });
 
+            var outputPath = Path.GetFullPath(Path.Combine(
+                Application.dataPath,
+                "../../../docs/leadership-evidence/screenshots/life-tree-unity-garden.png"));
+            LifeTreePreviewCapture.CaptureStill(camera, outputPath, 768, 1024);
+            Debug.Log($"生命樹庭園實景已輸出：{outputPath}");
+        }
+
+        [MenuItem("樹伴/輸出生命樹動態預覽影格")]
+        public static void BuildAndCaptureMotionPreview()
+        {
+            Build();
+            var camera = Camera.main;
+            var controller = UnityEngine.Object.FindFirstObjectByType<LifeTreeSceneController>();
+            var atmosphere = UnityEngine.Object.FindFirstObjectByType<LifeTreeAtmosphereController>();
+            if (camera == null || controller == null || atmosphere == null)
+            {
+                throw new InvalidOperationException("生命樹動態預覽缺少相機或場景控制器。");
+            }
+
+            controller.ApplyState(new LifeTreeState
+            {
+                stageIndex = LifeTreeState.MaximumStageIndex,
+                reduceMotion = false,
+            });
+
             const int width = 768;
             const int height = 1024;
-            var renderTexture = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32);
-            var image = new Texture2D(width, height, TextureFormat.RGBA32, false);
-            var previousActive = RenderTexture.active;
+            const int framesPerSecond = 30;
+            const int frameCount = framesPerSecond * 3;
+            var outputDirectory = Path.Combine(
+                Path.GetTempPath(),
+                "tree-companion-life-tree-motion-frames"
+            );
+            if (Directory.Exists(outputDirectory))
+            {
+                Directory.Delete(outputDirectory, true);
+            }
+            Directory.CreateDirectory(outputDirectory);
 
             try
             {
-                camera.targetTexture = renderTexture;
-                camera.Render();
-                RenderTexture.active = renderTexture;
-                image.ReadPixels(new Rect(0f, 0f, width, height), 0, 0);
-                image.Apply(false);
-
-                var outputPath = Path.GetFullPath(Path.Combine(
-                    Application.dataPath,
-                    "../../../docs/leadership-evidence/screenshots/life-tree-unity-garden.png"));
-                Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
-                File.WriteAllBytes(outputPath, image.EncodeToPNG());
-                Debug.Log($"生命樹庭園實景已輸出：{outputPath}");
+                LifeTreePreviewCapture.CaptureSequence(
+                    camera,
+                    outputDirectory,
+                    "生命樹動態",
+                    width,
+                    height,
+                    frameCount,
+                    frame =>
+                    {
+                        var sampleTime = frame / (float)framesPerSecond;
+                        controller.EvaluateWindAt(sampleTime);
+                        atmosphere.EvaluateAt(sampleTime);
+                    }
+                );
+                Debug.Log($"生命樹動態預覽已輸出 {frameCount} 幀：{outputDirectory}");
             }
             finally
             {
-                camera.targetTexture = null;
-                RenderTexture.active = previousActive;
-                UnityEngine.Object.DestroyImmediate(image);
-                UnityEngine.Object.DestroyImmediate(renderTexture);
+                controller.ApplyState(new LifeTreeState
+                {
+                    stageIndex = LifeTreeState.MaximumStageIndex,
+                    reduceMotion = true,
+                });
             }
         }
 
@@ -288,7 +333,10 @@ namespace TreeCompanion.Editor
                 20f,
                 Mathf.Max(verticalDistance * 1.18f, horizontalDistance * 0.78f)
             );
-            var viewDirection = new Vector3(0.49f, 0.34f, -0.80f).normalized;
+            // Blender's authored front (-Y) becomes Unity's +Z after FBX
+            // conversion. View from that side so the two cliff waterfalls and
+            // the warm bark ridges remain visible in the hero composition.
+            var viewDirection = new Vector3(0.49f, 0.34f, 0.80f).normalized;
             var target = contentBounds.center + Vector3.up * contentBounds.extents.y * 0.15f;
             cameraObject.transform.position = target + viewDirection * distance;
             cameraObject.transform.rotation = Quaternion.LookRotation(target - cameraObject.transform.position, Vector3.up);
@@ -384,6 +432,12 @@ namespace TreeCompanion.Editor
             if (foliageMaterial.HasProperty("_Cutoff"))
             {
                 foliageMaterial.SetFloat("_Cutoff", 0.28f);
+            }
+            if (foliageMaterial.HasProperty("_WindStrength"))
+            {
+                // FBX leaf-card children retain centimetre-scale transforms;
+                // keep the object-space offset correspondingly small.
+                foliageMaterial.SetFloat("_WindStrength", 0.00032f);
             }
             foliageMaterial.SetOverrideTag("RenderType", "TransparentCutout");
             foliageMaterial.renderQueue = 2450;
@@ -520,6 +574,52 @@ namespace TreeCompanion.Editor
             material.color = Color.white;
         }
 
+        private static void ApplyWaterfallMaterial(Transform worldRoot)
+        {
+            var shader = Shader.Find("樹伴/生命樹瀑布流動");
+            if (shader == null)
+            {
+                throw new InvalidOperationException("找不到生命樹瀑布流動著色器。");
+            }
+
+            var material = AssetDatabase.LoadAssetAtPath<Material>(WaterfallMaterialPath);
+            if (material == null)
+            {
+                material = new Material(shader) { name = "生命樹_瀑布流光" };
+                AssetDatabase.CreateAsset(material, WaterfallMaterialPath);
+            }
+            else
+            {
+                material.shader = shader;
+            }
+            material.SetColor("_Color", new Color(0.32f, 0.70f, 0.86f, 1f));
+            material.SetColor("_FoamColor", new Color(0.80f, 0.94f, 1f, 1f));
+            material.SetFloat("_FlowSpeed", 0.42f);
+            material.SetFloat("_FlowScale", 2.8f);
+            material.SetFloat("_Opacity", 0.58f);
+            material.renderQueue = 3000;
+
+            var rendererCount = 0;
+            foreach (var renderer in worldRoot.GetComponentsInChildren<Renderer>(true))
+            {
+                if (renderer.name.StartsWith("瀑布_", StringComparison.Ordinal)
+                    || renderer.name.StartsWith("水沫內光_", StringComparison.Ordinal))
+                {
+                    renderer.sharedMaterial = material;
+                    renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                    renderer.receiveShadows = false;
+                    rendererCount++;
+                }
+            }
+            if (rendererCount != 4)
+            {
+                throw new InvalidOperationException(
+                    $"瀑布流光材質應套用至 4 個水流渲染器，實際為 {rendererCount}。"
+                );
+            }
+            EditorUtility.SetDirty(material);
+        }
+
         private static void CreateLighting(Transform parent)
         {
             var sunObject = new GameObject("暖陽主光");
@@ -535,14 +635,12 @@ namespace TreeCompanion.Editor
 
             var fillObject = new GameObject("葉冠柔光");
             fillObject.transform.SetParent(parent, false);
-            fillObject.transform.position = new Vector3(-3.6f, 5.4f, -2.2f);
-            fillObject.transform.rotation = Quaternion.LookRotation(new Vector3(0f, 3.2f, 0f) - fillObject.transform.position);
+            fillObject.transform.position = new Vector3(3.8f, 5.2f, 6.4f);
             var fill = fillObject.AddComponent<Light>();
-            fill.type = LightType.Spot;
-            fill.color = new Color(0.52f, 0.66f, 0.76f);
-            fill.intensity = 0.72f;
-            fill.range = 18f;
-            fill.spotAngle = 78f;
+            fill.type = LightType.Point;
+            fill.color = new Color(0.80f, 0.82f, 0.74f);
+            fill.intensity = 1.18f;
+            fill.range = 24f;
             fill.shadows = LightShadows.None;
         }
 

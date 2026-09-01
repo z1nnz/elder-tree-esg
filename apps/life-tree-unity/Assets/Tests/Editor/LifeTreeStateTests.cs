@@ -78,6 +78,59 @@ namespace TreeCompanion.Tests
         }
 
         [Test]
+        public void ReduceMotionFreezesAtmosphereAndRestoresCameraPose()
+        {
+            var rootObject = new GameObject("生命樹_測試根節點");
+            var cameraObject = new GameObject("生命樹_測試相機");
+            var camera = cameraObject.AddComponent<Camera>();
+            cameraObject.transform.position = new Vector3(0f, 2.5f, -10f);
+            cameraObject.transform.rotation = Quaternion.LookRotation(
+                new Vector3(0f, 2.5f, 0f) - cameraObject.transform.position,
+                Vector3.up
+            );
+            var authoredPosition = cameraObject.transform.position;
+            var authoredRotation = cameraObject.transform.rotation;
+            var controllerObject = new GameObject("生命樹_測試控制器");
+            var controller = controllerObject.AddComponent<LifeTreeSceneController>();
+            var atmosphere = controllerObject.AddComponent<LifeTreeAtmosphereController>();
+
+            try
+            {
+                atmosphere.Bind(camera, new Vector3(0f, 2.5f, 0f));
+                controller.ConfigureAtmosphere(atmosphere);
+                controller.BindHierarchy(rootObject.transform);
+                controller.ApplyState(new LifeTreeState { reduceMotion = false });
+                atmosphere.EvaluateAt(1.25f);
+
+                Assert.That(
+                    Vector3.Distance(authoredPosition, cameraObject.transform.position),
+                    Is.GreaterThan(0.01f),
+                    "正常動態時相機應有極小幅度的生命感環繞。"
+                );
+                Assert.That(Shader.GetGlobalFloat("_LifeTreeMotionAmount"), Is.EqualTo(1f));
+
+                controller.ApplyState(new LifeTreeState { reduceMotion = true });
+                atmosphere.EvaluateAt(2.5f);
+
+                Assert.That(
+                    Vector3.Distance(authoredPosition, cameraObject.transform.position),
+                    Is.LessThan(0.0001f)
+                );
+                Assert.That(
+                    Quaternion.Angle(authoredRotation, cameraObject.transform.rotation),
+                    Is.LessThan(0.001f)
+                );
+                Assert.That(Shader.GetGlobalFloat("_LifeTreeMotionAmount"), Is.EqualTo(0f));
+            }
+            finally
+            {
+                Object.DestroyImmediate(controllerObject);
+                Object.DestroyImmediate(cameraObject);
+                Object.DestroyImmediate(rootObject);
+            }
+        }
+
+        [Test]
         public void HybridBackgroundMatchesPortraitCameraAspect()
         {
             const string backgroundPath =
@@ -123,6 +176,8 @@ namespace TreeCompanion.Tests
             Assert.That(material.mainTexture, Is.SameAs(texture));
             Assert.That(material.shader.name, Is.EqualTo("樹伴/生命樹葉簇裁切"));
             Assert.That(material.renderQueue, Is.EqualTo(2450));
+            Assert.That(material.HasProperty("_WindStrength"), Is.True);
+            Assert.That(material.GetFloat("_WindStrength"), Is.GreaterThan(0f));
         }
 
         [Test]
@@ -147,6 +202,23 @@ namespace TreeCompanion.Tests
             Assert.That(islandMaterial.GetTexture("_RockTex"), Is.SameAs(rock));
             Assert.That(islandMaterial.GetFloat("_GrassInfluence"), Is.EqualTo(1f));
             Assert.That(rockMaterial.GetFloat("_GrassInfluence"), Is.EqualTo(0f));
+        }
+
+        [Test]
+        public void WaterfallMaterialUsesMotionControlledShader()
+        {
+            const string materialPath = "Assets/Art/Generated/Materials/生命樹_瀑布流光.mat";
+            var material = AssetDatabase.LoadAssetAtPath<Material>(materialPath);
+
+            Assert.That(material, Is.Not.Null, $"找不到瀑布流動材質：{materialPath}");
+            Assert.That(material.shader.name, Is.EqualTo("樹伴/生命樹瀑布流動"));
+            Assert.That(material.GetFloat("_FlowSpeed"), Is.GreaterThan(0f));
+            Assert.That(
+                material.GetFloat("_VerticalDirection"),
+                Is.LessThan(0f),
+                "瀑布流紋必須朝世界座標下方移動。"
+            );
+            Assert.That(material.renderQueue, Is.EqualTo(3000));
         }
     }
 }

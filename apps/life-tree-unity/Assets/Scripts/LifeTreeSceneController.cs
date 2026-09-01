@@ -16,9 +16,9 @@ namespace TreeCompanion.LifeTree
         }
 
         [SerializeField] private Transform treeRoot;
+        [SerializeField] private LifeTreeAtmosphereController atmosphereController;
         [SerializeField] private float windFrequency = 0.34f;
         [SerializeField] private float branchAmplitude = 0.42f;
-        [SerializeField] private float leafAmplitude = 0.85f;
 
         private readonly List<Transform> branches = new List<Transform>();
         private readonly List<Transform> backLeaves = new List<Transform>();
@@ -29,6 +29,12 @@ namespace TreeCompanion.LifeTree
         private LifeTreeState currentState = new LifeTreeState();
         private Vector3 authoredScale = Vector3.one;
         private bool hasBoundHierarchy;
+
+        public void ConfigureAtmosphere(LifeTreeAtmosphereController atmosphere)
+        {
+            atmosphereController = atmosphere;
+            atmosphereController?.ApplyMotionPreference(currentState.reduceMotion);
+        }
 
         public void BindHierarchy(Transform root)
         {
@@ -70,8 +76,6 @@ namespace TreeCompanion.LifeTree
             frontLeaves.Sort(CompareByName);
 
             AddMotionParts(branches, branchAmplitude, 0.17f);
-            AddMotionParts(backLeaves, leafAmplitude * 0.72f, 0.13f);
-            AddMotionParts(frontLeaves, leafAmplitude, 0.11f);
             hasBoundHierarchy = true;
             ApplyState(currentState);
         }
@@ -103,6 +107,7 @@ namespace TreeCompanion.LifeTree
             {
                 RestoreBaseRotations();
             }
+            atmosphereController?.ApplyMotionPreference(state.reduceMotion);
         }
 
         private void Awake()
