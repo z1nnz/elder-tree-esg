@@ -16,6 +16,12 @@ namespace TreeCompanion.Editor
         private const string BackgroundPath = "Assets/Art/Backgrounds/生命樹浮島世界_遠景背景_v1.png";
         private const string BarkTexturePath = "Assets/Art/Textures/生命樹_樹皮色彩_v1.png";
         private const string BarkMaterialPath = "Assets/Art/Generated/Materials/生命樹_樹皮.mat";
+        private const string FoliageTexturePath = "Assets/Art/Textures/生命樹_葉簇色彩_v2.png";
+        private const string FoliageMaterialPath = "Assets/Art/Generated/Materials/生命樹_葉簇.mat";
+        private const string GrassTexturePath = "Assets/Art/Textures/生命樹_浮島草地色彩_v1.png";
+        private const string RockTexturePath = "Assets/Art/Textures/生命樹_浮島岩層色彩_v1.png";
+        private const string IslandMaterialPath = "Assets/Art/Generated/Materials/生命樹_浮島地表.mat";
+        private const string RockMaterialPath = "Assets/Art/Generated/Materials/生命樹_島岩.mat";
         private const string ScenePath = "Assets/Scenes/生命樹庭園.unity";
 
         [MenuItem("樹伴/重建生命樹庭園")]
@@ -44,6 +50,7 @@ namespace TreeCompanion.Editor
             ValidateImportedHierarchy(worldModel.transform);
             var lifeTreeRoot = FindRequiredDescendant(worldModel.transform, "生命樹_根節點");
             ApplyTreeMaterials(lifeTreeRoot);
+            ApplyFloatingIslandMaterials(worldModel.transform);
 
             var controllerObject = new GameObject("生命樹_資料與動畫");
             controllerObject.transform.SetParent(environment.transform, false);
@@ -57,18 +64,23 @@ namespace TreeCompanion.Editor
             CreateBackdrop(environment.transform, camera);
 
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(0.48f, 0.68f, 0.86f);
-            RenderSettings.ambientEquatorColor = new Color(0.30f, 0.54f, 0.67f);
-            RenderSettings.ambientGroundColor = new Color(0.09f, 0.20f, 0.25f);
+            RenderSettings.ambientSkyColor = new Color(0.40f, 0.54f, 0.62f);
+            RenderSettings.ambientEquatorColor = new Color(0.24f, 0.36f, 0.38f);
+            RenderSettings.ambientGroundColor = new Color(0.07f, 0.12f, 0.11f);
+            RenderSettings.ambientIntensity = 0.88f;
+            RenderSettings.reflectionIntensity = 0.48f;
             RenderSettings.fog = true;
-            RenderSettings.fogColor = new Color(0.46f, 0.68f, 0.80f);
+            RenderSettings.fogColor = new Color(0.61f, 0.73f, 0.78f);
             RenderSettings.fogMode = FogMode.ExponentialSquared;
-            RenderSettings.fogDensity = 0.0065f;
+            RenderSettings.fogDensity = 0.0045f;
 
             PlayerSettings.companyName = "樹伴";
             PlayerSettings.productName = "樹伴生命樹庭園";
             Application.targetFrameRate = 30;
             QualitySettings.vSyncCount = 0;
+            QualitySettings.antiAliasing = 4;
+            QualitySettings.shadowDistance = 30f;
+            QualitySettings.shadowCascades = 2;
 
             EditorSceneManager.MarkSceneDirty(scene);
             if (!EditorSceneManager.SaveScene(scene, ScenePath))
@@ -313,10 +325,20 @@ namespace TreeCompanion.Editor
             {
                 throw new InvalidOperationException($"找不到生命樹樹皮貼圖：{BarkTexturePath}");
             }
+            var foliageTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(FoliageTexturePath);
+            if (foliageTexture == null)
+            {
+                throw new InvalidOperationException($"找不到生命樹葉簇貼圖：{FoliageTexturePath}");
+            }
             var shader = Shader.Find("Standard") ?? Shader.Find("Universal Render Pipeline/Lit");
             if (shader == null)
             {
                 throw new InvalidOperationException("找不到生命樹樹皮需要的光照著色器。");
+            }
+            var foliageShader = Shader.Find("樹伴/生命樹葉簇裁切");
+            if (foliageShader == null)
+            {
+                throw new InvalidOperationException("找不到生命樹葉簇裁切著色器。");
             }
 
             var materialDirectory = Path.GetDirectoryName(BarkMaterialPath);
@@ -347,6 +369,25 @@ namespace TreeCompanion.Editor
                 barkMaterial.SetFloat("_Smoothness", 0.18f);
             }
 
+            var foliageMaterial = AssetDatabase.LoadAssetAtPath<Material>(FoliageMaterialPath);
+            if (foliageMaterial == null)
+            {
+                foliageMaterial = new Material(foliageShader) { name = "生命樹_葉簇" };
+                AssetDatabase.CreateAsset(foliageMaterial, FoliageMaterialPath);
+            }
+            else
+            {
+                foliageMaterial.shader = foliageShader;
+            }
+            foliageMaterial.mainTexture = foliageTexture;
+            foliageMaterial.color = Color.white;
+            if (foliageMaterial.HasProperty("_Cutoff"))
+            {
+                foliageMaterial.SetFloat("_Cutoff", 0.28f);
+            }
+            foliageMaterial.SetOverrideTag("RenderType", "TransparentCutout");
+            foliageMaterial.renderQueue = 2450;
+
             var barkPrefixes = new[]
             {
                 "主幹",
@@ -355,15 +396,32 @@ namespace TreeCompanion.Editor
                 "末梢枝_",
                 "樹根_",
             };
+            var foliageRendererCount = 0;
             foreach (var renderer in lifeTreeRoot.GetComponentsInChildren<Renderer>(true))
             {
-                if (HasNamedAncestor(renderer.transform, lifeTreeRoot, barkPrefixes)
+                if (HasNamedAncestor(
+                    renderer.transform,
+                    lifeTreeRoot,
+                    new[] { "前景葉簇_", "後景葉簇_" }
+                ))
+                {
+                    renderer.sharedMaterial = foliageMaterial;
+                    foliageRendererCount++;
+                }
+                else if (HasNamedAncestor(renderer.transform, lifeTreeRoot, barkPrefixes)
                     || barkPrefixes.Any(prefix => renderer.name.StartsWith(prefix, StringComparison.Ordinal)))
                 {
                     renderer.sharedMaterial = barkMaterial;
                 }
             }
+            if (foliageRendererCount != 16)
+            {
+                throw new InvalidOperationException(
+                    $"生命樹葉冠應有 16 個合併渲染器，實際為 {foliageRendererCount}。"
+                );
+            }
             EditorUtility.SetDirty(barkMaterial);
+            EditorUtility.SetDirty(foliageMaterial);
         }
 
         private static bool IsCameraFramingRenderer(Transform item, Transform contentRoot)
@@ -379,6 +437,89 @@ namespace TreeCompanion.Editor
             return true;
         }
 
+        private static void ApplyFloatingIslandMaterials(Transform worldRoot)
+        {
+            var grassTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(GrassTexturePath);
+            var rockTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(RockTexturePath);
+            if (grassTexture == null || rockTexture == null)
+            {
+                throw new InvalidOperationException(
+                    $"找不到浮島材質貼圖：草地 {GrassTexturePath}；岩層 {RockTexturePath}。"
+                );
+            }
+            var shader = Shader.Find("樹伴/生命樹浮島三向材質");
+            if (shader == null)
+            {
+                throw new InvalidOperationException("找不到生命樹浮島三向材質著色器。");
+            }
+
+            var islandMaterial = AssetDatabase.LoadAssetAtPath<Material>(IslandMaterialPath);
+            if (islandMaterial == null)
+            {
+                islandMaterial = new Material(shader) { name = "生命樹_浮島地表" };
+                AssetDatabase.CreateAsset(islandMaterial, IslandMaterialPath);
+            }
+            var rockMaterial = AssetDatabase.LoadAssetAtPath<Material>(RockMaterialPath);
+            if (rockMaterial == null)
+            {
+                rockMaterial = new Material(shader) { name = "生命樹_島岩" };
+                AssetDatabase.CreateAsset(rockMaterial, RockMaterialPath);
+            }
+            ConfigureIslandMaterial(islandMaterial, shader, grassTexture, rockTexture, 1f);
+            ConfigureIslandMaterial(rockMaterial, shader, grassTexture, rockTexture, 0f);
+
+            var islandRendererCount = 0;
+            var rockRendererCount = 0;
+            foreach (var renderer in worldRoot.GetComponentsInChildren<Renderer>(true))
+            {
+                if (renderer.name.StartsWith("浮島_", StringComparison.Ordinal)
+                    || HasNamedAncestor(
+                        renderer.transform,
+                        worldRoot,
+                        new[] { "浮島_" }
+                    ))
+                {
+                    var materialCount = Math.Max(1, renderer.sharedMaterials.Length);
+                    renderer.sharedMaterials = Enumerable.Repeat(islandMaterial, materialCount).ToArray();
+                    islandRendererCount++;
+                }
+                else if (renderer.name.StartsWith("中央島_岩塊_", StringComparison.Ordinal)
+                    || HasNamedAncestor(
+                        renderer.transform,
+                        worldRoot,
+                        new[] { "中央島_岩塊_" }
+                    ))
+                {
+                    renderer.sharedMaterial = rockMaterial;
+                    rockRendererCount++;
+                }
+            }
+            if (islandRendererCount != 1 || rockRendererCount != 5)
+            {
+                throw new InvalidOperationException(
+                    $"浮島材質節點數量錯誤：中央島 {islandRendererCount}，島岩 {rockRendererCount}。"
+                );
+            }
+            EditorUtility.SetDirty(islandMaterial);
+            EditorUtility.SetDirty(rockMaterial);
+        }
+
+        private static void ConfigureIslandMaterial(
+            Material material,
+            Shader shader,
+            Texture2D grassTexture,
+            Texture2D rockTexture,
+            float grassInfluence
+        )
+        {
+            material.shader = shader;
+            material.SetTexture("_GrassTex", grassTexture);
+            material.SetTexture("_RockTex", rockTexture);
+            material.SetFloat("_Tiling", 0.42f);
+            material.SetFloat("_GrassInfluence", grassInfluence);
+            material.color = Color.white;
+        }
+
         private static void CreateLighting(Transform parent)
         {
             var sunObject = new GameObject("暖陽主光");
@@ -386,8 +527,8 @@ namespace TreeCompanion.Editor
             sunObject.transform.rotation = Quaternion.Euler(42f, -34f, 0f);
             var sun = sunObject.AddComponent<Light>();
             sun.type = LightType.Directional;
-            sun.color = new Color(1f, 0.82f, 0.62f);
-            sun.intensity = 1.05f;
+            sun.color = new Color(1f, 0.93f, 0.78f);
+            sun.intensity = 0.96f;
             sun.shadows = LightShadows.Soft;
             sun.shadowStrength = 0.72f;
             RenderSettings.sun = sun;
@@ -398,8 +539,8 @@ namespace TreeCompanion.Editor
             fillObject.transform.rotation = Quaternion.LookRotation(new Vector3(0f, 3.2f, 0f) - fillObject.transform.position);
             var fill = fillObject.AddComponent<Light>();
             fill.type = LightType.Spot;
-            fill.color = new Color(0.40f, 0.68f, 0.92f);
-            fill.intensity = 2.10f;
+            fill.color = new Color(0.52f, 0.66f, 0.76f);
+            fill.intensity = 0.72f;
             fill.range = 18f;
             fill.spotAngle = 78f;
             fill.shadows = LightShadows.None;
