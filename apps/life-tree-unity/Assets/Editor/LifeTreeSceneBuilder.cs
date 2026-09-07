@@ -373,20 +373,15 @@ namespace TreeCompanion.Editor
             {
                 throw new InvalidOperationException($"找不到生命樹樹皮貼圖：{BarkTexturePath}");
             }
-            var foliageTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(FoliageTexturePath);
-            if (foliageTexture == null)
-            {
-                throw new InvalidOperationException($"找不到生命樹葉簇貼圖：{FoliageTexturePath}");
-            }
             var shader = Shader.Find("Standard") ?? Shader.Find("Universal Render Pipeline/Lit");
             if (shader == null)
             {
                 throw new InvalidOperationException("找不到生命樹樹皮需要的光照著色器。");
             }
-            var foliageShader = Shader.Find("樹伴/生命樹葉簇裁切");
+            var foliageShader = Shader.Find("樹伴/生命樹立體葉片");
             if (foliageShader == null)
             {
-                throw new InvalidOperationException("找不到生命樹葉簇裁切著色器。");
+                throw new InvalidOperationException("找不到生命樹立體葉片著色器。");
             }
 
             var materialDirectory = Path.GetDirectoryName(BarkMaterialPath);
@@ -427,7 +422,6 @@ namespace TreeCompanion.Editor
             {
                 foliageMaterial.shader = foliageShader;
             }
-            foliageMaterial.mainTexture = foliageTexture;
             foliageMaterial.color = Color.white;
             if (foliageMaterial.HasProperty("_Cutoff"))
             {
@@ -439,8 +433,8 @@ namespace TreeCompanion.Editor
                 // keep the object-space offset correspondingly small.
                 foliageMaterial.SetFloat("_WindStrength", 0.00032f);
             }
-            foliageMaterial.SetOverrideTag("RenderType", "TransparentCutout");
-            foliageMaterial.renderQueue = 2450;
+            foliageMaterial.SetOverrideTag("RenderType", "Opaque");
+            foliageMaterial.renderQueue = 2000;
 
             var barkPrefixes = new[]
             {

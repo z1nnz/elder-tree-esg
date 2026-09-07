@@ -1,3 +1,4 @@
+using System.Linq;
 using NUnit.Framework;
 using TreeCompanion.LifeTree;
 using UnityEditor;
@@ -162,22 +163,24 @@ namespace TreeCompanion.Tests
         }
 
         [Test]
-        public void SharedFoliageMaterialUsesTransparentClusterTexture()
+        public void SharedFoliageMaterialUsesSolidVertexColourAndMotion()
         {
-            const string texturePath = "Assets/Art/Textures/生命樹_葉簇色彩_v2.png";
             const string materialPath = "Assets/Art/Generated/Materials/生命樹_葉簇.mat";
-            var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(texturePath);
             var material = AssetDatabase.LoadAssetAtPath<Material>(materialPath);
-
-            Assert.That(texture, Is.Not.Null, $"找不到葉簇貼圖：{texturePath}");
-            Assert.That(texture.width, Is.GreaterThanOrEqualTo(1024));
-            Assert.That(texture.height, Is.EqualTo(texture.width));
             Assert.That(material, Is.Not.Null, $"找不到共用葉簇材質：{materialPath}");
-            Assert.That(material.mainTexture, Is.SameAs(texture));
-            Assert.That(material.shader.name, Is.EqualTo("樹伴/生命樹葉簇裁切"));
-            Assert.That(material.renderQueue, Is.EqualTo(2450));
+            Assert.That(material.shader.name, Is.EqualTo("樹伴/生命樹立體葉片"));
+            Assert.That(material.renderQueue, Is.EqualTo(2000));
             Assert.That(material.HasProperty("_WindStrength"), Is.True);
             Assert.That(material.GetFloat("_WindStrength"), Is.GreaterThan(0f));
+            var model = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Art/Generated/生命樹庭園.fbx");
+            var crowns = model.GetComponentsInChildren<MeshFilter>(true)
+                .Where(item => item.name.StartsWith("葉群網格_")).ToArray();
+            Assert.That(crowns.Length, Is.EqualTo(16));
+            foreach (var crown in crowns)
+            {
+                Assert.That(crown.sharedMesh.vertexCount, Is.GreaterThan(1000));
+                Assert.That(crown.sharedMesh.colors.Length, Is.EqualTo(crown.sharedMesh.vertexCount));
+            }
         }
 
         [Test]

@@ -28,6 +28,7 @@ Material:
     - _FlowScale: 2.8
     - _FlowSpeed: 0.42
     - _Opacity: 0.58
+    - _VerticalDirection: -1
     m_Colors:
     - _Color: {r: 0.32, g: 0.7, b: 0.86, a: 1}
     - _FoamColor: {r: 0.8, g: 0.94, b: 1, a: 1}
