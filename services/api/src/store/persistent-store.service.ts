@@ -1143,7 +1143,10 @@ export class PersistentStoreService {
             { OR: [{ endsAt: null }, { endsAt: { gt: now } }] },
           ],
         },
-        orderBy: { publishedAt: "asc" },
+        // Catalog seeds can share the same publication timestamp. Keep the
+        // starter relay deterministic instead of letting PostgreSQL choose an
+        // arbitrary tied row (which previously surfaced the two-step journey).
+        orderBy: [{ publishedAt: "asc" }, { id: "asc" }],
       });
       if (!action) return null;
       return transaction.cooperativeActionRun.create({
