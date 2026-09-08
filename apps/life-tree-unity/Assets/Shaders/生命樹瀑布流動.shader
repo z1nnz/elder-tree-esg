@@ -44,13 +44,15 @@ Shader "樹伴/生命樹瀑布流動"
             struct AppData
             {
                 float4 vertex : POSITION;
+                float2 uv : TEXCOORD0;
             };
 
             struct Interpolators
             {
                 float4 position : SV_POSITION;
                 float3 worldPosition : TEXCOORD0;
-                UNITY_FOG_COORDS(1)
+                float2 uv : TEXCOORD1;
+                UNITY_FOG_COORDS(2)
             };
 
             Interpolators Vertex(AppData input)
@@ -63,6 +65,7 @@ Shader "樹伴/生命樹瀑布流動"
                 input.vertex.x += sway;
                 output.position = UnityObjectToClipPos(input.vertex);
                 output.worldPosition = mul(unity_ObjectToWorld, input.vertex).xyz;
+                output.uv = input.uv;
                 UNITY_TRANSFER_FOG(output, output.position);
                 return output;
             }
@@ -70,15 +73,22 @@ Shader "樹伴/生命樹瀑布流動"
             fixed4 Fragment(Interpolators input) : SV_Target
             {
                 float motionTime = _LifeTreeMotionTime * _LifeTreeMotionAmount;
-                float vertical = input.worldPosition.y * _FlowScale
-                    - motionTime * _FlowSpeed * _VerticalDirection;
-                float broadBand = pow(saturate(0.5 + 0.5 * sin(vertical * 6.28318)), 10.0);
-                float fineBand = pow(saturate(0.5 + 0.5 * sin(
-                    (vertical * 2.37 + input.worldPosition.x * 1.9) * 6.28318
-                )), 16.0);
-                float foam = saturate(broadBand * 0.30 + fineBand * 0.22);
-                fixed4 colorSample = lerp(_Color, _FoamColor, foam * 0.62);
-                colorSample.a = _Opacity * (0.91 + foam * 0.09);
+                float u = input.uv.x;
+                float v = input.uv.y;
+                // Square-root travel coordinate stretches features as they
+                // descend: the water speeds up after crossing the lip.
+                float travel = sqrt(v + .04) * _FlowScale
+                    + motionTime * _FlowSpeed * _VerticalDirection;
+                float strands = .5 + .5 * sin(u * 91 + sin(u * 31) * 2.3
+                    + sin(travel * 3.1 + u * 7) * .20);
+                float bubbles = .5 + .5 * sin(travel * 13 + sin(u * 37) * 4);
+                float lip = exp(-pow((v - .18) * 24, 2));
+                float foam = saturate(pow(strands, 4) * (.48 + bubbles * .16) + lip * .25);
+                float edge = smoothstep(0, .08, u) * smoothstep(0, .08, 1 - u);
+                float endFade = 1 - smoothstep(.72, 1, v + .035 * sin(u * 53 + travel * 4));
+                float breakup = lerp(.85, smoothstep(.10, .50, strands + bubbles * .25), smoothstep(.35, .95, v));
+                fixed4 colorSample = lerp(_Color, _FoamColor, foam);
+                colorSample.a = _Opacity * edge * endFade * breakup * (.48 + foam * .70);
                 UNITY_APPLY_FOG(input.fogCoord, colorSample);
                 return colorSample;
             }

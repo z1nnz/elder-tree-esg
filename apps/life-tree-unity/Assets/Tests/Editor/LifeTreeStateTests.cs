@@ -9,6 +9,77 @@ namespace TreeCompanion.Tests
     public sealed class LifeTreeStateTests
     {
         [Test]
+        public void IslandViewClampsZoomAndCanRestoreItsAuthoredPose()
+        {
+            var world = new GameObject("測試浮島");
+            var cameraObject = new GameObject("測試取景");
+            var camera = cameraObject.AddComponent<Camera>();
+            camera.fieldOfView = 37f;
+            var controls = cameraObject.AddComponent<LifeTreeWorldInteraction>();
+            try
+            {
+                controls.Configure(world.transform, camera, null);
+                controls.SetView(999f, 99f);
+                Assert.That(Quaternion.Angle(Quaternion.identity, world.transform.localRotation), Is.EqualTo(70f).Within(.01f));
+                Assert.That(camera.fieldOfView, Is.EqualTo(37f / 1.35f).Within(.01f));
+                controls.SetView(-999f, .01f);
+                Assert.That(camera.fieldOfView, Is.EqualTo(37f / .8f).Within(.01f));
+                controls.ResetView();
+                Assert.That(world.transform.localRotation, Is.EqualTo(Quaternion.identity));
+                Assert.That(camera.fieldOfView, Is.EqualTo(37f));
+            }
+            finally
+            {
+                Object.DestroyImmediate(cameraObject);
+                Object.DestroyImmediate(world);
+            }
+        }
+
+        [Test]
+        public void AuthoredStagesSwitchWithoutRescalingTheMatureTree()
+        {
+            var root = new GameObject("測試生長場景");
+            try
+            {
+                var stages = Enumerable.Range(0, 6).Select(index =>
+                {
+                    var item = new GameObject($"造型_{index}");
+                    item.transform.SetParent(root.transform);
+                    return item.transform;
+                }).ToArray();
+                var controller = root.AddComponent<LifeTreeSceneController>();
+                controller.BindHierarchy(stages[5]);
+                controller.BindGrowthStages(stages);
+                foreach (var stage in new[] { 0, 1, 2, 3, 4, 5, 0, 4 })
+                {
+                    controller.ApplyState(new LifeTreeState { stageIndex = stage });
+                    Assert.That(stages.Count(item => item.gameObject.activeSelf), Is.EqualTo(1));
+                    Assert.That(stages[stage].gameObject.activeSelf, Is.True);
+                    Assert.That(stages[5].localScale, Is.EqualTo(Vector3.one));
+                }
+                Assert.Throws<System.ArgumentException>(() => controller.BindGrowthStages(new[] { stages[0] }));
+                Assert.Throws<System.ArgumentException>(() => controller.BindGrowthStages(Enumerable.Repeat(stages[0], 6).ToArray()));
+            }
+            finally { Object.DestroyImmediate(root); }
+        }
+
+        [Test]
+        public void BlenderYoungStagesContainDistinctMeshes()
+        {
+            var asset = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Art/Generated/生命樹生長階段.fbx");
+            Assert.That(asset, Is.Not.Null);
+            var stages = asset.GetComponentsInChildren<Transform>(true)
+                .Where(item => item.name.StartsWith("生長階段_")).OrderBy(item => item.name).ToArray();
+            Assert.That(stages.Length, Is.EqualTo(5));
+            var meshes = stages.Select(stage => stage.GetComponentsInChildren<MeshFilter>(true)
+                .Select(item => item.sharedMesh).ToArray()).ToArray();
+            Assert.That(meshes.All(stage => stage.Length > 0), Is.True);
+            Assert.That(meshes[0].Intersect(meshes[4]), Is.Empty);
+            Assert.That(stages[0].GetComponentsInChildren<Transform>().Any(item => item.name.StartsWith("嫩葉_")), Is.False);
+            Assert.That(stages[1].GetComponentsInChildren<Transform>().Any(item => item.name.StartsWith("嫩葉_")), Is.True);
+        }
+
+        [Test]
         public void ParsesVerifiedStateWithStableKeepsakeSlot()
         {
             const string json = "{\"schemaVersion\":1,\"stageIndex\":5,\"reduceMotion\":false,\"keepsakes\":[{\"id\":\"成果-001\",\"slotIndex\":2,\"kind\":\"相聚果實\",\"label\":\"一起散步\",\"color\":\"#D89B55\"}]}";

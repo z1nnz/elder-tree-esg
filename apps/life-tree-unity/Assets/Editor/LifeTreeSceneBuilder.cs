@@ -58,6 +58,7 @@ namespace TreeCompanion.Editor
             controllerObject.transform.SetParent(environment.transform, false);
             var controller = controllerObject.AddComponent<LifeTreeSceneController>();
             controller.BindHierarchy(lifeTreeRoot);
+            controller.BindGrowthStages(CreateGrowthStages(worldModel.transform, lifeTreeRoot));
             var bridge = controllerObject.AddComponent<LifeTreeBridge>();
             bridge.Configure(controller);
 
@@ -70,6 +71,9 @@ namespace TreeCompanion.Editor
             controller.ConfigureAtmosphere(atmosphere);
             CreateLighting(environment.transform);
             CreateBackdrop(environment.transform, camera);
+            var interaction = controllerObject.AddComponent<LifeTreeWorldInteraction>();
+            interaction.Configure(worldModel.transform, camera,
+                camera.transform.Find("浮島世界_原創遠景背景"));
 
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
             RenderSettings.ambientSkyColor = new Color(0.40f, 0.54f, 0.62f);
@@ -125,6 +129,82 @@ namespace TreeCompanion.Editor
                 "../../../docs/leadership-evidence/screenshots/life-tree-unity-garden.png"));
             LifeTreePreviewCapture.CaptureStill(camera, outputPath, 768, 1024);
             Debug.Log($"生命樹庭園實景已輸出：{outputPath}");
+        }
+
+        [MenuItem("樹伴/輸出六階段生命樹實景")]
+        public static void BuildAndCaptureGrowthStages()
+        {
+            Build();
+            var camera = Camera.main;
+            var controller = UnityEngine.Object.FindFirstObjectByType<LifeTreeSceneController>();
+            var labels = new[] { "種子", "發芽", "幼苗", "小樹", "成樹", "大樹" };
+            var output = Path.GetFullPath(Path.Combine(Application.dataPath,
+                "../../../docs/leadership-evidence/screenshots/growth-stages-2026-09-08"));
+            var originalPosition = camera.transform.position;
+            var originalRotation = camera.transform.rotation;
+            for (var stage = 0; stage < labels.Length; stage++)
+            {
+                controller.ApplyState(new LifeTreeState { stageIndex = stage, reduceMotion = true });
+                camera.transform.SetPositionAndRotation(originalPosition, originalRotation);
+                LifeTreePreviewCapture.CaptureStill(camera,
+                    Path.Combine(output, $"{stage:00}-{labels[stage]}-浮島.png"), 768, 1024);
+                // A separate labelled close-up is evidence, not a change to the
+                // model's physical scale or the user's earned progress.
+                var target = new Vector3(0, new[] { .22f, .50f, .85f, 1.45f, 2.05f, 2.6f }[stage], 0);
+                var distance = new[] { 2.1f, 3.3f, 5.0f, 8.5f, 12f, 16f }[stage];
+                camera.transform.position = target + new Vector3(.49f, .34f, .80f).normalized * distance;
+                camera.transform.LookAt(target);
+                LifeTreePreviewCapture.CaptureStill(camera,
+                    Path.Combine(output, $"{stage:00}-{labels[stage]}-近景.png"), 768, 1024);
+            }
+            controller.ApplyState(new LifeTreeState { stageIndex = 5, reduceMotion = true });
+            camera.transform.SetPositionAndRotation(originalPosition, originalRotation);
+            Debug.Log($"六個獨立生長階段已輸出：{output}");
+        }
+
+        private static Transform[] CreateGrowthStages(Transform world, Transform mature)
+        {
+            const string path = "Assets/Art/Generated/生命樹生長階段.fbx";
+            var model = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (model == null) throw new InvalidOperationException($"缺少生長階段模型：{path}");
+            var young = (GameObject)PrefabUtility.InstantiatePrefab(model, world.gameObject.scene);
+            young.transform.SetParent(world, false);
+            var labels = new[] { "種子", "發芽", "幼苗", "小樹", "成樹" };
+            var stages = new Transform[6];
+            for (var i = 0; i < labels.Length; i++)
+                stages[i] = FindRequiredDescendant(young.transform, $"生長階段_{i:00}_{labels[i]}");
+            stages[5] = mature;
+            var foliage = AssetDatabase.LoadAssetAtPath<Material>(FoliageMaterialPath);
+            foreach (var renderer in young.GetComponentsInChildren<Renderer>(true))
+            {
+                if (renderer.name.StartsWith("嫩葉_", StringComparison.Ordinal))
+                    renderer.sharedMaterial = foliage;
+            }
+            return stages;
+        }
+
+        [MenuItem("樹伴/輸出浮島環繞展示")]
+        public static void BuildAndCaptureWorldTour()
+        {
+            Build();
+            var camera = Camera.main;
+            var controller = UnityEngine.Object.FindFirstObjectByType<LifeTreeSceneController>();
+            var atmosphere = UnityEngine.Object.FindFirstObjectByType<LifeTreeAtmosphereController>();
+            var interaction = UnityEngine.Object.FindFirstObjectByType<LifeTreeWorldInteraction>();
+            var output = Path.Combine(Path.GetTempPath(), "tree-companion-world-tour-20260908");
+            controller.ApplyState(new LifeTreeState { stageIndex = 5, reduceMotion = false });
+            try
+            {
+                LifeTreePreviewCapture.CaptureSequence(camera, output, "生命樹動態", 384, 512, 90, frame =>
+                {
+                    var time = frame / 30f;
+                    controller.EvaluateWindAt(time);
+                    atmosphere.EvaluateAt(time);
+                    interaction.SetView(Mathf.Sin(frame / 90f * Mathf.PI * 2f) * 30f, 1f);
+                });
+            }
+            finally { interaction.ResetView(); }
+            Debug.Log($"浮島環繞展示已輸出：{output}");
         }
 
         [MenuItem("樹伴/輸出生命樹動態預覽影格")]
@@ -477,7 +557,8 @@ namespace TreeCompanion.Editor
             for (var current = item; current != null && current != contentRoot; current = current.parent)
             {
                 if (current.name.StartsWith("雲海_", StringComparison.Ordinal)
-                    || current.name.StartsWith("雲朵_", StringComparison.Ordinal))
+                    || current.name.StartsWith("雲朵_", StringComparison.Ordinal)
+                    || current.name.StartsWith("群島_", StringComparison.Ordinal))
                 {
                     return false;
                 }
@@ -520,6 +601,17 @@ namespace TreeCompanion.Editor
             var rockRendererCount = 0;
             foreach (var renderer in worldRoot.GetComponentsInChildren<Renderer>(true))
             {
+                if (renderer.name.StartsWith("群島地形_", StringComparison.Ordinal))
+                {
+                    renderer.sharedMaterials = Enumerable.Repeat(islandMaterial,
+                        Math.Max(1, renderer.sharedMaterials.Length)).ToArray();
+                    continue;
+                }
+                if (renderer.name.StartsWith("群島葉冠_", StringComparison.Ordinal))
+                {
+                    renderer.sharedMaterial = AssetDatabase.LoadAssetAtPath<Material>(FoliageMaterialPath);
+                    continue;
+                }
                 if (renderer.name.StartsWith("浮島_", StringComparison.Ordinal)
                     || HasNamedAncestor(
                         renderer.transform,
@@ -590,25 +682,27 @@ namespace TreeCompanion.Editor
             material.SetColor("_FoamColor", new Color(0.80f, 0.94f, 1f, 1f));
             material.SetFloat("_FlowSpeed", 0.42f);
             material.SetFloat("_FlowScale", 2.8f);
-            material.SetFloat("_Opacity", 0.58f);
+            material.SetFloat("_Opacity", 0.85f);
             material.renderQueue = 3000;
 
             var rendererCount = 0;
             foreach (var renderer in worldRoot.GetComponentsInChildren<Renderer>(true))
             {
                 if (renderer.name.StartsWith("瀑布_", StringComparison.Ordinal)
-                    || renderer.name.StartsWith("水沫內光_", StringComparison.Ordinal))
+                    || renderer.name.StartsWith("水沫內光_", StringComparison.Ordinal)
+                    || renderer.name.StartsWith("群島水流_", StringComparison.Ordinal))
                 {
                     renderer.sharedMaterial = material;
+                    renderer.enabled = !renderer.name.StartsWith("水沫內光_", StringComparison.Ordinal);
                     renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                     renderer.receiveShadows = false;
                     rendererCount++;
                 }
             }
-            if (rendererCount != 4)
+            if (rendererCount != 9)
             {
                 throw new InvalidOperationException(
-                    $"瀑布流光材質應套用至 4 個水流渲染器，實際為 {rendererCount}。"
+                    $"瀑布流光材質應套用至 9 個水流渲染器，實際為 {rendererCount}。"
                 );
             }
             EditorUtility.SetDirty(material);

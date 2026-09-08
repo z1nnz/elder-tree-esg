@@ -474,30 +474,36 @@ def waterfall_ribbon(
     target: bpy.types.Collection,
     parent: bpy.types.Object,
 ) -> bpy.types.Object:
-    row_specs = (
-        (0.00, 1.00, 0.00),
-        (0.24, 0.92, 0.03),
-        (0.50, 0.78, 0.09),
-        (0.76, 0.86, 0.15),
-        (1.00, 0.68, 0.21),
-    )
+    # The first section lies on the island, then curls over the lip. A dense
+    # but bounded grid gives the silhouette real depth from oblique views.
+    rows, columns = 32, 8
     vertices: list[tuple[float, float, float]] = []
-    for vertical, width_scale, forward in row_specs:
-        half_width = width * width_scale * 0.5
-        sway = math.sin(vertical * math.pi) * width * 0.10
-        vertices.extend(
-            [
-                (-half_width + sway, forward, -height * vertical),
-                (half_width + sway, forward, -height * vertical),
-            ]
-        )
-    faces = [
-        (index * 2, index * 2 + 1, index * 2 + 3, index * 2 + 2)
-        for index in range(len(row_specs) - 1)
-    ]
+    for row in range(rows + 1):
+        t = row / rows
+        falling = max(0, (t - .18) / .82)
+        forward = .60 * (1 - min(1, t / .18)) - .30 * math.sqrt(falling)
+        z = .15 * (1 - min(1, t / .18)) - height * falling
+        width_scale = 1 - .18 * math.sin(falling * math.pi) + .28 * falling * falling
+        for col in range(columns + 1):
+            u = col / columns
+            cross = (u - .5) * width * width_scale
+            ripple = math.sin(u * 17 + t * 9) * .015 * falling
+            vertices.append((cross, forward + ripple, z + math.sin(u * math.pi) * .025))
+    faces = []
+    for row in range(rows):
+        for col in range(columns):
+            a = row * (columns + 1) + col
+            faces.append((a, a + 1, a + columns + 2, a + columns + 1))
     data = bpy.data.meshes.new(name)
     data.from_pydata(vertices, [], faces)
     data.materials.append(water_material)
+    uv = data.uv_layers.new(name="水流座標")
+    for polygon in data.polygons:
+        polygon.use_smooth = True
+        for loop_index in polygon.loop_indices:
+            vertex_index = data.loops[loop_index].vertex_index
+            uv.data[loop_index].uv = (vertex_index % (columns + 1) / columns,
+                                      vertex_index // (columns + 1) / rows)
     data.update()
     waterfall = bpy.data.objects.new(name, data)
     waterfall.location = location
@@ -826,6 +832,43 @@ def build_tree(foliage_texture_path: Path) -> bpy.types.Object:
         socket["掛點序號"] = index - 1
         socket_collection.objects.link(socket)
 
+    # Fuse the fixed root collar into the trunk. Animated branches and named
+    # keepsake anchors stay separate; their data interface is unchanged.
+    fixed_roots = [obj for obj in root_detail_collection.objects if obj.name.startswith("樹根_")]
+    bpy.ops.object.select_all(action="DESELECT")
+    for fixed_root in fixed_roots:
+        fixed_root.select_set(True)
+        bpy.context.view_layer.objects.active = fixed_root
+        bpy.ops.object.convert(target="MESH")
+        fixed_root.select_set(False)
+    for obj in [trunk, *fixed_roots]:
+        obj.select_set(True)
+    bpy.context.view_layer.objects.active = trunk
+    bpy.ops.object.join()
+    union = trunk.modifiers.new("主根與樹幹連續表面", "REMESH")
+    union.mode = "VOXEL"
+    union.voxel_size = 0.045
+    union.use_smooth_shade = True
+    bpy.ops.object.modifier_apply(modifier=union.name)
+    soften = trunk.modifiers.new("根頸過渡雕整", "SMOOTH")
+    soften.factor = 0.75
+    soften.iterations = 4
+    bpy.ops.object.modifier_apply(modifier=soften.name)
+    simplify = trunk.modifiers.new("固定主體手機面數", "DECIMATE")
+    simplify.ratio = min(1.0, 11000 / max(1, len(trunk.data.polygons) * 2))
+    bpy.ops.object.modifier_apply(modifier=simplify.name)
+    for vertex in trunk.data.vertices:
+        if vertex.co.z < 0.15:
+            vertex.co.z -= 0.12 * (1 - max(0, vertex.co.z) / 0.15)
+    for polygon in trunk.data.polygons:
+        polygon.use_smooth = True
+    # Voxel union removes the old curve UVs; unwrap the fused surface before
+    # export so Unity's reviewed bark texture remains usable.
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.uv.smart_project(angle_limit=1.15, island_margin=0.025)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    trunk.select_set(False)
     return root
 
 
@@ -910,6 +953,41 @@ def build_floating_world() -> bpy.types.Object:
         water_collection,
         world_root,
     )
+    # Mid-distance geometry provides parallax and a world scale reference.
+    # The distant painted cloudscape stays atmospheric, not navigable land.
+    archipelago = bpy.data.objects.new("群島_中景層", None)
+    world_collection.objects.link(archipelago)
+    archipelago.parent = world_root
+    canopy_source = next(obj for obj in bpy.context.scene.objects
+                         if obj.type == "MESH" and obj.name.startswith("後景葉片_"))
+    for index, (position, radius, depth) in enumerate([
+        ((-5.8, 2.8, -2.2), (1.65, 1.15), 2.1),
+        ((5.8, 4.8, -2.8), (1.9, 1.4), 2.5),
+        ((-5.0, 9.0, -.8), (2.5, 1.5), 3.0),
+        ((4.4, 10.0, -.4), (2.0, 1.8), 2.8),
+        ((.5, 14.0, -3.4), (2.5, 1.3), 2.4),
+    ]):
+        floating_island(f"群島地形_{index:02d}", position, radius, depth,
+                        grass_material, rock_material, island_collection,
+                        archipelago, seed=4110 + index, segments=24)
+        waterfall_ribbon(f"群島水流_{index:02d}",
+                         (position[0], position[1] - radius[1] * .85, position[2]),
+                         .22 + index * .035, depth * 1.65, waterfall_material,
+                         water_collection, archipelago)
+        for tree_index in range(2):
+            base = Vector(position) + Vector(((-.45 if tree_index else .4), .1, .12))
+            height = .60 + tree_index * .28
+            tiny_trunk = curve_branch(f"群島林木_{index}_{tree_index}",
+                                      [tuple(base), tuple(base + Vector((-.07, 0, height * .6))),
+                                       tuple(base + Vector((0, 0, height)))],
+                                      [1, .7, .1], bpy.data.materials["樹皮深棕"],
+                                      island_collection, bevel=.09)
+            tiny_trunk.parent = archipelago
+            crown = bpy.data.objects.new(f"群島葉冠_{index}_{tree_index}", canopy_source.data.copy())
+            crown.location = base + Vector((0, 0, height))
+            crown.scale = (.48, .43, .36)
+            crown.parent = archipelago
+            island_collection.objects.link(crown)
     return world_root
 
 
@@ -1073,8 +1151,11 @@ def write_asset_stats(output: Path) -> None:
     for label, expected_count in expected.items():
         if stats[label] != expected_count:
             raise RuntimeError(f"{label}應為 {expected_count}，實際為 {stats[label]}")
-    if not 14000 <= triangle_count <= 60000:
-        raise RuntimeError(f"第一輪三角面預算應介於 14000～60000，實際為 {triangle_count}")
+    stats["中景群島數"] = sum(obj.name.startswith("群島地形_") for obj in bpy.context.scene.objects)
+    if stats["中景群島數"] != 5:
+        raise RuntimeError("中景群島應有五座獨立地形")
+    if not 14000 <= triangle_count <= 90000:
+        raise RuntimeError(f"含中景群島三角面預算應介於 14000～90000，實際為 {triangle_count}")
     with (output / "生命樹庭園_資產統計.json").open("w", encoding="utf-8") as handle:
         json.dump(stats, handle, ensure_ascii=False, indent=2)
         handle.write("\n")
