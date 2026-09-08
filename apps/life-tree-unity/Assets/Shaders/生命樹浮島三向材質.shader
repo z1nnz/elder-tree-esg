@@ -7,6 +7,7 @@ Shader "樹伴/生命樹浮島三向材質"
         _RockTex ("岩層色彩", 2D) = "gray" {}
         _Tiling ("三向貼圖密度", Range(0.05, 2)) = 0.42
         _GrassInfluence ("頂面草地比例", Range(0,1)) = 1
+        _BankInfluence ("溪岸土壤混合", Range(0,1)) = 0
     }
 
     SubShader
@@ -25,11 +26,13 @@ Shader "樹伴/生命樹浮島三向材質"
         fixed4 _Color;
         half _Tiling;
         half _GrassInfluence;
+        half _BankInfluence;
 
         struct Input
         {
             float3 worldPos;
             float3 worldNormal;
+            float4 color : COLOR;
         };
 
         fixed4 SampleRock(float3 position, float3 normal)
@@ -48,6 +51,9 @@ Shader "樹伴/生命樹浮島三向材質"
             fixed4 rock = SampleRock(input.worldPos, normal);
             fixed4 grass = tex2D(_GrassTex, input.worldPos.xz * _Tiling);
             half upward = smoothstep(0.46, 0.74, normal.y) * _GrassInfluence;
+            half soil = input.color.r * _BankInfluence;
+            rock.rgb *= lerp(fixed3(1, 1, 1), fixed3(.78, .71, .57), soil);
+            upward *= 1 - soil;
             fixed4 colorSample = lerp(rock, grass, upward) * _Color;
             output.Albedo = colorSample.rgb;
             output.Alpha = 1.0;

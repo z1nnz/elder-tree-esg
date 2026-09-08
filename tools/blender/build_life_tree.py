@@ -601,6 +601,65 @@ def island_path(
     return path
 
 
+def add_stream_banks(stream: bpy.types.Object, terrain: BVHTree,
+                     bank_material: bpy.types.Material,
+                     target: bpy.types.Collection, parent: bpy.types.Object) -> None:
+    """Build a submerged bed and two irregular soil-to-grass banks per stream."""
+    rows = len(stream.data.vertices) // 5
+    suffix = stream.name.removeprefix("溪流_")
+    bed = stream.copy()
+    bed.data = bpy.data.meshes.new(f"河床_{suffix}")
+    bed.data.from_pydata(
+        [(vertex.co.x, vertex.co.y, vertex.co.z - .035) for vertex in stream.data.vertices],
+        [], [tuple(reversed(face.vertices)) for face in stream.data.polygons],
+    )
+    bed.name = f"河床_{suffix}"
+    bed.data.materials.append(bank_material)
+    bed_colors = bed.data.color_attributes.new(name="溪岸混合", type="FLOAT_COLOR", domain="POINT")
+    for color in bed_colors.data:
+        color.color = (1, 0, 0, 1)
+    target.objects.link(bed)
+    for side, edge_column in enumerate((0, 4)):
+        vertices, weights = [], []
+        for row in range(rows):
+            edge = stream.data.vertices[row * 5 + edge_column].co.copy()
+            center = stream.data.vertices[row * 5 + 2].co
+            outward = Vector((edge.x - center.x, edge.y - center.y, 0)).normalized()
+            progress = row / (rows - 1)
+            spread = .20 + .055 * math.sin(progress * 17 + side * 2.3)
+            for column, offset in enumerate((-.025, .075, spread)):
+                point = edge + outward * offset
+                hit, _, _, _ = terrain.ray_cast((point.x, point.y, 3), (0, 0, -1), 10)
+                if hit is None:
+                    raise RuntimeError(f"溪岸超出主島：{suffix}")
+                if column == 0:
+                    point.z = edge.z - .022
+                elif column == 1:
+                    point.z = max(hit.z + .035, edge.z + .022)
+                else:
+                    point.z = hit.z + .02
+                vertices.append(tuple(point))
+                weights.append((1, .72, 0)[column])
+        faces = [(row * 3 + col, row * 3 + col + 1,
+                  (row + 1) * 3 + col + 1, (row + 1) * 3 + col)
+                 for row in range(rows - 1) for col in range(2)]
+        # Each bank runs in the opposite winding around the stream centerline.
+        if side == 1:
+            faces = [tuple(reversed(face)) for face in faces]
+        mesh = bpy.data.meshes.new(f"溪岸_{suffix}_{side}")
+        mesh.from_pydata(vertices, [], faces)
+        mesh.materials.append(bank_material)
+        colors = mesh.color_attributes.new(name="溪岸混合", type="FLOAT_COLOR", domain="POINT")
+        for color, weight in zip(colors.data, weights, strict=True):
+            color.color = (weight, 0, 0, 1)
+        for face in mesh.polygons:
+            face.use_smooth = True
+        mesh.update()
+        bank = bpy.data.objects.new(mesh.name, mesh)
+        bank.parent = parent
+        target.objects.link(bank)
+
+
 def add_central_island_details(
     rock_material: bpy.types.Material,
     path_material: bpy.types.Material,
@@ -940,6 +999,7 @@ def build_floating_world() -> bpy.types.Object:
     grass_material = material("浮島新芽草", (0.075, 0.25, 0.09, 1), roughness=0.88)
     rock_material = material("浮島暖灰岩", (0.15, 0.13, 0.105, 1), roughness=0.95)
     path_material = material("同行步道暖石", (0.39, 0.29, 0.17, 1), roughness=0.94)
+    bank_material = material("溪岸濕土", (0.18, 0.16, 0.105, 1), roughness=.98)
     waterfall_material = material(
         "瀑布微光",
         (0.24, 0.62, 0.78, 1),
@@ -981,14 +1041,18 @@ def build_floating_world() -> bpy.types.Object:
         island_collection,
         world_root,
     )
-    for name, points, width in [
-        ("溪流_中央左", [(-.70, -.60, .035), (-1.05, -.85, -.015),
-                         (-1.32, -1.12, -.10), (-1.72, -1.50, -.45), (-1.72, -1.76, -.51)], .64),
-        ("溪流_中央右", [(.78, -.55, .035), (1.16, -.82, -.025),
-                         (1.27, -1.16, -.11), (1.45, -1.55, -.45), (1.45, -1.83, -.51)], .44),
+    for name, start, bend, end, width in [
+        ("溪流_中央左", (-.70, -.60, 0), (-1.72, -.95, 0), (-1.72, -1.76, 0), .64),
+        ("溪流_中央右", (.78, -.55, 0), (1.45, -.95, 0), (1.45, -1.83, 0), .44),
     ]:
-        island_path(name, points, width, waterfall_material, water_collection, world_root,
-                    terrain=terrain)
+        # A continuous curve avoids folded bank strips at sharp polyline corners.
+        start, bend, end = Vector(start), Vector(bend), Vector(end)
+        points = [start * (1 - t) ** 2 + bend * (2 * t * (1 - t)) + end * t ** 2
+                  for t in [step / 48 for step in range(49)]]
+        points[-2].x = end.x  # Match the waterfall's cross-section at the seam.
+        stream = island_path(name, points, width, waterfall_material, water_collection, world_root,
+                             terrain=terrain)
+        add_stream_banks(stream, terrain, bank_material, island_collection, world_root)
     waterfall_ribbon(
         "瀑布_中央左",
         (-1.72, -2.36, -0.67),

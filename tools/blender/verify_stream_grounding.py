@@ -53,6 +53,22 @@ def verify():
 
 
 class StreamGroundingTests(unittest.TestCase):
+    def test_beds_and_banks_have_valid_surface_layers(self):
+        for suffix in ("中央左", "中央右"):
+            stream = bpy.data.objects[f"溪流_{suffix}"]
+            bed = bpy.data.objects[f"河床_{suffix}"]
+            self.assertEqual(len(stream.data.vertices), len(bed.data.vertices))
+            for water, floor in zip(stream.data.vertices, bed.data.vertices, strict=True):
+                self.assertAlmostEqual(water.co.z - floor.co.z, .035, places=5)
+            for obj in (bed, bpy.data.objects[f"溪岸_{suffix}_0"], bpy.data.objects[f"溪岸_{suffix}_1"]):
+                self.assertTrue(all(face.normal.z > 0 for face in obj.data.polygons), obj.name)
+                colors = obj.data.color_attributes["溪岸混合"]
+                self.assertEqual(len(colors.data), len(obj.data.vertices))
+                if obj != bed:
+                    weights = [color.color[0] for color in colors.data]
+                    self.assertAlmostEqual(min(weights), 0)
+                    self.assertAlmostEqual(max(weights), 1)
+
     def test_saved_geometry(self):
         verify()
 

@@ -599,9 +599,19 @@ namespace TreeCompanion.Editor
             }
             ConfigureIslandMaterial(islandMaterial, shader, grassTexture, rockTexture, 1f);
             ConfigureIslandMaterial(rockMaterial, shader, grassTexture, rockTexture, 0f);
+            const string bankPath = "Assets/Art/Generated/Materials/生命樹_溪岸濕土.mat";
+            var bankMaterial = AssetDatabase.LoadAssetAtPath<Material>(bankPath);
+            if (bankMaterial == null)
+            {
+                bankMaterial = new Material(shader) { name = "生命樹_溪岸濕土" };
+                AssetDatabase.CreateAsset(bankMaterial, bankPath);
+            }
+            ConfigureIslandMaterial(bankMaterial, shader, grassTexture, rockTexture, 1f);
+            bankMaterial.SetFloat("_BankInfluence", 1f);
 
             var islandRendererCount = 0;
             var rockRendererCount = 0;
+            var bankRendererCount = 0;
             foreach (var renderer in worldRoot.GetComponentsInChildren<Renderer>(true))
             {
                 if (renderer.name.StartsWith("浮島_", StringComparison.Ordinal)
@@ -615,6 +625,12 @@ namespace TreeCompanion.Editor
                     renderer.sharedMaterials = Enumerable.Repeat(islandMaterial, materialCount).ToArray();
                     islandRendererCount++;
                 }
+                else if (renderer.name.StartsWith("溪岸_", StringComparison.Ordinal)
+                    || renderer.name.StartsWith("河床_", StringComparison.Ordinal))
+                {
+                    renderer.sharedMaterial = bankMaterial;
+                    bankRendererCount++;
+                }
                 else if (renderer.name.StartsWith("中央島_岩塊_", StringComparison.Ordinal)
                     || HasNamedAncestor(
                         renderer.transform,
@@ -626,14 +642,15 @@ namespace TreeCompanion.Editor
                     rockRendererCount++;
                 }
             }
-            if (islandRendererCount != 1 || rockRendererCount != 5)
+            if (islandRendererCount != 1 || rockRendererCount != 5 || bankRendererCount != 6)
             {
                 throw new InvalidOperationException(
-                    $"浮島材質節點數量錯誤：中央島 {islandRendererCount}，島岩 {rockRendererCount}。"
+                    $"浮島材質節點數量錯誤：中央島 {islandRendererCount}，島岩 {rockRendererCount}，溪岸河床 {bankRendererCount}。"
                 );
             }
             EditorUtility.SetDirty(islandMaterial);
             EditorUtility.SetDirty(rockMaterial);
+            EditorUtility.SetDirty(bankMaterial);
         }
 
         private static void ConfigureIslandMaterial(
@@ -649,6 +666,7 @@ namespace TreeCompanion.Editor
             material.SetTexture("_RockTex", rockTexture);
             material.SetFloat("_Tiling", 0.42f);
             material.SetFloat("_GrassInfluence", grassInfluence);
+            material.SetFloat("_BankInfluence", 0f);
             material.color = Color.white;
         }
 

@@ -9,6 +9,29 @@ namespace TreeCompanion.Tests
     public sealed class LifeTreeStateTests
     {
         [Test]
+        public void StreamBanksRetainTheirBlendWeightsAfterFbxImport()
+        {
+            var model = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Art/Generated/生命樹庭園.fbx");
+            var meshes = model.GetComponentsInChildren<MeshFilter>(true);
+            var banks = meshes.Where(item => item.name.StartsWith("溪岸_")).ToArray();
+            var beds = meshes.Where(item => item.name.StartsWith("河床_")).ToArray();
+            Assert.That(banks.Length, Is.EqualTo(4));
+            Assert.That(beds.Length, Is.EqualTo(2));
+            foreach (var bank in banks)
+            {
+                var colors = bank.sharedMesh.colors;
+                Assert.That(colors.Length, Is.EqualTo(bank.sharedMesh.vertexCount));
+                Assert.That(colors.Min(color => color.r), Is.LessThan(.01f));
+                Assert.That(colors.Max(color => color.r), Is.GreaterThan(.99f));
+            }
+            foreach (var bed in beds)
+            {
+                Assert.That(bed.sharedMesh.colors.Length, Is.EqualTo(bed.sharedMesh.vertexCount));
+                Assert.That(bed.sharedMesh.colors.All(color => color.r > .99f), Is.True);
+            }
+        }
+
+        [Test]
         public void ReducedMotionClearsWaterfallMist()
         {
             var item = new GameObject("測試水霧");

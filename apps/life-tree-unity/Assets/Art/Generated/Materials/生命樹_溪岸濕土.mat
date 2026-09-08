@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: "\u751F\u547D\u6A39_\u6D6E\u5CF6\u5730\u8868"
+  m_Name: "\u751F\u547D\u6A39_\u6EAA\u5CB8\u6FD5\u571F"
   m_Shader: {fileID: 4800000, guid: 2c78a7fc3701d47a385588d415d15fe3, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -33,7 +33,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _BankInfluence: 0
+    - _BankInfluence: 1
     - _GrassInfluence: 1
     - _Tiling: 0.42
     m_Colors:

@@ -33,6 +33,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
+    - _BankInfluence: 0
     - _GrassInfluence: 0
     - _Tiling: 0.42
     m_Colors:
