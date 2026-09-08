@@ -13,7 +13,7 @@ namespace TreeCompanion.Editor
     public static class LifeTreeSceneBuilder
     {
         private const string ModelPath = "Assets/Art/Generated/生命樹庭園.fbx";
-        private const string BackgroundPath = "Assets/Art/Backgrounds/生命樹浮島世界_遠景背景_v1.png";
+        private const string BackgroundPath = "Assets/Art/Backgrounds/生命樹_純天空雲海_v2.png";
         private const string BarkTexturePath = "Assets/Art/Textures/生命樹_樹皮色彩_v1.png";
         private const string BarkMaterialPath = "Assets/Art/Generated/Materials/生命樹_樹皮.mat";
         private const string FoliageTexturePath = "Assets/Art/Textures/生命樹_葉簇色彩_v2.png";
@@ -69,6 +69,7 @@ namespace TreeCompanion.Editor
                 camera.transform.position + camera.transform.forward * 20f
             );
             controller.ConfigureAtmosphere(atmosphere);
+            atmosphere.BindWaterfallMist(CreateWaterfallMist(worldModel.transform));
             CreateLighting(environment.transform);
             CreateBackdrop(environment.transform, camera);
             var interaction = controllerObject.AddComponent<LifeTreeWorldInteraction>();
@@ -356,6 +357,7 @@ namespace TreeCompanion.Editor
             RequireCount(names, "前景葉簇_", 8);
             RequireCount(names, "紀念掛點_", LifeTreeState.KeepsakeSlotCount);
             RequireCount(names, "浮島_", 1);
+            RequireCount(names, "群島地形_", 0);
             RequireCount(names, "瀑布_", 2);
             RequireCount(names, "雲海_", 0);
         }
@@ -523,6 +525,7 @@ namespace TreeCompanion.Editor
                 "次枝_",
                 "末梢枝_",
                 "樹根_",
+                "垂根_",
             };
             var foliageRendererCount = 0;
             foreach (var renderer in lifeTreeRoot.GetComponentsInChildren<Renderer>(true))
@@ -601,17 +604,6 @@ namespace TreeCompanion.Editor
             var rockRendererCount = 0;
             foreach (var renderer in worldRoot.GetComponentsInChildren<Renderer>(true))
             {
-                if (renderer.name.StartsWith("群島地形_", StringComparison.Ordinal))
-                {
-                    renderer.sharedMaterials = Enumerable.Repeat(islandMaterial,
-                        Math.Max(1, renderer.sharedMaterials.Length)).ToArray();
-                    continue;
-                }
-                if (renderer.name.StartsWith("群島葉冠_", StringComparison.Ordinal))
-                {
-                    renderer.sharedMaterial = AssetDatabase.LoadAssetAtPath<Material>(FoliageMaterialPath);
-                    continue;
-                }
                 if (renderer.name.StartsWith("浮島_", StringComparison.Ordinal)
                     || HasNamedAncestor(
                         renderer.transform,
@@ -690,7 +682,7 @@ namespace TreeCompanion.Editor
             {
                 if (renderer.name.StartsWith("瀑布_", StringComparison.Ordinal)
                     || renderer.name.StartsWith("水沫內光_", StringComparison.Ordinal)
-                    || renderer.name.StartsWith("群島水流_", StringComparison.Ordinal))
+                    || renderer.name.StartsWith("溪流_", StringComparison.Ordinal))
                 {
                     renderer.sharedMaterial = material;
                     renderer.enabled = !renderer.name.StartsWith("水沫內光_", StringComparison.Ordinal);
@@ -699,10 +691,10 @@ namespace TreeCompanion.Editor
                     rendererCount++;
                 }
             }
-            if (rendererCount != 9)
+            if (rendererCount != 6)
             {
                 throw new InvalidOperationException(
-                    $"瀑布流光材質應套用至 9 個水流渲染器，實際為 {rendererCount}。"
+                    $"溪流與瀑布材質應套用至 6 個水流渲染器，實際為 {rendererCount}。"
                 );
             }
             EditorUtility.SetDirty(material);
@@ -730,6 +722,61 @@ namespace TreeCompanion.Editor
             fill.intensity = 1.18f;
             fill.range = 24f;
             fill.shadows = LightShadows.None;
+        }
+
+        private static ParticleSystem[] CreateWaterfallMist(Transform world)
+        {
+            const string materialPath = "Assets/Art/Generated/Materials/生命樹_柔霧.mat";
+            var shader = Shader.Find("樹伴/生命樹柔霧");
+            if (shader == null) throw new InvalidOperationException("缺少瀑布柔霧著色器。");
+            var material = AssetDatabase.LoadAssetAtPath<Material>(materialPath);
+            if (material == null)
+            {
+                material = new Material(shader) { name = "生命樹_柔霧" };
+                AssetDatabase.CreateAsset(material, materialPath);
+            }
+            var falls = world.GetComponentsInChildren<Renderer>(true)
+                .Where(renderer => renderer.name.StartsWith("瀑布_", StringComparison.Ordinal)).ToArray();
+            var result = new ParticleSystem[falls.Length];
+            for (var index = 0; index < falls.Length; index++)
+            {
+                var bounds = falls[index].bounds;
+                var item = new GameObject($"水霧_{index:00}");
+                item.transform.SetParent(world, false);
+                item.transform.position = new Vector3(bounds.center.x, bounds.min.y + .18f, bounds.center.z);
+                item.transform.rotation = Quaternion.Euler(-90f, 0, 0);
+                var mist = item.AddComponent<ParticleSystem>();
+                mist.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                mist.useAutoRandomSeed = false;
+                mist.randomSeed = (uint)(2108 + index);
+                var main = mist.main;
+                main.loop = true;
+                main.playOnAwake = true;
+                main.startLifetime = new ParticleSystem.MinMaxCurve(1.5f, 3f);
+                main.startSpeed = new ParticleSystem.MinMaxCurve(.12f, .30f);
+                main.startSize = new ParticleSystem.MinMaxCurve(.55f, 1.15f);
+                main.startColor = new Color(.80f, .90f, .97f, .24f);
+                main.simulationSpace = ParticleSystemSimulationSpace.Local;
+                main.maxParticles = 32;
+                var emission = mist.emission;
+                emission.rateOverTime = 9f;
+                var shape = mist.shape;
+                shape.shapeType = ParticleSystemShapeType.Cone;
+                shape.angle = 40f;
+                shape.radius = .22f;
+                var color = mist.colorOverLifetime;
+                color.enabled = true;
+                var gradient = new Gradient();
+                gradient.SetKeys(new[] { new GradientColorKey(Color.white, 0), new GradientColorKey(Color.white, 1) },
+                    new[] { new GradientAlphaKey(0, 0), new GradientAlphaKey(1, .2f), new GradientAlphaKey(0, 1) });
+                color.color = gradient;
+                var renderer = item.GetComponent<ParticleSystemRenderer>();
+                renderer.sharedMaterial = material;
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                renderer.receiveShadows = false;
+                result[index] = mist;
+            }
+            return result;
         }
 
         private static void CreateBackdrop(Transform parent, Camera camera)

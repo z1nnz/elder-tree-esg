@@ -70,6 +70,18 @@ Shader "樹伴/生命樹瀑布流動"
                 return output;
             }
 
+            float WaterNoise(float2 p)
+            {
+                float2 cell = floor(p);
+                float2 blend = frac(p);
+                blend = blend * blend * (3 - 2 * blend);
+                float a = frac(sin(dot(cell, float2(127.1, 311.7))) * 43758.5453);
+                float b = frac(sin(dot(cell + float2(1, 0), float2(127.1, 311.7))) * 43758.5453);
+                float c = frac(sin(dot(cell + float2(0, 1), float2(127.1, 311.7))) * 43758.5453);
+                float d = frac(sin(dot(cell + 1, float2(127.1, 311.7))) * 43758.5453);
+                return lerp(lerp(a, b, blend.x), lerp(c, d, blend.x), blend.y);
+            }
+
             fixed4 Fragment(Interpolators input) : SV_Target
             {
                 float motionTime = _LifeTreeMotionTime * _LifeTreeMotionAmount;
@@ -79,14 +91,13 @@ Shader "樹伴/生命樹瀑布流動"
                 // descend: the water speeds up after crossing the lip.
                 float travel = sqrt(v + .04) * _FlowScale
                     + motionTime * _FlowSpeed * _VerticalDirection;
-                float strands = .5 + .5 * sin(u * 91 + sin(u * 31) * 2.3
-                    + sin(travel * 3.1 + u * 7) * .20);
-                float bubbles = .5 + .5 * sin(travel * 13 + sin(u * 37) * 4);
+                float strands = WaterNoise(float2(u * 17, travel * 4.0));
+                float bubbles = WaterNoise(float2(u * 6.3 + 11, travel * 2.1));
                 float lip = exp(-pow((v - .18) * 24, 2));
-                float foam = saturate(pow(strands, 4) * (.48 + bubbles * .16) + lip * .25);
+                float foam = saturate(.20 + pow(strands, 2) * .64 + bubbles * .12 + lip * .22);
                 float edge = smoothstep(0, .08, u) * smoothstep(0, .08, 1 - u);
                 float endFade = 1 - smoothstep(.72, 1, v + .035 * sin(u * 53 + travel * 4));
-                float breakup = lerp(.85, smoothstep(.10, .50, strands + bubbles * .25), smoothstep(.35, .95, v));
+                float breakup = lerp(.90, smoothstep(.08, .55, strands + bubbles * .30), smoothstep(.35, .95, v));
                 fixed4 colorSample = lerp(_Color, _FoamColor, foam);
                 colorSample.a = _Opacity * edge * endFade * breakup * (.48 + foam * .70);
                 UNITY_APPLY_FOG(input.fogCoord, colorSample);

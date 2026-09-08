@@ -9,6 +9,42 @@ namespace TreeCompanion.Tests
     public sealed class LifeTreeStateTests
     {
         [Test]
+        public void ReducedMotionClearsWaterfallMist()
+        {
+            var item = new GameObject("測試水霧");
+            var cameraObject = new GameObject("測試水霧相機");
+            try
+            {
+                var mist = item.AddComponent<ParticleSystem>();
+                var atmosphere = item.AddComponent<LifeTreeAtmosphereController>();
+                atmosphere.Bind(cameraObject.AddComponent<Camera>(), Vector3.forward);
+                atmosphere.BindWaterfallMist(new[] { mist });
+                mist.Emit(8);
+                Assert.That(mist.particleCount, Is.GreaterThan(0));
+                atmosphere.ApplyMotionPreference(true);
+                atmosphere.EvaluateAt(2f);
+                Assert.That(mist.particleCount, Is.Zero);
+                Assert.That(mist.isPlaying, Is.False);
+            }
+            finally
+            {
+                Object.DestroyImmediate(item);
+                Object.DestroyImmediate(cameraObject);
+            }
+        }
+
+        [Test]
+        public void WorldContainsOneTerracedIslandAndNoSatelliteIslands()
+        {
+            var model = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Art/Generated/生命樹庭園.fbx");
+            var names = model.GetComponentsInChildren<Transform>(true).Select(item => item.name).ToArray();
+            Assert.That(names.Count(name => name.StartsWith("浮島_")), Is.EqualTo(1));
+            Assert.That(names.Any(name => name.StartsWith("群島")), Is.False);
+            Assert.That(names.Count(name => name.StartsWith("溪流_")), Is.EqualTo(2));
+            Assert.That(names.Count(name => name.StartsWith("垂根_")), Is.EqualTo(3));
+        }
+
+        [Test]
         public void IslandViewClampsZoomAndCanRestoreItsAuthoredPose()
         {
             var world = new GameObject("測試浮島");
@@ -206,7 +242,7 @@ namespace TreeCompanion.Tests
         public void HybridBackgroundMatchesPortraitCameraAspect()
         {
             const string backgroundPath =
-                "Assets/Art/Backgrounds/生命樹浮島世界_遠景背景_v1.png";
+                "Assets/Art/Backgrounds/生命樹_純天空雲海_v2.png";
             var background = AssetDatabase.LoadAssetAtPath<Texture2D>(backgroundPath);
 
             Assert.That(background, Is.Not.Null, $"找不到遠景背景：{backgroundPath}");

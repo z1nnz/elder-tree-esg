@@ -250,7 +250,7 @@ def add_solid_canopy_geometry(
     palette = ((0.065, 0.23, 0.12, 1), (0.12, 0.36, 0.16, 1),
                (0.26, 0.48, 0.18, 1), (0.47, 0.61, 0.22, 1),
                (0.65, 0.69, 0.29, 1))
-    count = 240
+    count = 320
     for leaf_index in range(count):
         z = 1.0 - 2.0 * (leaf_index + 0.5) / count
         azimuth = leaf_index * 2.3999632297 + index * 0.73
@@ -261,7 +261,7 @@ def add_solid_canopy_geometry(
         normal = (direction * 0.50 + Vector((0, 0, 0.68))).normalized()
         orientation = normal.to_track_quat("Z", "Y")
         spin = rng.uniform(-math.pi, math.pi)
-        length = rng.uniform(0.20, 0.34)
+        length = rng.uniform(0.15, 0.25)
         width = length * rng.uniform(0.43, 0.64)
         # Perimeter winds counter-clockwise; center is the raised midrib.
         shape = ((0, -length, 0), (width, -length * .35, -.026),
@@ -400,24 +400,29 @@ def floating_island(
     grass_material_index = 0
     rock_material_index = 1
     ring_specs = (
-        (0.46, 0.15, grass_material_index),
-        (0.86, 0.09, grass_material_index),
-        (1.00, 0.03, grass_material_index),
-        (1.04, -0.15, rock_material_index),
+        (0.28, 0.16, grass_material_index),
+        (0.52, 0.09, grass_material_index),
+        (0.66, -0.12, grass_material_index),
+        (0.67, -0.36, rock_material_index),
+        (0.82, -0.38, grass_material_index),
+        (0.95, -0.50, grass_material_index),
+        (1.00, -0.70, rock_material_index),
+        (0.94, -1.15, rock_material_index),
         (0.76, -depth * 0.58, rock_material_index),
-        (0.22, -depth, rock_material_index),
+        (0.48, -depth * 0.86, rock_material_index),
+        (0.14, -depth, rock_material_index),
     )
     edge_noise = [island_random.uniform(0.86, 1.13) for _ in range(segments)]
     for ring_index, (scale, z, material_index) in enumerate(ring_specs):
         ring: list[int] = []
         for index in range(segments):
             angle = math.tau * index / segments
-            if ring_index < 3:
-                noise = 1.0 + (edge_noise[index] - 1.0) * (0.35 + ring_index * 0.28)
+            if material_index == grass_material_index:
+                noise = 1.0 + (edge_noise[index] - 1.0) * (0.35 + ring_index * 0.10)
             else:
                 noise = edge_noise[index] * island_random.uniform(0.91, 1.07)
             surface_rise = 0.0
-            if ring_index < 3:
+            if material_index == grass_material_index:
                 surface_rise = 0.025 * math.sin(angle * 3.0 + seed * 0.01)
             vertices.append(
                 (
@@ -538,6 +543,13 @@ def island_path(
     data = bpy.data.meshes.new(name)
     data.from_pydata(vertices, [], faces)
     data.materials.append(path_material)
+    if name.startswith("溪流_"):
+        uv = data.uv_layers.new(name="溪流座標")
+        for polygon in data.polygons:
+            for loop_index in polygon.loop_indices:
+                vertex_index = data.loops[loop_index].vertex_index
+                uv.data[loop_index].uv = (vertex_index % 2,
+                    (vertex_index // 2) / max(1, len(points) - 1) * .18)
     data.update()
     path = bpy.data.objects.new(name, data)
     path.parent = parent
@@ -554,11 +566,11 @@ def add_central_island_details(
     island_path(
         "中央島_同行步道",
         (
-            (-0.48, -1.92, -0.095),
-            (-0.20, -1.48, -0.085),
-            (0.34, -1.02, -0.075),
-            (0.18, -0.58, -0.065),
-            (-0.12, -0.18, -0.055),
+            (-0.48, -1.92, -0.49),
+            (-0.20, -1.48, -0.15),
+            (0.34, -1.02, -0.065),
+            (0.18, -0.58, -0.01),
+            (-0.12, -0.18, 0.012),
         ),
         0.46,
         path_material,
@@ -568,11 +580,11 @@ def add_central_island_details(
     # Five composed cliff markers frame the tree and waterfalls without the
     # evenly spaced "test rocks" that made the old island look procedural.
     rock_specs = (
-        ((-2.55, 0.22, 0.07), (0.50, 0.32, 0.34), 0.22),
-        ((-2.04, 1.30, 0.09), (0.38, 0.30, 0.40), -0.18),
-        ((2.30, 0.92, 0.08), (0.48, 0.30, 0.35), -0.30),
-        ((2.44, -0.62, 0.05), (0.44, 0.28, 0.32), 0.16),
-        ((-1.78, -1.42, 0.04), (0.40, 0.25, 0.29), -0.12),
+        ((-2.55, 0.22, -0.32), (0.64, 0.36, 0.62), 0.22),
+        ((-2.04, 1.30, -0.38), (0.38, 0.30, 0.46), -0.18),
+        ((2.30, 0.92, -0.35), (0.68, 0.35, 0.54), -0.30),
+        ((2.44, -0.62, -0.32), (0.44, 0.28, 0.43), 0.16),
+        ((-1.78, -1.42, -0.35), (0.36, 0.25, 0.25), -0.12),
     )
     for index, (location, scale, rotation) in enumerate(rock_specs, start=1):
         bpy.ops.mesh.primitive_ico_sphere_add(
@@ -684,10 +696,10 @@ def build_tree(foliage_texture_path: Path) -> bpy.types.Object:
         # them instead of repeating an evenly spaced left/right staircase.
         ((-0.30, -0.01, 1.60), (-1.28, -0.20, 2.02), (-2.72, -0.13, 2.46)),
         ((-0.18, 0.02, 2.05), (0.96, -0.13, 2.36), (2.48, -0.06, 3.02)),
-        ((0.05, 0.08, 2.64), (-0.72, 0.38, 3.10), (-2.08, 0.48, 3.62)),
-        ((0.20, 0.06, 2.88), (1.02, 0.31, 3.22), (1.78, 0.46, 3.72)),
-        ((0.31, -0.02, 3.32), (-0.36, -0.33, 3.72), (-1.32, -0.38, 4.18)),
-        ((0.38, 0.04, 3.52), (0.94, -0.25, 3.88), (1.48, -0.30, 4.28)),
+        ((0.05, 0.08, 2.64), (-0.72, 0.65, 3.10), (-2.08, 1.08, 3.62)),
+        ((0.20, 0.06, 2.88), (1.02, 0.62, 3.22), (1.78, 1.12, 3.72)),
+        ((0.31, -0.02, 3.32), (-0.36, -0.62, 3.72), (-1.32, -1.10, 4.18)),
+        ((0.38, 0.04, 3.52), (0.94, -0.55, 3.88), (1.48, -1.05, 4.28)),
         ((0.38, 0.08, 3.82), (-0.06, 0.34, 4.22), (-0.68, 0.42, 4.63)),
         ((0.35, 0.03, 3.96), (0.66, 0.17, 4.35), (0.88, 0.22, 4.78)),
     ]
@@ -766,8 +778,8 @@ def build_tree(foliage_texture_path: Path) -> bpy.types.Object:
     for index, center in enumerate(back_centers, start=1):
         cluster = leaf_cluster(
             f"後景葉簇_{index:02d}",
-            center,
-            (0.90 + (index % 3) * 0.08, 0.62, 0.66 + (index % 2) * 0.10),
+            (center[0], center[1] + .30, center[2]),
+            (0.90 + (index % 3) * 0.08, 1.02, 0.66 + (index % 2) * 0.10),
             "深林綠" if index % 3 else "森林綠",
             leaf_back_collection,
         )
@@ -794,8 +806,8 @@ def build_tree(foliage_texture_path: Path) -> bpy.types.Object:
     for index, center in enumerate(front_centers, start=1):
         cluster = leaf_cluster(
             f"前景葉簇_{index:02d}",
-            center,
-            (0.88 + (index % 2) * 0.13, 0.54, 0.62 + (index % 3) * 0.08),
+            (center[0], center[1] - .26, center[2]),
+            (0.88 + (index % 2) * 0.13, .92, 0.62 + (index % 3) * 0.08),
             "暖日森林綠" if index in (5, 7) else "森林綠",
             leaf_front_collection,
         )
@@ -869,6 +881,14 @@ def build_tree(foliage_texture_path: Path) -> bpy.types.Object:
     bpy.ops.uv.smart_project(angle_limit=1.15, island_margin=0.025)
     bpy.ops.object.mode_set(mode="OBJECT")
     trunk.select_set(False)
+    for index, points in enumerate([
+        [(-.20, 0, .36), (-1.1, .25, .03), (-2.5, .65, -.45), (-3.2, .72, -1.2), (-2.9, .72, -2.5)],
+        [(.1, 0, .28), (1.15, .52, -.04), (2.45, 1.0, -.56), (3.0, 1.15, -1.3), (2.7, 1.2, -2.35)],
+        [(-.1, .2, .20), (-.3, 1.1, -.04), (.1, 2.1, -.58), (.35, 2.55, -1.3), (.75, 2.5, -2.7)],
+    ]):
+        hanging_root = curve_branch(f"垂根_{index:02d}", points, [1.25, 1, .65, .36, .03],
+                                    trunk_material, root_detail_collection, bevel=.13)
+        hanging_root.parent = root
     return root
 
 
@@ -896,14 +916,14 @@ def build_floating_world() -> bpy.types.Object:
     floating_island(
         "浮島_中央生命島",
         (0.0, 0.0, -0.18),
-        (3.25, 2.15),
-        1.55,
+        (3.8, 2.6),
+        3.35,
         grass_material,
         rock_material,
         island_collection,
         world_root,
         seed=3101,
-        segments=36,
+        segments=48,
     )
     add_central_island_details(
         rock_material,
@@ -911,20 +931,27 @@ def build_floating_world() -> bpy.types.Object:
         island_collection,
         world_root,
     )
+    for name, points, width in [
+        ("溪流_中央左", [(-.70, -.60, .035), (-1.05, -.85, -.015),
+                         (-1.32, -1.12, -.10), (-1.68, -1.50, -.45), (-1.72, -1.76, -.51)], .30),
+        ("溪流_中央右", [(.78, -.55, .035), (1.16, -.82, -.025),
+                         (1.27, -1.16, -.11), (1.43, -1.55, -.45), (1.45, -1.83, -.51)], .24),
+    ]:
+        island_path(name, points, width, waterfall_material, water_collection, world_root)
     waterfall_ribbon(
         "瀑布_中央左",
-        (-1.72, -2.02, -0.14),
+        (-1.72, -2.36, -0.67),
         0.48,
-        1.65,
+        2.9,
         waterfall_material,
         water_collection,
         world_root,
     )
     waterfall_ribbon(
         "水沫內光_中央左",
-        (-1.72, -2.045, -0.14),
+        (-1.72, -2.385, -0.67),
         0.19,
-        1.65,
+        2.9,
         material(
             "瀑布白沫",
             (0.72, 0.90, 0.96, 1),
@@ -937,57 +964,22 @@ def build_floating_world() -> bpy.types.Object:
     )
     waterfall_ribbon(
         "瀑布_中央右",
-        (1.45, -2.08, -0.16),
+        (1.45, -2.43, -0.67),
         0.34,
-        1.40,
+        2.6,
         waterfall_material,
         water_collection,
         world_root,
     )
     waterfall_ribbon(
         "水沫內光_中央右",
-        (1.45, -2.105, -0.16),
+        (1.45, -2.455, -0.67),
         0.13,
-        1.40,
+        2.6,
         bpy.data.materials["瀑布白沫"],
         water_collection,
         world_root,
     )
-    # Mid-distance geometry provides parallax and a world scale reference.
-    # The distant painted cloudscape stays atmospheric, not navigable land.
-    archipelago = bpy.data.objects.new("群島_中景層", None)
-    world_collection.objects.link(archipelago)
-    archipelago.parent = world_root
-    canopy_source = next(obj for obj in bpy.context.scene.objects
-                         if obj.type == "MESH" and obj.name.startswith("後景葉片_"))
-    for index, (position, radius, depth) in enumerate([
-        ((-5.8, 2.8, -2.2), (1.65, 1.15), 2.1),
-        ((5.8, 4.8, -2.8), (1.9, 1.4), 2.5),
-        ((-5.0, 9.0, -.8), (2.5, 1.5), 3.0),
-        ((4.4, 10.0, -.4), (2.0, 1.8), 2.8),
-        ((.5, 14.0, -3.4), (2.5, 1.3), 2.4),
-    ]):
-        floating_island(f"群島地形_{index:02d}", position, radius, depth,
-                        grass_material, rock_material, island_collection,
-                        archipelago, seed=4110 + index, segments=24)
-        waterfall_ribbon(f"群島水流_{index:02d}",
-                         (position[0], position[1] - radius[1] * .85, position[2]),
-                         .22 + index * .035, depth * 1.65, waterfall_material,
-                         water_collection, archipelago)
-        for tree_index in range(2):
-            base = Vector(position) + Vector(((-.45 if tree_index else .4), .1, .12))
-            height = .60 + tree_index * .28
-            tiny_trunk = curve_branch(f"群島林木_{index}_{tree_index}",
-                                      [tuple(base), tuple(base + Vector((-.07, 0, height * .6))),
-                                       tuple(base + Vector((0, 0, height)))],
-                                      [1, .7, .1], bpy.data.materials["樹皮深棕"],
-                                      island_collection, bevel=.09)
-            tiny_trunk.parent = archipelago
-            crown = bpy.data.objects.new(f"群島葉冠_{index}_{tree_index}", canopy_source.data.copy())
-            crown.location = base + Vector((0, 0, height))
-            crown.scale = (.48, .43, .36)
-            crown.parent = archipelago
-            island_collection.objects.link(crown)
     return world_root
 
 
@@ -1152,10 +1144,10 @@ def write_asset_stats(output: Path) -> None:
         if stats[label] != expected_count:
             raise RuntimeError(f"{label}應為 {expected_count}，實際為 {stats[label]}")
     stats["中景群島數"] = sum(obj.name.startswith("群島地形_") for obj in bpy.context.scene.objects)
-    if stats["中景群島數"] != 5:
-        raise RuntimeError("中景群島應有五座獨立地形")
-    if not 14000 <= triangle_count <= 90000:
-        raise RuntimeError(f"含中景群島三角面預算應介於 14000～90000，實際為 {triangle_count}")
+    if stats["中景群島數"] != 0:
+        raise RuntimeError("單島版本不可包含中景群島")
+    if not 14000 <= triangle_count <= 70000:
+        raise RuntimeError(f"單島三角面預算應介於 14000～70000，實際為 {triangle_count}")
     with (output / "生命樹庭園_資產統計.json").open("w", encoding="utf-8") as handle:
         json.dump(stats, handle, ensure_ascii=False, indent=2)
         handle.write("\n")
