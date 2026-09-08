@@ -91,15 +91,17 @@ Shader "樹伴/生命樹瀑布流動"
                 // descend: the water speeds up after crossing the lip.
                 float travel = sqrt(v + .04) * _FlowScale
                     + motionTime * _FlowSpeed * _VerticalDirection;
-                float strands = WaterNoise(float2(u * 17, travel * 4.0));
-                float bubbles = WaterNoise(float2(u * 6.3 + 11, travel * 2.1));
+                float strands = WaterNoise(float2(u * 7 + sin(travel * 1.6) * .35, travel * 4.0));
+                float bubbles = WaterNoise(float2(u * 3.3 + 11, travel * 2.1));
                 float lip = exp(-pow((v - .18) * 24, 2));
-                float foam = saturate(.20 + pow(strands, 2) * .64 + bubbles * .12 + lip * .22);
+                float falling = smoothstep(.13, .28, v);
+                float foam = saturate(.12 + pow(strands, 2) * .70 + bubbles * .20 + lip * .26);
+                foam *= lerp(.42, 1, falling);
                 float edge = smoothstep(0, .08, u) * smoothstep(0, .08, 1 - u);
                 float endFade = 1 - smoothstep(.72, 1, v + .035 * sin(u * 53 + travel * 4));
                 float breakup = lerp(.90, smoothstep(.08, .55, strands + bubbles * .30), smoothstep(.35, .95, v));
                 fixed4 colorSample = lerp(_Color, _FoamColor, foam);
-                colorSample.a = _Opacity * edge * endFade * breakup * (.48 + foam * .70);
+                colorSample.a = _Opacity * edge * endFade * breakup * (.62 + foam * .50);
                 UNITY_APPLY_FOG(input.fogCoord, colorSample);
                 return colorSample;
             }

@@ -20,6 +20,7 @@ from pathlib import Path
 
 import bpy
 from mathutils import Vector
+from mathutils.bvhtree import BVHTree
 
 
 SEED = 20260830
@@ -478,6 +479,8 @@ def waterfall_ribbon(
     water_material: bpy.types.Material,
     target: bpy.types.Collection,
     parent: bpy.types.Object,
+    *,
+    terrain: BVHTree | None = None,
 ) -> bpy.types.Object:
     # The first section lies on the island, then curls over the lip. A dense
     # but bounded grid gives the silhouette real depth from oblique views.
@@ -493,7 +496,13 @@ def waterfall_ribbon(
             u = col / columns
             cross = (u - .5) * width * width_scale
             ripple = math.sin(u * 17 + t * 9) * .015 * falling
-            vertices.append((cross, forward + ripple, z + math.sin(u * math.pi) * .025))
+            vertex = Vector((cross, forward + ripple, z + math.sin(u * math.pi) * .025))
+            if terrain is not None and t < .18:
+                world = vertex + Vector(location)
+                hit, _, _, _ = terrain.ray_cast((world.x, world.y, 3), (0, 0, -1), 10)
+                if hit is not None:
+                    vertex.z = hit.z + .06 - location[2]
+            vertices.append(tuple(vertex))
     faces = []
     for row in range(rows):
         for col in range(columns):
@@ -524,8 +533,21 @@ def island_path(
     path_material: bpy.types.Material,
     target: bpy.types.Collection,
     parent: bpy.types.Object,
+    *,
+    terrain: BVHTree | None = None,
 ) -> bpy.types.Object:
     """Create a slightly uneven ground ribbon that gives the island human scale."""
+    if terrain is not None:
+        # Sample the actual triangulated ground instead of guessing five Z values.
+        # The extra transverse samples also follow the bank rather than cutting
+        # a single wide quad through the grass at terrace boundaries.
+        sampled = []
+        for start, end in zip(points, points[1:]):
+            count = max(1, math.ceil((Vector(end) - Vector(start)).length / .035))
+            sampled.extend(tuple(Vector(start).lerp(Vector(end), step / count))
+                           for step in range(count))
+        points = [*sampled, points[-1]]
+    columns = 4 if terrain is not None else 1
     vertices: list[tuple[float, float, float]] = []
     for index, point in enumerate(points):
         current = Vector(point)
@@ -533,12 +555,34 @@ def island_path(
         following = Vector(points[min(len(points) - 1, index + 1)])
         tangent = following - previous
         lateral = Vector((-tangent.y, tangent.x, 0.0)).normalized()
-        local_width = width * (0.82 + 0.18 * math.sin(index * 1.7 + 0.4))
-        vertices.append(tuple(current - lateral * local_width * 0.5))
-        vertices.append(tuple(current + lateral * local_width * 0.5))
+        progress = index / max(1, len(points) - 1)
+        local_width = (width * (.70 + .30 * progress) if terrain is not None
+                       else width * (0.82 + 0.18 * math.sin(index * 1.7 + 0.4)))
+        for column in range(columns + 1):
+            vertex = current + lateral * local_width * (column / columns - .5)
+            if terrain is not None:
+                hit, _, _, _ = terrain.ray_cast((vertex.x, vertex.y, 3), (0, 0, -1), 10)
+                if hit is None:
+                    raise RuntimeError(f"{name}溪流離開地表：{tuple(vertex)}")
+                vertex.z = hit.z + .06
+            vertices.append(tuple(vertex))
+    if terrain is not None:
+        # Keep water above sharp terrace corners between the sampled rows.
+        grounded = list(vertices)
+        for row in range(len(points) - 1):
+            for column in range(columns + 1):
+                index = row * (columns + 1) + column
+                upstream = [grounded[prior * (columns + 1) + side][2]
+                            for prior in range(max(0, row - 2), row + 1)
+                            for side in range(max(0, column - 1), min(columns, column + 1) + 1)]
+                vertices[index] = (*grounded[index][:2], max(upstream))
     faces = [
-        (index * 2, index * 2 + 1, index * 2 + 3, index * 2 + 2)
+        (index * (columns + 1) + column,
+         index * (columns + 1) + column + 1,
+         (index + 1) * (columns + 1) + column + 1,
+         (index + 1) * (columns + 1) + column)
         for index in range(len(points) - 1)
+        for column in range(columns)
     ]
     data = bpy.data.meshes.new(name)
     data.from_pydata(vertices, [], faces)
@@ -548,8 +592,8 @@ def island_path(
         for polygon in data.polygons:
             for loop_index in polygon.loop_indices:
                 vertex_index = data.loops[loop_index].vertex_index
-                uv.data[loop_index].uv = (vertex_index % 2,
-                    (vertex_index // 2) / max(1, len(points) - 1) * .18)
+                uv.data[loop_index].uv = ((vertex_index % (columns + 1)) / columns,
+                    (vertex_index // (columns + 1)) / max(1, len(points) - 1) * .18)
     data.update()
     path = bpy.data.objects.new(name, data)
     path.parent = parent
@@ -584,7 +628,7 @@ def add_central_island_details(
         ((-2.04, 1.30, -0.38), (0.38, 0.30, 0.46), -0.18),
         ((2.30, 0.92, -0.35), (0.68, 0.35, 0.54), -0.30),
         ((2.44, -0.62, -0.32), (0.44, 0.28, 0.43), 0.16),
-        ((-1.78, -1.42, -0.35), (0.36, 0.25, 0.25), -0.12),
+        ((-2.26, -1.42, -0.43), (0.36, 0.25, 0.25), -0.12),
     )
     for index, (location, scale, rotation) in enumerate(rock_specs, start=1):
         bpy.ops.mesh.primitive_ico_sphere_add(
@@ -913,7 +957,7 @@ def build_floating_world() -> bpy.types.Object:
     world_root["三維中央島數"] = 1
     world_root["遠景形式"] = "原創二維背景"
 
-    floating_island(
+    island = floating_island(
         "浮島_中央生命島",
         (0.0, 0.0, -0.18),
         (3.8, 2.6),
@@ -925,6 +969,12 @@ def build_floating_world() -> bpy.types.Object:
         seed=3101,
         segments=48,
     )
+    island.data.calc_loop_triangles()
+    terrain = BVHTree.FromPolygons(
+        [vertex.co + island.location for vertex in island.data.vertices],
+        [tuple(triangle.vertices) for triangle in island.data.loop_triangles],
+        all_triangles=True,
+    )
     add_central_island_details(
         rock_material,
         path_material,
@@ -933,19 +983,21 @@ def build_floating_world() -> bpy.types.Object:
     )
     for name, points, width in [
         ("溪流_中央左", [(-.70, -.60, .035), (-1.05, -.85, -.015),
-                         (-1.32, -1.12, -.10), (-1.68, -1.50, -.45), (-1.72, -1.76, -.51)], .30),
+                         (-1.32, -1.12, -.10), (-1.72, -1.50, -.45), (-1.72, -1.76, -.51)], .64),
         ("溪流_中央右", [(.78, -.55, .035), (1.16, -.82, -.025),
-                         (1.27, -1.16, -.11), (1.43, -1.55, -.45), (1.45, -1.83, -.51)], .24),
+                         (1.27, -1.16, -.11), (1.45, -1.55, -.45), (1.45, -1.83, -.51)], .44),
     ]:
-        island_path(name, points, width, waterfall_material, water_collection, world_root)
+        island_path(name, points, width, waterfall_material, water_collection, world_root,
+                    terrain=terrain)
     waterfall_ribbon(
         "瀑布_中央左",
         (-1.72, -2.36, -0.67),
-        0.48,
+        0.64,
         2.9,
         waterfall_material,
         water_collection,
         world_root,
+        terrain=terrain,
     )
     waterfall_ribbon(
         "水沫內光_中央左",
@@ -965,11 +1017,12 @@ def build_floating_world() -> bpy.types.Object:
     waterfall_ribbon(
         "瀑布_中央右",
         (1.45, -2.43, -0.67),
-        0.34,
+        0.44,
         2.6,
         waterfall_material,
         water_collection,
         world_root,
+        terrain=terrain,
     )
     waterfall_ribbon(
         "水沫內光_中央右",
