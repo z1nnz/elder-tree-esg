@@ -615,7 +615,11 @@ namespace TreeCompanion.Editor
             var bankRendererCount = 0;
             foreach (var renderer in worldRoot.GetComponentsInChildren<Renderer>(true))
             {
-                if (renderer.name.StartsWith("浮島_", StringComparison.Ordinal)
+                if (renderer.name == "林地_葉冠")
+                {
+                    renderer.sharedMaterial = AssetDatabase.LoadAssetAtPath<Material>(FoliageMaterialPath);
+                }
+                else if (renderer.name.StartsWith("浮島_", StringComparison.Ordinal)
                     || HasNamedAncestor(
                         renderer.transform,
                         worldRoot,
@@ -691,7 +695,7 @@ namespace TreeCompanion.Editor
             }
             material.SetColor("_Color", new Color(0.32f, 0.70f, 0.86f, 1f));
             material.SetColor("_FoamColor", new Color(0.80f, 0.94f, 1f, 1f));
-            material.SetFloat("_FlowSpeed", 0.42f);
+            material.SetFloat("_FlowSpeed", 0.65f);
             material.SetFloat("_FlowScale", 2.8f);
             material.SetFloat("_Opacity", 0.85f);
             material.renderQueue = 3000;
@@ -830,14 +834,46 @@ namespace TreeCompanion.Editor
             cloudWorld.transform.SetParent(parent, false);
             var renderers = cloudWorld.GetComponentsInChildren<MeshRenderer>();
             if (renderers.Length != 9) throw new InvalidOperationException("立體雲團應為九組。");
+            var variation = 0;
             foreach (var renderer in renderers)
             {
-                renderer.sharedMaterial = material;
-                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                renderer.receiveShadows = false;
+                // Keep Blender as the editable size/placement source. Render
+                // density through its bounding volume, not a solid skin.
+                var bounds = renderer.GetComponent<MeshFilter>().sharedMesh.bounds;
+                renderer.enabled = false;
+                var volume = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                volume.name = "雲層體積";
+                volume.transform.SetParent(renderer.transform, false);
+                volume.transform.localPosition = bounds.center;
+                volume.transform.localScale = bounds.size;
+                UnityEngine.Object.DestroyImmediate(volume.GetComponent<Collider>());
+                var volumeRenderer = volume.GetComponent<MeshRenderer>();
+                volumeRenderer.sharedMaterial = material;
+                volumeRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                volumeRenderer.receiveShadows = false;
+                volume.AddComponent<CloudVolumeAppearance>().Configure((variation++ + .5f) / 9);
+                PlaceCloudBank(renderer.transform, volumeRenderer, camera);
             }
             camera.farClipPlane = 180f;
             return renderers.Select(renderer => renderer.transform).ToArray();
+        }
+
+        internal static void PlaceCloudBank(Transform bank, Renderer volume, Camera camera)
+        {
+            // Compose once in the authored hero view, then keep the resulting
+            // world positions. They are NOT attached to the camera: orbiting
+            // or entering the island still produces real parallax/occlusion.
+            var layout = new[]
+            {
+                ("後景左", .12f, .62f, 45f), ("後景中", .54f, .30f, 47f),
+                ("後景右", .90f, .56f, 45f), ("中景左", .03f, .28f, 32f),
+                ("中景右", .97f, .27f, 33f), ("近景左", .16f, .10f, 25f),
+                ("近景右", .86f, .10f, 26f), ("高空左", .15f, .90f, 60f),
+                ("高空右", .90f, .87f, 65f),
+            };
+            var placement = layout.Single(item => bank.name.StartsWith("立體雲_" + item.Item1, StringComparison.Ordinal));
+            var destination = camera.ViewportToWorldPoint(new Vector3(placement.Item2, placement.Item3, placement.Item4));
+            bank.position += destination - volume.bounds.center;
         }
     }
 }

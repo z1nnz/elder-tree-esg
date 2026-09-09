@@ -64,7 +64,7 @@ namespace TreeCompanion.Tests
             Assert.That(names.Count(name => name.StartsWith("浮島_")), Is.EqualTo(1));
             Assert.That(names.Any(name => name.StartsWith("群島")), Is.False);
             Assert.That(names.Count(name => name.StartsWith("溪流_")), Is.EqualTo(2));
-            Assert.That(names.Count(name => name.StartsWith("垂根_")), Is.EqualTo(3));
+            Assert.That(names.Count(name => name.StartsWith("垂根_")), Is.EqualTo(6));
         }
 
         [Test]

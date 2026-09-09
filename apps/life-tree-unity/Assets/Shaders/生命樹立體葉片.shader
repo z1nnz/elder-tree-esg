@@ -16,7 +16,7 @@ Shader "樹伴/生命樹立體葉片"
         float _WindStrength;
         float _LifeTreeMotionTime;
         float _LifeTreeMotionAmount;
-        struct Input { float4 color : COLOR; float facing : VFACE; };
+        struct Input { float4 color : COLOR; float facing : VFACE; float3 worldPos; };
         void Vertex(inout appdata_full v)
         {
             float3 world = mul(unity_ObjectToWorld, v.vertex).xyz;
@@ -29,6 +29,11 @@ Shader "樹伴/生命樹立體葉片"
         void Surface(Input input, inout SurfaceOutputStandard output)
         {
             output.Albedo = input.color.rgb * _Color.rgb;
+            // Broad illustrative shadow-to-sun masses, rather than an equal
+            // mint highlight on every small leaf. Geometry still receives light.
+            float sunward = 1 - smoothstep(-3.6, 3.2, input.worldPos.x);
+            float3 canopyTint = lerp(float3(.32,.62,.58), float3(.96,1.0,.64), sunward);
+            output.Albedo *= canopyTint;
             output.Normal = float3(0, 0, input.facing >= 0 ? 1 : -1);
             output.Metallic = 0;
             output.Smoothness = 0.12;

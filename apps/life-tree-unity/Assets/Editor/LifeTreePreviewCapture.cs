@@ -51,6 +51,8 @@ namespace TreeCompanion.Editor
             private readonly RenderTexture renderTexture;
             private readonly Texture2D image;
             private readonly RenderTexture previousActive;
+            private readonly RenderTexture previousTarget;
+            private readonly float previousAspect;
 
             public FrameCapture(Camera camera, int width, int height)
             {
@@ -63,7 +65,10 @@ namespace TreeCompanion.Editor
                 );
                 image = new Texture2D(width, height, TextureFormat.RGBA32, false);
                 previousActive = RenderTexture.active;
+                previousTarget = camera.targetTexture;
+                previousAspect = camera.aspect;
                 camera.targetTexture = renderTexture;
+                camera.aspect = (float)width / height;
             }
 
             public byte[] RenderPng()
@@ -81,7 +86,8 @@ namespace TreeCompanion.Editor
 
             public void Dispose()
             {
-                camera.targetTexture = null;
+                camera.targetTexture = previousTarget;
+                camera.aspect = previousAspect;
                 RenderTexture.active = previousActive;
                 UnityEngine.Object.DestroyImmediate(image);
                 UnityEngine.Object.DestroyImmediate(renderTexture);

@@ -21,13 +21,13 @@ material.diffuse_color = (.86, .94, 1, 1)
 
 # Front is Blender -Y, Unity +Z. Leave the central island's silhouette clear.
 layout = [
-    ("後景左", (-17, 14, -5), (1.8, 1.2, .9)),
-    ("後景中", (0, 25, -5.5), (2.6, 1.3, 1.0)),
-    ("後景右", (19, 17, -4.5), (2.0, 1.3, 1.05)),
-    ("中景左", (-13, 2, -7), (1.8, 1.1, .8)),
-    ("中景右", (14, 1, -7.5), (1.7, 1.3, .9)),
-    ("近景左", (-10, -10, -10), (1.8, 1.15, .65)),
-    ("近景右", (11, -9, -11), (2, 1.2, .75)),
+    ("後景左", (-17, 14, -6), (1.25, 1.2, 1.1)),
+    ("後景中", (0, 25, -9), (1.5, 1.3, 1.2)),
+    ("後景右", (19, 17, -6), (1.3, 1.3, 1.15)),
+    ("中景左", (-13, 2, -7), (1.3, 1.1, 1.0)),
+    ("中景右", (14, 1, -7.5), (1.2, 1.3, 1.0)),
+    ("近景左", (-10, -10, -10), (1.3, 1.15, .9)),
+    ("近景右", (11, -9, -11), (1.4, 1.2, 1.0)),
     ("高空左", (-18, 30, 12), (.85, .85, 1.05)),
     ("高空右", (20, 34, 16), (.95, .85, 1.1)),
 ]
@@ -36,16 +36,24 @@ for index, (label, position, scale) in enumerate(layout):
     rng = random.Random(9100 + index)
     # Distinct names prevent Blender metaball families from merging banks.
     data = bpy.data.metaballs.new(f"雲團造型{index}")
-    data.resolution = .24
-    data.render_resolution = .24
+    data.resolution = .20
+    data.render_resolution = .20
     data.threshold = 1.2
     cloud = bpy.data.objects.new(f"立體雲_{label}", data)
     bpy.context.collection.objects.link(cloud)
     cloud.location, cloud.scale = position, scale
     cloud.parent = root
-    for x, y, z, radius in [(-2.8,0,0,1.9),(-.7,-.2,.3,2.3),(1.8,.2,0,1.8),
-                           (-1,0,1.7,2.1),(1.2,.3,1.2,1.6),(-3,1,-.5,1.3),
-                           (2.8,1,-.3,1.2),(.3,1.2,-.5,2.0)]:
+    # Distinct primary volumes and smaller edge lobes replace the stretched
+    # low ridge. A tall off-centre dome creates a legible cumulus silhouette.
+    lobes = [(-1.8,0,0,1.65),(0,0,.35,2.05),(1.7,.2,.1,1.5),
+             (-.55,.15,1.65,1.85),(.85,.2,1.1,1.4),
+             (-1.65,-.85,.35,1.15),(.2,-1.0,.8,1.35),(1.65,-.75,.3,1.0),
+             (-1.3,.95,.6,1.15),(.6,1.1,.35,1.25),
+             (-2.65,-.15,.1,.9),(2.5,.25,.35,.8),
+             (-1.55,.05,1.75,.85),(-.25,-.55,2.6,.95),
+             (.8,-.6,1.85,.75),(-.8,-1.35,.4,.85),
+             (1.7,.75,1.0,.85),(.15,1.2,1.55,.95)]
+    for x, y, z, radius in lobes:
         element = data.elements.new()
         element.co = (x + rng.uniform(-.25,.25), y, z + rng.uniform(-.2,.3))
         element.radius = radius
@@ -62,7 +70,7 @@ for cloud in clouds:
     bpy.ops.object.convert(target="MESH")
     cloud = bpy.context.object
     decimate = cloud.modifiers.new("雲團面數控制", "DECIMATE")
-    decimate.ratio = min(1, 2600 / max(1, len(cloud.data.polygons)))
+    decimate.ratio = min(1, 1800 / max(1, len(cloud.data.polygons)))
     bpy.ops.object.modifier_apply(modifier=decimate.name)
     for face in cloud.data.polygons:
         face.use_smooth = True

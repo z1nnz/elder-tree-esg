@@ -80,6 +80,31 @@ namespace TreeCompanion.Editor
             BuildMacPreview();
         }
 
+        [MenuItem("樹伴/輸出雲海多角度審查")]
+        public static void CaptureCloudArtReview()
+        {
+            LifeTreeSceneBuilder.Build();
+            UnityEngine.Object.FindFirstObjectByType<LifeTreeSceneController>()
+                .ApplyState(new LifeTreeState { stageIndex = 5, reduceMotion = true });
+            var controls = UnityEngine.Object.FindFirstObjectByType<LifeTreeWorldInteraction>();
+            var play = UnityEngine.Object.FindFirstObjectByType<CloudGardenPlayController>();
+            play.Initialize(false);
+            var output = Path.GetFullPath(Path.Combine(Application.dataPath,
+                "../../../docs/leadership-evidence/screenshots/cloud-art-review-2026-09-09"));
+            foreach (var volume in UnityEngine.Object.FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None)
+                .Where(item => item.name == "雲層體積"))
+                Debug.Log($"雲層取景 {volume.transform.parent.name}: {Camera.main.WorldToViewportPoint(volume.bounds.center)} / 世界尺寸 {volume.bounds.size}");
+            foreach (var yaw in new[] { 0f, -40f, 40f })
+            {
+                controls.SetView(yaw, 1);
+                LifeTreePreviewCapture.CaptureStill(Camera.main, Path.Combine(output, $"雲海視角_{yaw:0}.png"), 768, 1024);
+            }
+            controls.ResetView();
+            play.Enter(); play.EvaluateTransition(1);
+            LifeTreePreviewCapture.CaptureStill(Camera.main, Path.Combine(output, "島上近景.png"), 768, 1024);
+            play.Exit(); play.EvaluateTransition(1);
+        }
+
         [MenuItem("樹伴/建置本機雲境試玩")]
         public static void BuildMacPreview()
         {

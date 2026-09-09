@@ -251,24 +251,26 @@ def add_solid_canopy_geometry(
     palette = ((0.065, 0.23, 0.12, 1), (0.12, 0.36, 0.16, 1),
                (0.26, 0.48, 0.18, 1), (0.47, 0.61, 0.22, 1),
                (0.65, 0.69, 0.29, 1))
-    count = 320
+    # Fine foliage, not oversized individual leaves: the crown reads as a
+    # distant forest canopy. Keep the same sixteen wind/keepsake anchors.
+    count = 1250
     for leaf_index in range(count):
         z = 1.0 - 2.0 * (leaf_index + 0.5) / count
         azimuth = leaf_index * 2.3999632297 + index * 0.73
         radial = math.sqrt(max(0, 1.0 - z * z))
         direction = Vector((radial * math.cos(azimuth), radial * math.sin(azimuth), z))
-        shell = rng.uniform(0.64, 1.03)
+        shell = rng.uniform(0.48, 1.03)
         center = Vector((direction.x * 0.98, direction.y * 0.94, direction.z * 0.78)) * shell
         normal = (direction * 0.50 + Vector((0, 0, 0.68))).normalized()
         orientation = normal.to_track_quat("Z", "Y")
         spin = rng.uniform(-math.pi, math.pi)
-        length = rng.uniform(0.15, 0.25)
+        length = rng.uniform(0.065, 0.115)
         width = length * rng.uniform(0.43, 0.64)
         # Perimeter winds counter-clockwise; center is the raised midrib.
-        shape = ((0, -length, 0), (width, -length * .35, -.026),
-                 (width * .80, length * .45, -.018), (0, length, .038),
-                 (-width * .80, length * .45, -.018),
-                 (-width, -length * .35, -.026), (0, 0, .055))
+        shape = ((0, -length, 0), (width, -length * .35, -.008),
+                 (width * .80, length * .45, -.006), (0, length, .012),
+                 (-width * .80, length * .45, -.006),
+                 (-width, -length * .35, -.008), (0, 0, .016))
         base = len(vertices)
         for x, y, height in shape:
             spun = Vector((x * math.cos(spin) - y * math.sin(spin),
@@ -276,7 +278,7 @@ def add_solid_canopy_geometry(
             vertices.append(tuple(center + orientation @ spun))
         for side in range(6):
             faces.append((base + 6, base + side, base + (side + 1) % 6))
-        shade = max(0, min(4, int((z + 1) * 1.8 + rng.uniform(-.65, .65))))
+        shade = max(0, min(4, int((z + 1) * 1.65 + rng.uniform(-.35, .35))))
         colours.extend([palette[shade]] * 7)
     mesh = bpy.data.meshes.new(f"立體葉冠_{layer_name}_{index:02d}")
     mesh.from_pydata(vertices, [], faces)
@@ -424,7 +426,13 @@ def floating_island(
                 noise = edge_noise[index] * island_random.uniform(0.91, 1.07)
             surface_rise = 0.0
             if material_index == grass_material_index:
-                surface_rise = 0.025 * math.sin(angle * 3.0 + seed * 0.01)
+                surface_rise = 0.055 * math.sin(angle * 3.0 + seed * 0.01)
+            else:
+                surface_rise = .12 * math.sin(angle * 3.0 + ring_index*.18)
+                surface_rise += .08 * math.sin(angle*7.0 - ring_index*.35)
+                # Keep the river lip continuous; deepen the irregular strata
+                # below the lip rather than lifting isolated creek corners.
+                surface_rise *= min(1.0, max(0.0, (ring_index-6)/3))
             vertices.append(
                 (
                     math.cos(angle) * radius[0] * scale * noise,
@@ -665,6 +673,7 @@ def add_central_island_details(
     path_material: bpy.types.Material,
     target: bpy.types.Collection,
     parent: bpy.types.Object,
+    terrain: BVHTree,
 ) -> None:
     island_path(
         "中央島_同行步道",
@@ -675,10 +684,11 @@ def add_central_island_details(
             (0.18, -0.58, -0.01),
             (-0.12, -0.18, 0.012),
         ),
-        0.46,
+        0.12,
         path_material,
         target,
         parent,
+        terrain=terrain,
     )
     # Five composed cliff markers frame the tree and waterfalls without the
     # evenly spaced "test rocks" that made the old island look procedural.
@@ -753,7 +763,7 @@ def build_tree(foliage_texture_path: Path) -> bpy.types.Object:
         [1.28, 1.12, 0.93, 0.73, 0.51, 0.28, 0.08],
         trunk_material,
         root_collection,
-        bevel=0.48,
+            bevel=0.58,
     )
     trunk.parent = root
 
@@ -797,8 +807,8 @@ def build_tree(foliage_texture_path: Path) -> bpy.types.Object:
     branch_specs = [
         # The first three limbs own the silhouette. The remaining five support
         # them instead of repeating an evenly spaced left/right staircase.
-        ((-0.30, -0.01, 1.60), (-1.28, -0.20, 2.02), (-2.72, -0.13, 2.46)),
-        ((-0.18, 0.02, 2.05), (0.96, -0.13, 2.36), (2.48, -0.06, 3.02)),
+        ((-0.30, -0.01, 1.60), (-1.28, -0.20, 2.50), (-2.72, -0.13, 3.60)),
+        ((-0.18, 0.02, 2.05), (0.96, -0.13, 2.85), (2.48, -0.06, 3.75)),
         ((0.05, 0.08, 2.64), (-0.72, 0.65, 3.10), (-2.08, 1.08, 3.62)),
         ((0.20, 0.06, 2.88), (1.02, 0.62, 3.22), (1.78, 1.12, 3.72)),
         ((0.31, -0.02, 3.32), (-0.36, -0.62, 3.72), (-1.32, -1.10, 4.18)),
@@ -869,20 +879,20 @@ def build_tree(foliage_texture_path: Path) -> bpy.types.Object:
         root_branch.parent = root
 
     back_centers = [
-        (-2.25, 0.30, 2.66),
-        (-1.36, 0.40, 3.24),
-        (1.98, 0.31, 3.14),
-        (1.18, 0.46, 3.68),
-        (-0.72, 0.50, 4.20),
-        (0.45, 0.46, 4.52),
-        (1.04, 0.34, 4.18),
-        (-0.08, 0.54, 3.66),
+        (-2.65, 0.30, 3.70),
+        (-1.80, 1.05, 4.25),
+        (2.55, 0.31, 3.92),
+        (1.58, 1.12, 4.48),
+        (-0.82, 1.15, 4.72),
+        (0.42, 0.90, 5.02),
+        (1.02, 0.20, 4.70),
+        (-0.12, 1.42, 4.40),
     ]
     for index, center in enumerate(back_centers, start=1):
         cluster = leaf_cluster(
             f"後景葉簇_{index:02d}",
             (center[0], center[1] + .30, center[2]),
-            (0.90 + (index % 3) * 0.08, 1.02, 0.66 + (index % 2) * 0.10),
+            (1.14 + (index % 3) * 0.10, 1.18, 0.70 + (index % 2) * 0.12),
             "深林綠" if index % 3 else "森林綠",
             leaf_back_collection,
         )
@@ -897,20 +907,20 @@ def build_tree(foliage_texture_path: Path) -> bpy.types.Object:
         )
 
     front_centers = [
-        (-2.58, -0.22, 2.52),
-        (-1.70, -0.42, 2.96),
-        (2.30, -0.28, 2.98),
-        (1.58, -0.42, 3.48),
-        (-1.26, -0.46, 3.72),
-        (-0.34, -0.54, 4.30),
-        (0.62, -0.50, 4.52),
-        (0.52, -0.50, 3.72),
+        (-2.72, -0.32, 3.52),
+        (-1.70, -1.02, 3.93),
+        (2.75, -0.36, 3.72),
+        (1.72, -1.08, 4.03),
+        (-1.04, -0.72, 4.50),
+        (-0.28, -0.54, 4.90),
+        (0.85, -0.70, 4.70),
+        (0.12, -1.28, 4.06),
     ]
     for index, center in enumerate(front_centers, start=1):
         cluster = leaf_cluster(
             f"前景葉簇_{index:02d}",
             (center[0], center[1] - .26, center[2]),
-            (0.88 + (index % 2) * 0.13, .92, 0.62 + (index % 3) * 0.08),
+            (1.12 + (index % 2) * 0.17, 1.16, 0.64 + (index % 3) * 0.10),
             "暖日森林綠" if index in (5, 7) else "森林綠",
             leaf_front_collection,
         )
@@ -989,10 +999,88 @@ def build_tree(foliage_texture_path: Path) -> bpy.types.Object:
         [(.1, 0, .28), (1.15, .52, -.04), (2.45, 1.0, -.56), (3.0, 1.15, -1.3), (2.7, 1.2, -2.35)],
         [(-.1, .2, .20), (-.3, 1.1, -.04), (.1, 2.1, -.58), (.35, 2.55, -1.3), (.75, 2.5, -2.7)],
     ]):
-        hanging_root = curve_branch(f"垂根_{index:02d}", points, [1.25, 1, .65, .36, .03],
-                                    trunk_material, root_detail_collection, bevel=.13)
+        points = [(x * 1.20, y * 1.20, z) for x, y, z in points]
+        hanging_root = curve_branch(f"垂根_{index:02d}", points, [1.45, 1, .65, .36, .03],
+                                    trunk_material, root_detail_collection, bevel=.21)
+        hanging_root.parent = root
+    # The principal front root is readable between the two falls, with finer
+    # tributaries rather than another ring of evenly sized spokes.
+    for index, (x, width) in enumerate(((.08, .27), (.48, .11), (-.34, .08)), start=3):
+        points = [(x-.15, -.10, .70), (x+.12, -.82, .02),
+                  (x+.30, -1.82, -.28), (x+.12, -2.76, -.95),
+                  (x-.36, -2.92, -2.02), (x-.55, -2.57, -3.20)]
+        hanging_root = curve_branch(f"垂根_{index:02d}", points,
+            [1.05, .92, .72, .46, .22, .015], trunk_material, root_detail_collection, bevel=width)
         hanging_root.parent = root
     return root
+
+
+def add_island_woodland(terrain: BVHTree, target: bpy.types.Collection,
+                       parent: bpy.types.Object) -> None:
+    """A small-scale forest gives the central tree a visible size reference.
+
+    All crowns share one mesh/material; no hundreds of per-tree draw objects.
+    The stream corridors and root clearing remain open.
+    """
+    rng = random.Random(9137)
+    vertices, faces, colours = [], [], []
+    trees = 0
+    for attempt in range(460):
+        angle = rng.uniform(0, math.tau)
+        radial = rng.uniform(.48, .94)
+        x, y = math.cos(angle) * 3.65 * radial, math.sin(angle) * 2.45 * radial
+        if y < -.40 and (abs(x + 1.65) < .60 or abs(x - 1.40) < .48):
+            continue
+        if abs(x) < .75 and y < .25:
+            continue
+        hit, _, _, _ = terrain.ray_cast((x, y, 3), (0, 0, -1), 10)
+        if hit is None or hit.z < -.83:
+            continue
+        size = rng.uniform(.09, .19)
+        green = rng.choice(((.13,.30,.09,1), (.24,.42,.11,1),
+                            (.38,.53,.16,1), (.51,.57,.22,1)))
+        base = len(vertices)
+        for height, radius in ((0, size*.14), (size*1.9, size*.055)):
+            for side in range(6):
+                turn=side*math.tau/6
+                vertices.append(tuple(hit+Vector((math.cos(turn)*radius,
+                    math.sin(turn)*radius,height))))
+                colours.append((.16,.08,.025,1))
+        for side in range(6):
+            nxt=(side+1)%6
+            faces.extend(((base+side,base+nxt,base+6+nxt),
+                          (base+side,base+6+nxt,base+6+side)))
+        for leaf in range(70):
+            z = 1 - 2 * (leaf+.5) / 70
+            angle = leaf * 2.39996
+            radial = math.sqrt(1-z*z)
+            direction = Vector((radial*math.cos(angle), radial*math.sin(angle), z))
+            center = hit + Vector((direction.x*size, direction.y*size,
+                                   size*(1.8 + direction.z*.90)))
+            orientation = (direction*.5 + Vector((0,0,.8))).to_track_quat("Z", "Y")
+            length = size*rng.uniform(.20,.34)
+            base = len(vertices)
+            for point in ((0,-length,0), (length*.52,0,0), (0,length,0),
+                          (-length*.52,0,0), (0,0,length*.2)):
+                vertices.append(tuple(center + orientation @ Vector(point)))
+                factor = .65 + (z+1)*.20
+                colours.append((*[value*factor for value in green[:3]], 1))
+            faces.extend((base+4, base+side, base+(side+1)%4) for side in range(4))
+        trees += 1
+        if trees >= 220:
+            break
+    data = bpy.data.meshes.new("島面林地_合併葉冠")
+    data.from_pydata(vertices, [], faces)
+    for face in data.polygons:
+        face.use_smooth = True
+    attr = data.color_attributes.new(name="葉色", type="FLOAT_COLOR", domain="POINT")
+    for slot, color in zip(attr.data, colours, strict=True):
+        slot.color = color
+    data.materials.append(bpy.data.materials["立體葉片_柔霧玉綠"])
+    obj = bpy.data.objects.new("林地_葉冠", data)
+    obj.parent = parent
+    obj["林木尺度參照數"] = trees
+    target.objects.link(obj)
 
 
 def build_floating_world() -> bpy.types.Object:
@@ -1015,13 +1103,13 @@ def build_floating_world() -> bpy.types.Object:
     world_collection.objects.link(world_root)
     world_root["世界版本"] = 1
     world_root["三維中央島數"] = 1
-    world_root["遠景形式"] = "原創二維背景"
+    world_root["遠景形式"] = "三維雲海與天空材質"
 
     island = floating_island(
         "浮島_中央生命島",
         (0.0, 0.0, -0.18),
         (3.8, 2.6),
-        3.35,
+        4.10,
         grass_material,
         rock_material,
         island_collection,
@@ -1040,6 +1128,7 @@ def build_floating_world() -> bpy.types.Object:
         path_material,
         island_collection,
         world_root,
+        terrain,
     )
     for name, start, bend, end, width in [
         ("溪流_中央左", (-.70, -.60, 0), (-1.72, -.95, 0), (-1.72, -1.76, 0), .64),
@@ -1057,7 +1146,7 @@ def build_floating_world() -> bpy.types.Object:
         "瀑布_中央左",
         (-1.72, -2.36, -0.67),
         0.64,
-        2.9,
+        3.7,
         waterfall_material,
         water_collection,
         world_root,
@@ -1067,7 +1156,7 @@ def build_floating_world() -> bpy.types.Object:
         "水沫內光_中央左",
         (-1.72, -2.385, -0.67),
         0.19,
-        2.9,
+        3.7,
         material(
             "瀑布白沫",
             (0.72, 0.90, 0.96, 1),
@@ -1082,7 +1171,7 @@ def build_floating_world() -> bpy.types.Object:
         "瀑布_中央右",
         (1.45, -2.43, -0.67),
         0.44,
-        2.6,
+        3.4,
         waterfall_material,
         water_collection,
         world_root,
@@ -1092,12 +1181,46 @@ def build_floating_world() -> bpy.types.Object:
         "水沫內光_中央右",
         (1.45, -2.455, -0.67),
         0.13,
-        2.6,
+        3.4,
         bpy.data.materials["瀑布白沫"],
         water_collection,
         world_root,
     )
+    add_island_woodland(terrain, island_collection, world_root)
+    # Widen the land and its already-grounded river system together. Do not
+    # independently stretch water endpoints away from the checked seams.
+    world_root.scale = (1.20, 1.20, 1.0)
     return world_root
+
+
+def sculpt_cliff_roots(tree: bpy.types.Object) -> None:
+    """Fit the six authored roots to the actual island cliff instead of
+    leaving straight tapered spikes hanging clear of the rock."""
+    bpy.context.view_layer.update()
+    island=bpy.data.objects["浮島_中央生命島"]
+    island.data.calc_loop_triangles()
+    terrain=BVHTree.FromPolygons(
+        [island.matrix_world @ vertex.co for vertex in island.data.vertices],
+        [tuple(triangle.vertices) for triangle in island.data.loop_triangles], all_triangles=True)
+    angles=(2.90, .45, 1.55, -1.55, -1.31, -1.80)
+    for index, angle in enumerate(angles):
+        obj=bpy.data.objects[f"垂根_{index:02d}"]
+        # Six points provide a buttress above ground and a winding mineral-
+        # hugging curve below it; the terminal root disappears into the cliff.
+        points=[Vector((-.12,0,.72)), Vector((math.cos(angle)*1.10,math.sin(angle)*.8,.01))]
+        for step, height in enumerate((-.66,-1.45,-2.4,-3.35)):
+            turn=angle + math.sin(step*.9+index*.3)*.14
+            radial=Vector((math.cos(turn),math.sin(turn),0))
+            origin=radial*12+Vector((0,0,height))
+            hit, normal, _, _ = terrain.ray_cast(origin,-radial,20)
+            if hit is None: raise RuntimeError(f"垂根 {index} 未碰到岩壁")
+            points.append(hit+radial*(.06 if step<3 else -.07))
+        spline=obj.data.splines[0]
+        if len(spline.bezier_points)<len(points): spline.bezier_points.add(len(points)-len(spline.bezier_points))
+        radii=(1.4,1.05,.76,.47,.25,.025)
+        for point, world, radius in zip(spline.bezier_points,points,radii,strict=True):
+            point.co=world-obj.location; point.radius=radius
+            point.handle_left_type="AUTO"; point.handle_right_type="AUTO"
 
 
 def add_preview_scene(root: bpy.types.Object) -> None:
@@ -1263,8 +1386,9 @@ def write_asset_stats(output: Path) -> None:
     stats["中景群島數"] = sum(obj.name.startswith("群島地形_") for obj in bpy.context.scene.objects)
     if stats["中景群島數"] != 0:
         raise RuntimeError("單島版本不可包含中景群島")
-    if not 14000 <= triangle_count <= 70000:
-        raise RuntimeError(f"單島三角面預算應介於 14000～70000，實際為 {triangle_count}")
+    stats["品質目標"] = "桌面外觀展示；手機效能待實測"
+    if not 14000 <= triangle_count <= 220000:
+        raise RuntimeError(f"外觀展示三角面預算應介於 14000～220000，實際為 {triangle_count}")
     with (output / "生命樹庭園_資產統計.json").open("w", encoding="utf-8") as handle:
         json.dump(stats, handle, ensure_ascii=False, indent=2)
         handle.write("\n")
@@ -1323,6 +1447,7 @@ def main() -> None:
     reset_scene()
     tree = build_tree(foliage_texture)
     build_floating_world()
+    sculpt_cliff_roots(tree)
     add_preview_scene(tree)
     export_assets(output, source)
 

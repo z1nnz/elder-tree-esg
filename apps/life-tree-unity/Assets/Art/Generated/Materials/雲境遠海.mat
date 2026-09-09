@@ -7,8 +7,8 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: "\u751F\u547D\u6A39_\u7011\u5E03\u6D41\u5149"
-  m_Shader: {fileID: 4800000, guid: 056c97f4d2d7e4bf09098d97a80badcd, type: 3}
+  m_Name: "\u96F2\u5883\u9060\u6D77"
+  m_Shader: {fileID: 4800000, guid: a994245b8be874868b733d33db44d4a4, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -16,7 +16,7 @@ Material:
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
-  m_CustomRenderQueue: 3000
+  m_CustomRenderQueue: -1
   stringTagMap: {}
   disabledShaderPasses: []
   m_LockedProperties:
@@ -24,13 +24,7 @@ Material:
     serializedVersion: 3
     m_TexEnvs: []
     m_Ints: []
-    m_Floats:
-    - _FlowScale: 2.8
-    - _FlowSpeed: 0.65
-    - _Opacity: 0.85
-    - _VerticalDirection: -1
-    m_Colors:
-    - _Color: {r: 0.32, g: 0.7, b: 0.86, a: 1}
-    - _FoamColor: {r: 0.8, g: 0.94, b: 1, a: 1}
+    m_Floats: []
+    m_Colors: []
   m_BuildTextureStacks: []
   m_AllowLocking: 1
