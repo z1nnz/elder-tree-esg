@@ -13,7 +13,7 @@ namespace TreeCompanion.Editor
     public static class LifeTreeSceneBuilder
     {
         private const string ModelPath = "Assets/Art/Generated/生命樹庭園.fbx";
-        private const string BackgroundPath = "Assets/Art/Backgrounds/生命樹_純天空雲海_v2.png";
+        private const string CloudModelPath = "Assets/Art/Generated/雲境立體雲海.fbx";
         private const string BarkTexturePath = "Assets/Art/Textures/生命樹_樹皮色彩_v1.png";
         private const string BarkMaterialPath = "Assets/Art/Generated/Materials/生命樹_樹皮.mat";
         private const string FoliageTexturePath = "Assets/Art/Textures/生命樹_葉簇色彩_v2.png";
@@ -71,10 +71,10 @@ namespace TreeCompanion.Editor
             controller.ConfigureAtmosphere(atmosphere);
             atmosphere.BindWaterfallMist(CreateWaterfallMist(worldModel.transform));
             CreateLighting(environment.transform);
-            CreateBackdrop(environment.transform, camera);
+            atmosphere.BindClouds(CreateCloudWorld(worldModel.transform, camera));
             var interaction = controllerObject.AddComponent<LifeTreeWorldInteraction>();
-            interaction.Configure(worldModel.transform, camera,
-                camera.transform.Find("浮島世界_原創遠景背景"));
+            interaction.Configure(worldModel.transform, camera, null);
+            CloudGardenSceneBuilder.Configure(controllerObject, worldModel.transform, camera, interaction, atmosphere);
 
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
             RenderSettings.ambientSkyColor = new Color(0.40f, 0.54f, 0.62f);
@@ -103,7 +103,7 @@ namespace TreeCompanion.Editor
 
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
             AssetDatabase.SaveAssets();
-            Debug.Log("生命樹混合浮島世界已建立：三維主樹、1 座中央島、2 道近景瀑布與原創遠景背景。目標更新率為每秒 30 幀。");
+            Debug.Log("雲境已建立：三維主樹、1 座中央島、2 道近景瀑布與 9 組立體雲團；未使用背景圖。目標更新率為每秒 30 幀，待實機驗證。");
         }
 
         public static void BuildAndCapture()
@@ -413,13 +413,14 @@ namespace TreeCompanion.Editor
             // product target of a dominant life-tree silhouette.
             var distance = Mathf.Max(
                 20f,
-                Mathf.Max(verticalDistance * 1.18f, horizontalDistance * 0.78f)
+                Mathf.Max(verticalDistance * 1.38f, horizontalDistance * 0.88f)
             );
             // Blender's authored front (-Y) becomes Unity's +Z after FBX
             // conversion. View from that side so the two cliff waterfalls and
             // the warm bark ridges remain visible in the hero composition.
             var viewDirection = new Vector3(0.49f, 0.34f, 0.80f).normalized;
-            var target = contentBounds.center + Vector3.up * contentBounds.extents.y * 0.15f;
+            // Reserve the lower portrait area for the construction controls.
+            var target = contentBounds.center - Vector3.up * contentBounds.extents.y * 0.22f;
             cameraObject.transform.position = target + viewDirection * distance;
             cameraObject.transform.rotation = Quaternion.LookRotation(target - cameraObject.transform.position, Vector3.up);
             camera.farClipPlane = Mathf.Max(80f, distance * 4f);
@@ -797,56 +798,46 @@ namespace TreeCompanion.Editor
             return result;
         }
 
-        private static void CreateBackdrop(Transform parent, Camera camera)
+        private static Transform[] CreateCloudWorld(Transform parent, Camera camera)
         {
-            var skyboxShader = Shader.Find("Skybox/Procedural");
+            var skyboxShader = Shader.Find("樹伴/雲境天空");
             if (skyboxShader != null)
             {
-                var skybox = new Material(skyboxShader) { name = "浮島天空_執行時材質" };
-                skybox.SetColor("_SkyTint", new Color(0.18f, 0.50f, 0.82f));
-                skybox.SetColor("_GroundColor", new Color(0.13f, 0.32f, 0.42f));
-                skybox.SetFloat("_AtmosphereThickness", 0.78f);
-                skybox.SetFloat("_Exposure", 1.12f);
+                const string skyPath = "Assets/Art/Generated/Materials/雲境_天空.mat";
+                var skybox = AssetDatabase.LoadAssetAtPath<Material>(skyPath);
+                if (skybox == null)
+                {
+                    skybox = new Material(skyboxShader) { name = "雲境_天空" };
+                    AssetDatabase.CreateAsset(skybox, skyPath);
+                }
+                skybox.shader = skyboxShader;
                 RenderSettings.skybox = skybox;
+                EditorUtility.SetDirty(skybox);
             }
-
-            var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(BackgroundPath);
-            if (texture == null)
+            var model = AssetDatabase.LoadAssetAtPath<GameObject>(CloudModelPath);
+            var shader = Shader.Find("樹伴/雲境柔光雲");
+            if (model == null || shader == null)
+                throw new InvalidOperationException("缺少立體雲海模型或柔光材質。");
+            const string materialPath = "Assets/Art/Generated/Materials/雲境_柔光雲.mat";
+            var material = AssetDatabase.LoadAssetAtPath<Material>(materialPath);
+            if (material == null)
             {
-                throw new InvalidOperationException($"找不到生命樹遠景背景：{BackgroundPath}");
+                material = new Material(shader) { name = "雲境_柔光雲" };
+                AssetDatabase.CreateAsset(material, materialPath);
             }
-
-            var shader = Shader.Find("Unlit/Texture");
-            if (shader == null)
+            var cloudWorld = (GameObject)PrefabUtility.InstantiatePrefab(model);
+            cloudWorld.name = "雲境_三維背景";
+            cloudWorld.transform.SetParent(parent, false);
+            var renderers = cloudWorld.GetComponentsInChildren<MeshRenderer>();
+            if (renderers.Length != 9) throw new InvalidOperationException("立體雲團應為九組。");
+            foreach (var renderer in renderers)
             {
-                throw new InvalidOperationException("找不到遠景背景需要的 Unlit/Texture 著色器。");
+                renderer.sharedMaterial = material;
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                renderer.receiveShadows = false;
             }
-
-            var backdrop = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            backdrop.name = "浮島世界_原創遠景背景";
-            backdrop.transform.SetParent(camera.transform, false);
-            const float plateDistance = 60f;
-            var plateHeight = 2f * plateDistance
-                * Mathf.Tan(camera.fieldOfView * 0.5f * Mathf.Deg2Rad);
-            var plateWidth = plateHeight * camera.aspect;
-            backdrop.transform.localPosition = new Vector3(0f, 0f, plateDistance);
-            backdrop.transform.localRotation = Quaternion.identity;
-            backdrop.transform.localScale = new Vector3(plateWidth, plateHeight, 1f);
-
-            var renderer = backdrop.GetComponent<MeshRenderer>();
-            var material = new Material(shader)
-            {
-                name = "浮島世界_遠景背景材質",
-                mainTexture = texture,
-            };
-            renderer.sharedMaterial = material;
-            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            renderer.receiveShadows = false;
-            renderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
-            renderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
-
-            var collider = backdrop.GetComponent<Collider>();
-            UnityEngine.Object.DestroyImmediate(collider);
+            camera.farClipPlane = 180f;
+            return renderers.Select(renderer => renderer.transform).ToArray();
         }
     }
 }

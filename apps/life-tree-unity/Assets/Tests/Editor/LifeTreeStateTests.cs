@@ -262,18 +262,49 @@ namespace TreeCompanion.Tests
         }
 
         [Test]
-        public void HybridBackgroundMatchesPortraitCameraAspect()
+        public void CloudBackgroundContainsNineThickMeshesInsteadOfAPlate()
         {
-            const string backgroundPath =
-                "Assets/Art/Backgrounds/生命樹_純天空雲海_v2.png";
-            var background = AssetDatabase.LoadAssetAtPath<Texture2D>(backgroundPath);
+            var model = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Art/Generated/雲境立體雲海.fbx");
+            Assert.That(model, Is.Not.Null);
+            var clouds = model.GetComponentsInChildren<MeshFilter>();
+            Assert.That(clouds.Length, Is.EqualTo(9));
+            foreach (var cloud in clouds)
+            {
+                Assert.That(cloud.sharedMesh.vertexCount, Is.GreaterThan(100));
+                // FBX stores centimetre-sized local meshes beneath a scaled import root.
+                // Measure transformed bounds so this asserts actual scene thickness.
+                var bounds = new Bounds(cloud.transform.TransformPoint(cloud.sharedMesh.vertices[0]), Vector3.zero);
+                foreach (var vertex in cloud.sharedMesh.vertices)
+                    bounds.Encapsulate(cloud.transform.TransformPoint(vertex));
+                var size = bounds.size;
+                Assert.That(Mathf.Min(size.x, size.y, size.z), Is.GreaterThan(1f));
+            }
+            Assert.That(clouds.Sum(cloud => cloud.sharedMesh.triangles.Length / 3), Is.LessThan(40000));
+        }
 
-            Assert.That(background, Is.Not.Null, $"找不到遠景背景：{backgroundPath}");
-            Assert.That(
-                (float)background.width / background.height,
-                Is.EqualTo(0.75f).Within(0.005f),
-                "遠景背景必須與 3:4 生命樹主相機一致，避免手機裁切露出空白。"
-            );
+        [Test]
+        public void ReducedMotionRestoresThreeDimensionalCloudPositions()
+        {
+            var owner = new GameObject("雲層動態測試");
+            var cloud = new GameObject("測試雲");
+            var camera = owner.AddComponent<Camera>();
+            var atmosphere = owner.AddComponent<LifeTreeAtmosphereController>();
+            try
+            {
+                cloud.transform.localPosition = new Vector3(4, 6, 10);
+                atmosphere.Bind(camera, Vector3.forward * 20);
+                atmosphere.BindClouds(new[] { cloud.transform });
+                atmosphere.EvaluateAt(10);
+                Assert.That(cloud.transform.localPosition, Is.Not.EqualTo(new Vector3(4, 6, 10)));
+                atmosphere.ApplyMotionPreference(true);
+                atmosphere.EvaluateAt(15);
+                Assert.That(cloud.transform.localPosition, Is.EqualTo(new Vector3(4, 6, 10)));
+            }
+            finally
+            {
+                Object.DestroyImmediate(owner);
+                Object.DestroyImmediate(cloud);
+            }
         }
 
         [Test]

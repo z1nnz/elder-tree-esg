@@ -8682,7 +8682,7 @@ MonoBehaviour:
   - {fileID: 4090591}
   - {fileID: 246395360}
   - {fileID: 829028407}
-  localArtPreview: 0
+  localArtPreview: 1
 --- !u!114 &741556847
 MonoBehaviour:
   m_ObjectHideFlags: 0

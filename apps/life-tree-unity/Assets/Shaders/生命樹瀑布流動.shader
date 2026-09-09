@@ -62,9 +62,10 @@ Shader "樹伴/生命樹瀑布流動"
                 float motionTime = _LifeTreeMotionTime * _LifeTreeMotionAmount;
                 float sway = sin((worldPosition.y * 2.1 - motionTime * 1.4) * 3.2)
                     * 0.012 * _LifeTreeMotionAmount;
-                input.vertex.x += sway;
-                output.position = UnityObjectToClipPos(input.vertex);
-                output.worldPosition = mul(unity_ObjectToWorld, input.vertex).xyz;
+                // Keep the ripple at 1.2 cm even under FBX's unit conversion.
+                worldPosition.x += sway;
+                output.position = mul(UNITY_MATRIX_VP, worldPosition);
+                output.worldPosition = worldPosition.xyz;
                 output.uv = input.uv;
                 UNITY_TRANSFER_FOG(output, output.position);
                 return output;

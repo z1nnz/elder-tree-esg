@@ -16,6 +16,8 @@ namespace TreeCompanion.LifeTree
         private float previousPinchDistance;
         private Vector2 previousMouse;
         private bool mouseDragging;
+        public float CurrentYaw => yaw;
+        public float CurrentZoom => zoom;
 
         public void Configure(Transform sceneWorld, Camera camera, Transform background)
         {
@@ -53,6 +55,9 @@ namespace TreeCompanion.LifeTree
         private void Update()
         {
             if (world == null || viewCamera == null) return;
+            if (UnityEngine.EventSystems.EventSystem.current != null &&
+                (UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject() ||
+                 (Input.touchCount > 0 && UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject(Input.GetTouch(0).fingerId)))) return;
             var count = Input.touchCount;
             if (count > 0)
             {

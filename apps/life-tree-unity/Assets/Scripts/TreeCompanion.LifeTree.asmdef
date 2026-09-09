@@ -1,4 +1,5 @@
 {
   "name": "TreeCompanion.LifeTree",
-  "rootNamespace": "TreeCompanion.LifeTree"
+  "rootNamespace": "TreeCompanion.LifeTree",
+  "references": ["Unity.ugui"]
 }

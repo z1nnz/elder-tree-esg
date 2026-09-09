@@ -9,6 +9,8 @@ namespace TreeCompanion.LifeTree
 
         [SerializeField] private Camera sceneCamera;
         [SerializeField] private ParticleSystem[] waterfallMist = System.Array.Empty<ParticleSystem>();
+        [SerializeField] private Transform[] clouds = System.Array.Empty<Transform>();
+        [SerializeField] private Vector3[] cloudPositions = System.Array.Empty<Vector3>();
         [SerializeField] private float orbitDegrees = 0.72f;
         [SerializeField] private float orbitFrequency = 0.035f;
         [SerializeField] private float verticalBreath = 0.045f;
@@ -18,6 +20,39 @@ namespace TreeCompanion.LifeTree
         private Quaternion authoredCameraRotation;
         private bool hasBoundCamera;
         private bool reduceMotion;
+        private bool cameraMotionPaused;
+        public bool ReducedMotion => reduceMotion;
+
+        private void Awake()
+        {
+            if (sceneCamera != null)
+                Bind(sceneCamera, sceneCamera.transform.position + sceneCamera.transform.forward * 20f);
+        }
+
+        public void PauseCameraMotion(bool paused) => cameraMotionPaused = paused;
+
+        public void BindClouds(Transform[] items)
+        {
+            clouds = items ?? System.Array.Empty<Transform>();
+            cloudPositions = new Vector3[clouds.Length];
+            for (var i = 0; i < clouds.Length; i++)
+                if (clouds[i] != null) cloudPositions[i] = clouds[i].localPosition;
+        }
+
+        private void EvaluateClouds(float time, bool reset)
+        {
+            for (var i = 0; i < clouds.Length && i < cloudPositions.Length; i++)
+                if (clouds[i] != null)
+                {
+                    var offset = reset ? Vector3.zero : new Vector3(
+                        Mathf.Sin(time * .035f + i) * .35f, 0,
+                        Mathf.Sin(time * .021f + i * 1.3f) * .15f);
+                    // FBX parents may carry 100x unit conversion. Motion is authored
+                    // in world metres, never in the imported mesh's local units.
+                    if (clouds[i].parent != null) offset = clouds[i].parent.InverseTransformVector(offset);
+                    clouds[i].localPosition = cloudPositions[i] + offset;
+                }
+        }
 
         public void BindWaterfallMist(ParticleSystem[] mist)
         {
@@ -51,7 +86,8 @@ namespace TreeCompanion.LifeTree
             ApplyMistPreference();
             if (reduceMotion)
             {
-                RestoreAuthoredCameraPose();
+                EvaluateClouds(0, true);
+                if (!cameraMotionPaused) RestoreAuthoredCameraPose();
                 ApplyShaderMotion(0f, 0f);
             }
         }
@@ -65,21 +101,23 @@ namespace TreeCompanion.LifeTree
 
             if (reduceMotion)
             {
-                RestoreAuthoredCameraPose();
+                if (!cameraMotionPaused) RestoreAuthoredCameraPose();
                 ApplyShaderMotion(0f, 0f);
                 return;
             }
 
             var cycle = sampleTime * orbitFrequency * Mathf.PI * 2f;
+            EvaluateClouds(sampleTime, false);
             var yaw = Mathf.Sin(cycle) * orbitDegrees;
             var lift = Mathf.Sin(cycle * 0.63f + 0.8f) * verticalBreath;
             var offset = authoredCameraPosition - orbitTarget;
             var orbitRotation = Quaternion.AngleAxis(yaw, Vector3.up);
-            sceneCamera.transform.position = orbitTarget + orbitRotation * offset + Vector3.up * lift;
-            sceneCamera.transform.rotation = Quaternion.LookRotation(
-                orbitTarget - sceneCamera.transform.position,
-                Vector3.up
-            );
+            if (!cameraMotionPaused)
+            {
+                sceneCamera.transform.position = orbitTarget + orbitRotation * offset + Vector3.up * lift;
+                sceneCamera.transform.rotation = Quaternion.LookRotation(
+                    orbitTarget - sceneCamera.transform.position, Vector3.up);
+            }
             ApplyShaderMotion(sampleTime, 1f);
             if (!Application.isPlaying)
             {
@@ -96,6 +134,7 @@ namespace TreeCompanion.LifeTree
 
         private void OnDisable()
         {
+            EvaluateClouds(0, true);
             foreach (var mist in waterfallMist)
                 if (mist != null) mist.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             RestoreAuthoredCameraPose();
