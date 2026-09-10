@@ -24,7 +24,7 @@ namespace TreeCompanion.Editor
             state.EvaluateWindAt(1.8f);
             atmosphere.EvaluateAt(1.8f);
             var output = Path.GetFullPath(Path.Combine(Application.dataPath,
-                "../../../docs/leadership-evidence/screenshots/exterior-refinement-2026-09-09"));
+                "../../../docs/leadership-evidence/screenshots/exterior-atmosphere-2026-09-10"));
             foreach (var yaw in new[] { 0f, -35f, 35f })
             {
                 controls.SetView(yaw, 1);
@@ -34,6 +34,8 @@ namespace TreeCompanion.Editor
             controls.ResetView();
             LifeTreePreviewCapture.CaptureStill(Camera.main,
                 Path.Combine(output, "世界樹橫幅.png"), 1600, 1000);
+            LifeTreePreviewCapture.CaptureSequence(Camera.main, output, "水流連續實景", 600, 800, 4,
+                frame => { state.EvaluateWindAt(1.8f + frame * .25f); atmosphere.EvaluateAt(1.8f + frame * .25f); });
             Debug.Log($"外觀審查實景：{output}");
         }
 
@@ -76,16 +78,24 @@ namespace TreeCompanion.Editor
         {
             var template = UnityEngine.Object.FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None)
                 .First(item => item.name == "雲層體積" && item.transform.parent.name.Contains("高空左"));
-            for (var i=0;i<6;i++)
+            // Uneven banks with clear sky between them, not a row of identical
+            // cloud icons. Positions are authored once in world space.
+            var banks = new[]
+            {
+                new Vector4(-.06f,.76f,68f,2.2f), new Vector4(.10f,.81f,76f,1.5f),
+                new Vector4(.25f,.78f,84f,2.5f), new Vector4(.69f,.79f,80f,2.0f),
+                new Vector4(.89f,.75f,72f,2.9f), new Vector4(1.06f,.82f,82f,1.7f),
+            };
+            for (var i=0;i<banks.Length;i++)
             {
                 var bank = UnityEngine.Object.Instantiate(template.transform.parent.gameObject,
                     template.transform.parent.parent);
                 bank.name=$"遠景雲牆_{i:00}";
-                bank.transform.localScale *= 1.2f + (i%3)*.18f;
+                bank.transform.localScale *= banks[i].w;
                 var volume=bank.GetComponentsInChildren<MeshRenderer>().Single(item=>item.name=="雲層體積");
-                volume.GetComponent<CloudVolumeAppearance>().Configure((i+.2f)/6);
+                volume.GetComponent<CloudVolumeAppearance>().Configure(Mathf.Repeat(i*.37f+.08f,1));
                 bank.transform.position += camera.ViewportToWorldPoint(
-                    new Vector3(.02f+i*.19f,.79f+Mathf.Sin(i*1.7f)*.018f,72+i%2*5)) - volume.bounds.center;
+                    new Vector3(banks[i].x,banks[i].y,banks[i].z)) - volume.bounds.center;
             }
         }
 

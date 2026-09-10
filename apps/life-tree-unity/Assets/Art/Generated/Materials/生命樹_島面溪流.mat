@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: "\u751F\u547D\u6A39_\u7011\u5E03\u6D41\u5149"
+  m_Name: "\u751F\u547D\u6A39_\u5CF6\u9762\u6EAA\u6D41"
   m_Shader: {fileID: 4800000, guid: 056c97f4d2d7e4bf09098d97a80badcd, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -27,7 +27,7 @@ Material:
     m_Floats:
     - _FlowScale: 2.8
     - _FlowSpeed: 0.65
-    - _IsStream: 0
+    - _IsStream: 1
     - _Opacity: 0.85
     - _VerticalDirection: -1
     m_Colors:

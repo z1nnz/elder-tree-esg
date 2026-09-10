@@ -52,16 +52,26 @@ Shader "樹伴/雲境柔光雲"
             {
                 float3 right = normalize(cross(up,float3(.23,.83,.4)));
                 float3 q = float3(dot(p,right),dot(p,up),dot(p,cross(right,up)));
-                // Overlapping unequal lobes, not two identical stacked balls.
-                float shape = 1-length((q-float3(0,-.30,0))/float3(.88,.34,.66));
-                shape = max(shape, 1-length((q-float3(-.31,.02+_Seed*.16,0))/float3(.45,.60,.64)));
-                shape = max(shape, 1-length((q-float3(.28,-.04,.08))/float3(.50,.48,.60)));
-                shape = max(shape, 1-length((q-float3(-.03,.14,.16))/float3(.43,.54,.50)));
-                shape = max(shape, 1-length((q-float3(-.65,-.28,.05))/float3(.31,.28,.43)));
-                shape = max(shape, 1-length((q-float3(.64,-.30,-.06))/float3(.33,.31,.45)));
                 float3 seed = float3(_Seed*13,_Seed*5,_Seed*7);
-                float detail = Noise(p*3.6+seed) * .65 + Noise(p*8.2+seed) * .35;
-                return saturate(shape * 3.8 - .4 - detail);
+                // Seed changes the silhouette, not just the surface noise:
+                // shallow banks, off-centre towers and broken trailing wisps.
+                float tower = smoothstep(.15,.85,_Seed);
+                float lean = (_Seed-.5)*.55;
+                q.x += (Noise(q*3.2+seed)-.5)*.17;
+                q.y += (Noise(q*4.1+seed.yzx)-.5)*.13;
+                float shape = 1-length((q-float3(0,-.27,0))/float3(.91,.32,.64));
+                shape = max(shape, 1-length((q-float3(-.29+lean,-.15+tower*.29,-.04))
+                    /float3(.44+tower*.07,.26+tower*.36,.46)));
+                shape = max(shape, 1-length((q-float3(.23+lean*.3,-.12,.11))
+                    /float3(.44,.31+(1-tower)*.13,.57)));
+                shape = max(shape, 1-length((q-float3(-.06-lean,-.03+tower*.12,.20))
+                    /float3(.31,.28+tower*.22,.41)));
+                shape = max(shape, 1-length((q-float3(-.68,-.30,-.08))
+                    /float3(.24,.15+tower*.09,.32)));
+                shape = max(shape, 1-length((q-float3(.69,-.32,.06))
+                    /float3(.25,.14+(1-tower)*.1,.33)));
+                float detail = Noise(p*5.8+seed) * .65 + Noise(p*14.2+seed) * .35;
+                return saturate(shape * 4.5 - .35 - detail * 1.35);
             }
             float4 Fragment(Varyings i):SV_Target
             {
@@ -74,6 +84,7 @@ Shader "樹伴/雲境柔光雲"
                 float leave = min(hi.x,min(hi.y,hi.z));
                 if (leave <= entry) discard;
                 float3 up = normalize(mul((float3x3)unity_WorldToObject, float3(0,1,0)));
+                float3 sun = normalize(mul((float3x3)unity_WorldToObject, normalize(float3(.6,1,.35))));
                 float stepSize = (leave-entry)/28;
                 float3 light = 0;
                 float opacity = 0;
@@ -82,7 +93,7 @@ Shader "樹伴/雲境柔光雲"
                     float3 p = origin + direction * (entry + (sampleIndex+.5)*stepSize);
                     float absorption = 1-exp(-Density(p,up)*stepSize*11);
                     float3 tint = lerp(_Bottom.rgb,_Top.rgb,smoothstep(-.65,.70,dot(p,up)));
-                    tint *= .75 + .25*exp(-Density(p+up*.20,up)*1.5);
+                    tint *= .64 + .36*exp(-Density(p+sun*.22,up)*2.6);
                     light += (1-opacity) * tint * absorption;
                     opacity += (1-opacity) * absorption;
                     if(opacity>.985) break;

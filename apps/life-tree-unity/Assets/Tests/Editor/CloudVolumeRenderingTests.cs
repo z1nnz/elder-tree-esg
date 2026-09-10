@@ -51,6 +51,21 @@ namespace TreeCompanion.Tests
                     Assert.That(pixels.GetPixel(32,32).r, Is.GreaterThan(.35f));
                 }
                 Assert.That(pixels.GetPixel(1,1).a, Is.LessThan(.05f), "包圍盒角落必須透明");
+                if (!multipleVolumes)
+                {
+                    material.SetFloat("_Seed", .05f);
+                    camera.Render();
+                    pixels.ReadPixels(new Rect(0,0,64,64),0,0); pixels.Apply();
+                    var lowBank = pixels.GetPixels();
+                    material.SetFloat("_Seed", .95f);
+                    camera.Render();
+                    pixels.ReadPixels(new Rect(0,0,64,64),0,0); pixels.Apply();
+                    var tower = pixels.GetPixels();
+                    var silhouetteChanges = 0;
+                    for (var index = 0; index < lowBank.Length; index++)
+                        if ((lowBank[index].a > .4f) != (tower[index].a > .4f)) silhouetteChanges++;
+                    Assert.That(silhouetteChanges, Is.GreaterThan(100), "雲形差異必須改變輪廓，而非僅改表面雜訊");
+                }
             }
             finally
             {

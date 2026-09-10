@@ -694,11 +694,23 @@ namespace TreeCompanion.Editor
                 material.shader = shader;
             }
             material.SetColor("_Color", new Color(0.32f, 0.70f, 0.86f, 1f));
-            material.SetColor("_FoamColor", new Color(0.80f, 0.94f, 1f, 1f));
+            material.SetColor("_FoamColor", new Color(0.95f, 0.98f, 1f, 1f));
             material.SetFloat("_FlowSpeed", 0.65f);
             material.SetFloat("_FlowScale", 2.8f);
             material.SetFloat("_Opacity", 0.85f);
+            material.SetFloat("_IsStream", 0f);
             material.renderQueue = 3000;
+
+            const string streamPath = "Assets/Art/Generated/Materials/生命樹_島面溪流.mat";
+            var streamMaterial = AssetDatabase.LoadAssetAtPath<Material>(streamPath);
+            if (streamMaterial == null)
+            {
+                streamMaterial = new Material(shader) { name = "生命樹_島面溪流" };
+                AssetDatabase.CreateAsset(streamMaterial, streamPath);
+            }
+            streamMaterial.CopyPropertiesFromMaterial(material);
+            streamMaterial.SetFloat("_IsStream", 1f);
+            EditorUtility.SetDirty(streamMaterial);
 
             var rendererCount = 0;
             foreach (var renderer in worldRoot.GetComponentsInChildren<Renderer>(true))
@@ -707,7 +719,8 @@ namespace TreeCompanion.Editor
                     || renderer.name.StartsWith("水沫內光_", StringComparison.Ordinal)
                     || renderer.name.StartsWith("溪流_", StringComparison.Ordinal))
                 {
-                    renderer.sharedMaterial = material;
+                    renderer.sharedMaterial = renderer.name.StartsWith("溪流_", StringComparison.Ordinal)
+                        ? streamMaterial : material;
                     renderer.enabled = !renderer.name.StartsWith("水沫內光_", StringComparison.Ordinal);
                     renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                     renderer.receiveShadows = false;

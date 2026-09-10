@@ -24,6 +24,11 @@ namespace TreeCompanion.Tests
                 Assert.That(Object.FindFirstObjectByType<CloudGardenPlayController>().enabled, Is.False);
                 Assert.That(Object.FindObjectsByType<Canvas>(FindObjectsSortMode.None), Is.Empty);
                 Assert.That(Object.FindFirstObjectByType<CloudExteriorPreview>(), Is.Not.Null);
+                var streams = Object.FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None)
+                    .Where(item => item.name.StartsWith("溪流_", StringComparison.Ordinal)).ToArray();
+                Assert.That(streams.Length, Is.EqualTo(2));
+                foreach (var stream in streams)
+                    Assert.That(stream.sharedMaterial.GetFloat("_IsStream"), Is.EqualTo(1), "島面溪流必須使用不消散的材質");
                 EditorSceneManager.OpenScene("Assets/Scenes/生命樹庭園.unity");
                 Assert.That(Object.FindFirstObjectByType<CloudExteriorPreview>(), Is.Null);
             }
