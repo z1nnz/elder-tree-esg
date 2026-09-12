@@ -244,7 +244,7 @@ def add_solid_canopy_geometry(
 
     Each seven-vertex leaf has a raised midrib and a turned tip. Colour belongs
     to the leaf rather than a camera-facing photograph, so orbiting preserves
-    volume. A deterministic Fibonacci distribution avoids random clumps.
+    volume. Unequal branch-tip pads leave gaps instead of filling a sphere.
     """
     rng = random.Random(SEED + index * 47 + (1100 if layer_name == "前景" else 0))
     vertices, faces, colours = [], [], []
@@ -254,22 +254,29 @@ def add_solid_canopy_geometry(
     # Fine foliage, not oversized individual leaves: the crown reads as a
     # distant forest canopy. Keep the same sixteen wind/keepsake anchors.
     count = 1250
+    # A dominant bough, two subordinate boughs and peripheral sprays. Rotate
+    # the arrangement per anchor so the sixteen crowns do not repeat a stamp.
+    pads = ((-.42, -.18, -.14, .56), (.18, .13, .18, .66),
+            (.60, .18, .32, .38), (-.23, .58, .38, .43),
+            (-.75, .22, .05, .30), (.22, -.57, -.22, .40),
+            (.68, -.38, -.03, .27))
+    twist = index * .83 + (.4 if layer_name == "前景" else 0)
     for leaf_index in range(count):
         z = 1.0 - 2.0 * (leaf_index + 0.5) / count
         azimuth = leaf_index * 2.3999632297 + index * 0.73
         radial = math.sqrt(max(0, 1.0 - z * z))
         direction = Vector((radial * math.cos(azimuth), radial * math.sin(azimuth), z))
-        shell = rng.uniform(0.48, 1.03)
-        # Branch-sized lobes break the repeated ellipsoid outline. Keep the
-        # same leaf/renderer budget, with small openings between the lobes.
-        ruffle = 1 + .17 * math.sin(azimuth * 3 + index * .8) * radial
-        ruffle += .10 * math.sin(azimuth * 7 + z * 4.3)
-        center = Vector((direction.x * .98, direction.y * .94, direction.z * .78)) * shell * ruffle
-        center.z += .12 * math.sin(azimuth * 4 + index) * radial
+        shell = rng.uniform(.55, 1.0)
+        px, py, pz, radius = rng.choices(pads, weights=[pad[3] ** 2 for pad in pads])[0]
+        local = Vector((px + direction.x * radius * shell,
+                        py + direction.y * radius * shell,
+                        pz + direction.z * radius * shell * .62))
+        center = Vector((local.x * math.cos(twist) - local.y * math.sin(twist),
+                         local.x * math.sin(twist) + local.y * math.cos(twist), local.z))
         normal = (direction * 0.50 + Vector((0, 0, 0.68))).normalized()
         orientation = normal.to_track_quat("Z", "Y")
         spin = rng.uniform(-math.pi, math.pi)
-        length = rng.uniform(0.050, 0.092)
+        length = rng.uniform(0.048, 0.082)
         width = length * rng.uniform(0.43, 0.64)
         # Perimeter winds counter-clockwise; center is the raised midrib.
         shape = ((0, -length, 0), (width, -length * .35, -.008),
