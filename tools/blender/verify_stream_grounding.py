@@ -1,6 +1,7 @@
 """Verify saved Blender stream vertices and bank-to-waterfall seams.
 
-Run Blender with the saved 生命樹庭園_母稿.blend and --python this file.
+Run Blender with the saved 生命樹庭園_母稿.blend and
+--python-exit-code 1 --python this file, so failures reach the calling process.
 This checks geometry, not visual quality or runtime performance.
 """
 
@@ -31,12 +32,16 @@ def verify():
             assert hit is not None, f"溪流離地：{suffix} {tuple(vertex)}"
             clearance = vertex.z - hit.z
             max_clearance = max(max_clearance, clearance)
-            assert .059 < clearance < .42, f"溪流未貼合地形：{suffix} {clearance}"
+            assert .059 < clearance < .15, f"溪流未貼合地形：{suffix} {clearance}"
             checked += 1
         stream.data.calc_loop_triangles()
         for triangle in stream.data.loop_triangles:
             a, b, c = [vertices[index] for index in triangle.vertices]
-            for weights in ((1/3, 1/3, 1/3), (.6, .2, .2), (.2, .6, .2), (.2, .2, .6)):
+            # Probe near triangle edges too: four central samples can miss
+            # narrow rock tips showing through an otherwise grounded river.
+            weights_to_check = [(i / 10, j / 10, (10-i-j) / 10)
+                                for i in range(1, 9) for j in range(1, 10-i)]
+            for weights in weights_to_check:
                 sample = a * weights[0] + b * weights[1] + c * weights[2]
                 hit, _, _, _ = terrain.ray_cast((sample.x, sample.y, 3), (0, 0, -1), 10)
                 assert hit is not None and sample.z > hit.z + .005, f"溪流面穿入地形：{suffix}"
@@ -53,6 +58,28 @@ def verify():
 
 
 class StreamGroundingTests(unittest.TestCase):
+    def test_banks_do_not_pierce_river_interior(self):
+        for suffix in ("中央左", "中央右"):
+            stream = bpy.data.objects[f"溪流_{suffix}"]
+            surfaces = []
+            for name in (f"河床_{suffix}", f"溪岸_{suffix}_0", f"溪岸_{suffix}_1"):
+                obj = bpy.data.objects[name]
+                obj.data.calc_loop_triangles()
+                surfaces.append((name, BVHTree.FromPolygons(
+                    [obj.matrix_world @ v.co for v in obj.data.vertices],
+                    [tuple(t.vertices) for t in obj.data.loop_triangles], all_triangles=True)))
+            stream.data.calc_loop_triangles()
+            for triangle in stream.data.loop_triangles:
+                a, b, c = [stream.matrix_world @ stream.data.vertices[i].co for i in triangle.vertices]
+                for i in range(1, 9):
+                    for j in range(1, 10-i):
+                        sample = a * (i/10) + b * (j/10) + c * ((10-i-j)/10)
+                        for name, surface in surfaces:
+                            hit, _, _, _ = surface.ray_cast((sample.x, sample.y, 3), (0,0,-1), 10)
+                            if hit is not None:
+                                self.assertLess(hit.z, sample.z - .001,
+                                                f"{name} 穿出河面：{tuple(sample)}")
+
     def test_woodland_keeps_river_corridor_open(self):
         woodland = bpy.data.objects["林地_葉冠"]
         # Each authored tree has twelve trunk vertices followed by 70 leaves

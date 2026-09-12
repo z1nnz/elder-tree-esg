@@ -411,7 +411,9 @@ def floating_island(
         (0.28, 0.16, grass_material_index),
         (0.52, 0.09, grass_material_index),
         (0.66, -0.12, grass_material_index),
-        (0.67, -0.36, rock_material_index),
+        # A sloped rocky transition, rather than a 24 cm vertical riser in
+        # only 1% of the island radius, lets the stream follow the ground.
+        (0.73, -0.33, rock_material_index),
         (0.82, -0.38, grass_material_index),
         (0.95, -0.50, grass_material_index),
         (1.00, -0.70, rock_material_index),
@@ -588,15 +590,24 @@ def island_path(
                 vertex.z = hit.z + .06
             vertices.append(tuple(vertex))
     if terrain is not None:
-        # Keep water above sharp terrace corners between the sampled rows.
-        grounded = list(vertices)
+        # Lift only triangles that actually cross the terrain. The old
+        # upstream/adjacent-column maximum raised entire strips into steps.
+        grounded = [Vector(vertex) for vertex in vertices]
+        lifts = [0.0] * len(vertices)
         for row in range(len(points) - 1):
-            for column in range(columns + 1):
-                index = row * (columns + 1) + column
-                upstream = [grounded[prior * (columns + 1) + side][2]
-                            for prior in range(max(0, row - 2), row + 1)
-                            for side in range(max(0, column - 1), min(columns, column + 1) + 1)]
-                vertices[index] = (*grounded[index][:2], max(upstream))
+            for column in range(columns):
+                a = row * (columns + 1) + column
+                b, c, d = a + 1, a + columns + 2, a + columns + 1
+                # Cover either diagonal used when exporting a non-planar quad.
+                for indices in ((a,b,c), (a,c,d), (a,b,d), (b,c,d)):
+                    for weights in ((1/3,1/3,1/3), (.5,.25,.25), (.25,.5,.25), (.25,.25,.5)):
+                        sample = sum((grounded[i] * w for i,w in zip(indices,weights)), Vector())
+                        hit, _, _, _ = terrain.ray_cast((sample.x,sample.y,3), (0,0,-1), 10)
+                        if hit is not None:
+                            deficit = max(0, hit.z + .035 - sample.z)
+                            for i in indices:
+                                lifts[i] = max(lifts[i], deficit)
+        vertices = [(point.x, point.y, point.z + lift) for point,lift in zip(grounded,lifts)]
     faces = [
         (index * (columns + 1) + column,
          index * (columns + 1) + column + 1,
@@ -605,6 +616,12 @@ def island_path(
         for index in range(len(points) - 1)
         for column in range(columns)
     ]
+    # Keep the water and its reversed-winding bed on the same diagonal.
+    # Independently tessellated non-planar quads can intersect despite each
+    # corresponding bed vertex being below the water vertex.
+    if name.startswith("溪流_"):
+        faces = [(face[0], face[1], face[2]) for face in faces] + [
+            (face[0], face[2], face[3]) for face in faces]
     data = bpy.data.meshes.new(name)
     data.from_pydata(vertices, [], faces)
     data.materials.append(path_material)
