@@ -53,6 +53,25 @@ def verify():
 
 
 class StreamGroundingTests(unittest.TestCase):
+    def test_woodland_keeps_river_corridor_open(self):
+        woodland = bpy.data.objects["林地_葉冠"]
+        # Each authored tree has twelve trunk vertices followed by 70 leaves
+        # of five vertices; examine its base, not a renderer bounding box.
+        stride = 12 + 70 * 5
+        self.assertEqual(len(woodland.data.vertices) % stride, 0)
+        self.assertEqual(len(woodland.data.vertices) // stride, 220)
+        for offset in range(0, len(woodland.data.vertices), stride):
+            base = [item.co for item in woodland.data.vertices[offset:offset + 6]]
+            x = sum(point.x for point in base) / 6
+            y = sum(point.y for point in base) / 6
+            for suffix in ("中央左", "中央右"):
+                water = bpy.data.objects[f"溪流_{suffix}"].data.vertices
+                for row in range(len(water) // 5):
+                    center = water[row * 5 + 2].co
+                    width = (water[row * 5].co.xy - center.xy).length
+                    self.assertGreater((x-center.x)**2 + (y-center.y)**2,
+                                       (width + .23)**2, "林木不得長入河道")
+
     def test_beds_and_banks_have_valid_surface_layers(self):
         for suffix in ("中央左", "中央右"):
             stream = bpy.data.objects[f"溪流_{suffix}"]

@@ -260,11 +260,16 @@ def add_solid_canopy_geometry(
         radial = math.sqrt(max(0, 1.0 - z * z))
         direction = Vector((radial * math.cos(azimuth), radial * math.sin(azimuth), z))
         shell = rng.uniform(0.48, 1.03)
-        center = Vector((direction.x * 0.98, direction.y * 0.94, direction.z * 0.78)) * shell
+        # Branch-sized lobes break the repeated ellipsoid outline. Keep the
+        # same leaf/renderer budget, with small openings between the lobes.
+        ruffle = 1 + .17 * math.sin(azimuth * 3 + index * .8) * radial
+        ruffle += .10 * math.sin(azimuth * 7 + z * 4.3)
+        center = Vector((direction.x * .98, direction.y * .94, direction.z * .78)) * shell * ruffle
+        center.z += .12 * math.sin(azimuth * 4 + index) * radial
         normal = (direction * 0.50 + Vector((0, 0, 0.68))).normalized()
         orientation = normal.to_track_quat("Z", "Y")
         spin = rng.uniform(-math.pi, math.pi)
-        length = rng.uniform(0.065, 0.115)
+        length = rng.uniform(0.050, 0.092)
         width = length * rng.uniform(0.43, 0.64)
         # Perimeter winds counter-clockwise; center is the raised midrib.
         shape = ((0, -length, 0), (width, -length * .35, -.008),
@@ -420,6 +425,11 @@ def floating_island(
         ring: list[int] = []
         for index in range(segments):
             angle = math.tau * index / segments
+            # Preserve the two southern river mouths while shaping broad
+            # headlands and an elevated northern ridge, not concentric disks.
+            north = max(0.0, min(1.0, (math.sin(angle) + .82) / 1.15))
+            coast = 1 + north * (.19 * math.sin(angle * 2 + .3)
+                                 + .13 * math.cos(angle * 3 - .8))
             if material_index == grass_material_index:
                 noise = 1.0 + (edge_noise[index] - 1.0) * (0.35 + ring_index * 0.10)
             else:
@@ -427,16 +437,19 @@ def floating_island(
             surface_rise = 0.0
             if material_index == grass_material_index:
                 surface_rise = 0.055 * math.sin(angle * 3.0 + seed * 0.01)
+                surface_rise += north * scale * scale * (.62 + .20 * math.sin(angle * 3 + .5))
             else:
-                surface_rise = .12 * math.sin(angle * 3.0 + ring_index*.18)
-                surface_rise += .08 * math.sin(angle*7.0 - ring_index*.35)
+                surface_rise = .40 * math.sin(angle * 3.0 + ring_index*.18)
+                surface_rise += .22 * math.sin(angle*7.0 - ring_index*.35)
                 # Keep the river lip continuous; deepen the irregular strata
                 # below the lip rather than lifting isolated creek corners.
                 surface_rise *= min(1.0, max(0.0, (ring_index-6)/3))
+                surface_rise += north * scale * scale * (.62 + .20 * math.sin(angle * 3 + .5))
+            keel = max(0, (ring_index - 6) / 4)
             vertices.append(
                 (
-                    math.cos(angle) * radius[0] * scale * noise,
-                    math.sin(angle) * radius[1] * scale * noise,
+                    math.cos(angle) * radius[0] * scale * noise * coast + keel * keel * .58,
+                    math.sin(angle) * radius[1] * scale * noise * coast + keel * keel * .28,
                     z + surface_rise + island_random.uniform(-0.018, 0.018),
                 )
             )
@@ -879,20 +892,22 @@ def build_tree(foliage_texture_path: Path) -> bpy.types.Object:
         root_branch.parent = root
 
     back_centers = [
-        (-2.65, 0.30, 3.70),
-        (-1.80, 1.05, 4.25),
-        (2.55, 0.31, 3.92),
-        (1.58, 1.12, 4.48),
-        (-0.82, 1.15, 4.72),
-        (0.42, 0.90, 5.02),
-        (1.02, 0.20, 4.70),
-        (-0.12, 1.42, 4.40),
+        (-2.72, 0.30, 3.95),
+        (-1.80, 1.05, 4.62),
+        (2.55, 0.31, 4.14),
+        (1.58, 1.12, 4.63),
+        (-0.82, 1.15, 5.12),
+        (0.42, 0.90, 5.32),
+        (1.02, 0.20, 4.86),
+        (-0.12, 1.42, 4.64),
     ]
+    back_scales = ((1.50,1.25,.82), (1.32,1.36,.98), (1.42,1.05,.86), (1.1,1.2,.72),
+                   (1.3,1.22,.92), (1.45,1.1,1.02), (.9,1.16,.69), (1.12,1.4,.75))
     for index, center in enumerate(back_centers, start=1):
         cluster = leaf_cluster(
             f"後景葉簇_{index:02d}",
             (center[0], center[1] + .30, center[2]),
-            (1.14 + (index % 3) * 0.10, 1.18, 0.70 + (index % 2) * 0.12),
+            back_scales[index - 1],
             "深林綠" if index % 3 else "森林綠",
             leaf_back_collection,
         )
@@ -907,20 +922,22 @@ def build_tree(foliage_texture_path: Path) -> bpy.types.Object:
         )
 
     front_centers = [
-        (-2.72, -0.32, 3.52),
-        (-1.70, -1.02, 3.93),
-        (2.75, -0.36, 3.72),
-        (1.72, -1.08, 4.03),
-        (-1.04, -0.72, 4.50),
-        (-0.28, -0.54, 4.90),
-        (0.85, -0.70, 4.70),
-        (0.12, -1.28, 4.06),
+        (-2.92, -0.32, 3.70),
+        (-1.78, -1.02, 4.03),
+        (2.75, -0.36, 3.92),
+        (1.72, -1.08, 4.30),
+        (-1.04, -0.72, 4.64),
+        (-0.28, -0.54, 5.16),
+        (0.85, -0.70, 4.94),
+        (0.12, -1.28, 4.20),
     ]
+    front_scales = ((1.10,1.02,.60), (1.42,1.3,.85), (1.3,.95,.62), (1.46,1.2,.95),
+                    (1.22,1.08,.82), (1.62,1.18,1.05), (1.03,1.25,.73), (.82,1.15,.56))
     for index, center in enumerate(front_centers, start=1):
         cluster = leaf_cluster(
             f"前景葉簇_{index:02d}",
             (center[0], center[1] - .26, center[2]),
-            (1.12 + (index % 2) * 0.17, 1.16, 0.64 + (index % 3) * 0.10),
+            front_scales[index - 1],
             "暖日森林綠" if index in (5, 7) else "森林綠",
             leaf_front_collection,
         )
@@ -1024,12 +1041,22 @@ def add_island_woodland(terrain: BVHTree, target: bpy.types.Collection,
     """
     rng = random.Random(9137)
     vertices, faces, colours = [], [], []
+    stream_corridors = []
+    for suffix in ("中央左", "中央右"):
+        water = bpy.data.objects[f"溪流_{suffix}"].data.vertices
+        for row in range(len(water) // 5):
+            center = water[row * 5 + 2].co
+            half_width = (water[row * 5].co.xy - center.xy).length
+            stream_corridors.append((center.x, center.y, half_width + .24))
     trees = 0
-    for attempt in range(460):
+    for attempt in range(600):
         angle = rng.uniform(0, math.tau)
         radial = rng.uniform(.48, .94)
-        x, y = math.cos(angle) * 3.65 * radial, math.sin(angle) * 2.45 * radial
-        if y < -.40 and (abs(x + 1.65) < .60 or abs(x - 1.40) < .48):
+        north = max(0.0, min(1.0, (math.sin(angle) + .82) / 1.15))
+        coast = 1 + north * (.19 * math.sin(angle * 2 + .3) + .13 * math.cos(angle * 3 - .8))
+        x, y = math.cos(angle) * 3.65 * radial * coast, math.sin(angle) * 2.45 * radial * coast
+        if any((x - sx) ** 2 + (y - sy) ** 2 < clearance ** 2
+               for sx, sy, clearance in stream_corridors):
             continue
         if abs(x) < .75 and y < .25:
             continue

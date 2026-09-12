@@ -51,7 +51,7 @@ Shader "樹伴/生命樹浮島三向材質"
             fixed4 rock = SampleRock(input.worldPos, normal);
             // Air-lit mineral faces retain their strata without reading as
             // a black stone flowerpot beneath the bright canopy.
-            rock.rgb = lerp(rock.rgb, fixed3(.40, .46, .44), .20);
+            rock.rgb = lerp(rock.rgb, fixed3(.57, .60, .54), .42);
             fixed4 grass = tex2D(_GrassTex, input.worldPos.xz * _Tiling);
             half upward = smoothstep(0.46, 0.74, normal.y) * _GrassInfluence;
             half soil = input.color.r * _BankInfluence;
