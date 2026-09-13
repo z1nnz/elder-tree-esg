@@ -242,7 +242,7 @@ def add_solid_canopy_geometry(
 ) -> None:
     """Author a solid-volume crown of cupped leaves in one draw mesh.
 
-    Each seven-vertex leaf has a raised midrib and a turned tip. Colour belongs
+    Each five-vertex leaf has a raised midrib and a turned tip. Colour belongs
     to the leaf rather than a camera-facing photograph, so orbiting preserves
     volume. Unequal branch-tip pads leave gaps instead of filling a sphere.
     """
@@ -253,45 +253,46 @@ def add_solid_canopy_geometry(
                (0.65, 0.69, 0.29, 1))
     # Fine foliage, not oversized individual leaves: the crown reads as a
     # distant forest canopy. Keep the same sixteen wind/keepsake anchors.
-    count = 1250
-    # A dominant bough, two subordinate boughs and peripheral sprays. Rotate
-    # the arrangement per anchor so the sixteen crowns do not repeat a stamp.
-    pads = ((-.42, -.18, -.14, .56), (.18, .13, .18, .66),
-            (.60, .18, .32, .38), (-.23, .58, .38, .43),
-            (-.75, .22, .05, .30), (.22, -.57, -.22, .40),
-            (.68, -.38, -.03, .27))
+    count = 1875
+    # Rotate the spreading sprays per anchor, preserving a continuous canopy
+    # without repeating a ball or bonsai-pad silhouette.
     twist = index * .83 + (.4 if layer_name == "前景" else 0)
     for leaf_index in range(count):
         z = 1.0 - 2.0 * (leaf_index + 0.5) / count
         azimuth = leaf_index * 2.3999632297 + index * 0.73
         radial = math.sqrt(max(0, 1.0 - z * z))
         direction = Vector((radial * math.cos(azimuth), radial * math.sin(azimuth), z))
-        shell = rng.uniform(.55, 1.0)
-        px, py, pz, radius = rng.choices(pads, weights=[pad[3] ** 2 for pad in pads])[0]
-        local = Vector((px + direction.x * radius * shell,
-                        py + direction.y * radius * shell,
-                        pz + direction.z * radius * shell * .62))
+        # Foliage follows curled, spreading sprays. This authors the large
+        # directional flow rather than filling overlapping spherical pads.
+        spray = leaf_index % 11
+        t = rng.random()
+        heading = spray * 2.399963 + .55 * math.sin(index)
+        curl = heading + t * (1.15 + .35 * math.sin(spray))
+        reach = .16 + .80 * t
+        scatter = .11 + .10 * math.sin(math.pi * t)
+        local = Vector((math.cos(curl) * reach + direction.x * scatter,
+                        math.sin(curl) * reach + direction.y * scatter,
+                        .34 * math.sin(t * math.pi + spray * .65) +
+                        .20 * math.cos(heading) + direction.z * scatter))
         center = Vector((local.x * math.cos(twist) - local.y * math.sin(twist),
                          local.x * math.sin(twist) + local.y * math.cos(twist), local.z))
         normal = (direction * 0.50 + Vector((0, 0, 0.68))).normalized()
         orientation = normal.to_track_quat("Z", "Y")
         spin = rng.uniform(-math.pi, math.pi)
-        length = rng.uniform(0.048, 0.082)
+        length = rng.uniform(0.032, 0.060)
         width = length * rng.uniform(0.43, 0.64)
         # Perimeter winds counter-clockwise; center is the raised midrib.
-        shape = ((0, -length, 0), (width, -length * .35, -.008),
-                 (width * .80, length * .45, -.006), (0, length, .012),
-                 (-width * .80, length * .45, -.006),
-                 (-width, -length * .35, -.008), (0, 0, .016))
+        shape = ((0, -length, 0), (width, 0, -.005),
+                 (0, length, .008), (-width, 0, -.005), (0, 0, .011))
         base = len(vertices)
         for x, y, height in shape:
             spun = Vector((x * math.cos(spin) - y * math.sin(spin),
                            x * math.sin(spin) + y * math.cos(spin), height))
             vertices.append(tuple(center + orientation @ spun))
-        for side in range(6):
-            faces.append((base + 6, base + side, base + (side + 1) % 6))
+        for side in range(4):
+            faces.append((base + 4, base + side, base + (side + 1) % 4))
         shade = max(0, min(4, int((z + 1) * 1.65 + rng.uniform(-.35, .35))))
-        colours.extend([palette[shade]] * 7)
+        colours.extend([palette[shade]] * 5)
     mesh = bpy.data.meshes.new(f"立體葉冠_{layer_name}_{index:02d}")
     mesh.from_pydata(vertices, [], faces)
     for polygon in mesh.polygons:
@@ -790,14 +791,14 @@ def build_tree(foliage_texture_path: Path) -> bpy.types.Object:
         "主幹",
         [
             (0.0, 0.0, 0.05),
-            (-0.22, 0.06, 0.78),
-            (-0.42, 0.02, 1.52),
-            (-0.24, 0.12, 2.25),
-            (0.16, 0.04, 2.98),
-            (0.43, 0.11, 3.67),
-            (0.31, 0.03, 4.48),
+            (0.42, -0.04, 0.78),
+            (0.72, 0.04, 1.45),
+            (0.54, 0.10, 2.10),
+            (-0.06, 0.02, 2.75),
+            (-0.45, 0.0, 3.35),
+            (-0.12, 0.02, 4.30),
         ],
-        [1.28, 1.12, 0.93, 0.73, 0.51, 0.28, 0.08],
+        [1.45, 1.15, 0.99, 0.85, 0.62, 0.36, 0.08],
         trunk_material,
         root_collection,
             bevel=0.58,
@@ -810,9 +811,9 @@ def build_tree(foliage_texture_path: Path) -> bpy.types.Object:
     trunk.select_set(True)
     bpy.context.view_layer.objects.active = trunk
     bpy.ops.object.convert(target="MESH")
-    centerline = [(0, 0, .05), (-.22, .06, .78), (-.42, .02, 1.52),
-                  (-.24, .12, 2.25), (.16, .04, 2.98), (.43, .11, 3.67),
-                  (.31, .03, 4.48)]
+    centerline = [(0, 0, .05), (.42, -.04, .78), (.72, .04, 1.45),
+                  (.54, .10, 2.10), (-.06, .02, 2.75), (-.45, 0, 3.35),
+                  (-.12, .02, 4.30)]
     for vertex in trunk.data.vertices:
         world = vertex.co + trunk.location
         segment = next((i for i in range(6) if world.z <= centerline[i + 1][2]), 5)
@@ -844,14 +845,14 @@ def build_tree(foliage_texture_path: Path) -> bpy.types.Object:
     branch_specs = [
         # The first three limbs own the silhouette. The remaining five support
         # them instead of repeating an evenly spaced left/right staircase.
-        ((-0.30, -0.01, 1.60), (-1.28, -0.20, 2.50), (-2.72, -0.13, 3.60)),
-        ((-0.18, 0.02, 2.05), (0.96, -0.13, 2.85), (2.48, -0.06, 3.75)),
-        ((0.05, 0.08, 2.64), (-0.72, 0.65, 3.10), (-2.08, 1.08, 3.62)),
-        ((0.20, 0.06, 2.88), (1.02, 0.62, 3.22), (1.78, 1.12, 3.72)),
-        ((0.31, -0.02, 3.32), (-0.36, -0.62, 3.72), (-1.32, -1.10, 4.18)),
-        ((0.38, 0.04, 3.52), (0.94, -0.55, 3.88), (1.48, -1.05, 4.28)),
-        ((0.38, 0.08, 3.82), (-0.06, 0.34, 4.22), (-0.68, 0.42, 4.63)),
-        ((0.35, 0.03, 3.96), (0.66, 0.17, 4.35), (0.88, 0.22, 4.78)),
+        ((.62, .01, 1.75), (-.45, -.10, 2.80), (-3.75, -.05, 3.30)),
+        ((.42, .02, 2.25), (1.95, -.10, 3.15), (3.80, -.25, 3.35)),
+        ((.08, .08, 2.60), (-1.10, .65, 3.32), (-2.85, 1.10, 4.05)),
+        ((.10, .06, 2.72), (1.25, .75, 3.55), (2.60, 1.20, 4.20)),
+        ((-.30, -.02, 3.10), (-1.25, -.70, 3.82), (-2.05, -1.10, 4.70)),
+        ((-.25, .04, 3.30), (.72, -.65, 3.98), (1.75, -1.05, 4.65)),
+        ((-.32, .08, 3.48), (-.80, .34, 4.35), (-.95, .42, 5.20)),
+        ((-.25, .03, 3.65), (.40, .17, 4.42), (.75, .22, 5.08)),
     ]
     branch_ends: list[Vector] = []
     for index, points in enumerate(branch_specs, start=1):
@@ -861,7 +862,7 @@ def build_tree(foliage_texture_path: Path) -> bpy.types.Object:
             [1.12 if index < 4 else 0.88, 0.48, 0.08],
             trunk_material,
             branch_collection,
-            bevel=max(0.11, 0.20 - index * 0.009),
+            bevel=max(0.14, 0.32 - index * 0.018),
         )
         branch.parent = root
         branch["風動相位"] = round((index * 0.17) % 1, 3)
@@ -916,22 +917,22 @@ def build_tree(foliage_texture_path: Path) -> bpy.types.Object:
         root_branch.parent = root
 
     back_centers = [
-        (-2.72, 0.30, 3.95),
-        (-1.80, 1.05, 4.62),
-        (2.55, 0.31, 4.14),
-        (1.58, 1.12, 4.63),
-        (-0.82, 1.15, 5.12),
-        (0.42, 0.90, 5.32),
-        (1.02, 0.20, 4.86),
-        (-0.12, 1.42, 4.64),
+        (-2.95, .45, 3.90),
+        (-1.90, 1.05, 4.55),
+        (2.90, .40, 3.85),
+        (1.85, 1.12, 4.65),
+        (-.85, 1.0, 5.28),
+        (.35, .60, 5.16),
+        (1.10, .20, 4.85),
+        (-.12, 1.50, 4.60),
     ]
-    back_scales = ((1.50,1.25,.82), (1.32,1.36,.98), (1.42,1.05,.86), (1.1,1.2,.72),
-                   (1.3,1.22,.92), (1.45,1.1,1.02), (.9,1.16,.69), (1.12,1.4,.75))
+    back_scales = ((1.82,1.50,1.55), (1.72,1.48,1.65), (1.90,1.35,1.45), (1.62,1.55,1.50),
+                   (1.60,1.50,1.55), (1.68,1.55,1.80), (1.50,1.55,1.45), (1.52,1.70,1.45))
     for index, center in enumerate(back_centers, start=1):
         cluster = leaf_cluster(
             f"後景葉簇_{index:02d}",
-            (center[0], center[1] + .30, center[2] - .10),
-            tuple(value * factor for value, factor in zip(back_scales[index - 1], (1.10, 1.08, 1.60))),
+            (center[0], center[1] + .30, center[2]),
+            back_scales[index - 1],
             "深林綠" if index % 3 else "森林綠",
             leaf_back_collection,
         )
@@ -946,22 +947,22 @@ def build_tree(foliage_texture_path: Path) -> bpy.types.Object:
         )
 
     front_centers = [
-        (-2.92, -0.32, 3.70),
-        (-1.78, -1.02, 4.03),
-        (2.75, -0.36, 3.92),
-        (1.72, -1.08, 4.30),
-        (-1.04, -0.72, 4.64),
-        (-0.28, -0.54, 5.16),
-        (0.85, -0.70, 4.94),
-        (0.12, -1.28, 4.20),
+        (-3.10, -.32, 3.52),
+        (-1.80, -1.02, 3.92),
+        (3.15, -.36, 3.55),
+        (1.82, -1.08, 4.05),
+        (-1.30, -.72, 4.75),
+        (-.40, -.54, 5.15),
+        (.90, -.70, 4.76),
+        (.12, -1.28, 3.90),
     ]
-    front_scales = ((1.10,1.02,.60), (1.42,1.3,.85), (1.3,.95,.62), (1.46,1.2,.95),
-                    (1.22,1.08,.82), (1.62,1.18,1.05), (1.03,1.25,.73), (.82,1.15,.56))
+    front_scales = ((1.70,1.25,1.40), (1.95,1.50,1.55), (1.70,1.32,1.35), (1.85,1.5,1.60),
+                    (1.75,1.45,1.70), (1.72,1.50,1.70), (1.55,1.5,1.40), (1.65,1.5,1.40))
     for index, center in enumerate(front_centers, start=1):
         cluster = leaf_cluster(
             f"前景葉簇_{index:02d}",
-            (center[0], center[1] - .26, center[2] - .25),
-            tuple(value * factor for value, factor in zip(front_scales[index - 1], (1.10, 1.08, 1.60))),
+            (center[0], center[1] - .26, center[2]),
+            front_scales[index - 1],
             "暖日森林綠" if index in (5, 7) else "森林綠",
             leaf_front_collection,
         )
@@ -1260,7 +1261,7 @@ def sculpt_cliff_roots(tree: bpy.types.Object) -> None:
         # hugging curve below it; the terminal root disappears into the cliff.
         points=[Vector((-.12,0,.72)), Vector((math.cos(angle)*1.10,math.sin(angle)*.8,.01))]
         for step, height in enumerate((-.66,-1.45,-2.4,-3.35)):
-            turn=angle + math.sin(step*.9+index*.3)*.14
+            turn=angle + math.sin(step*.9+index*.3)*.30
             radial=Vector((math.cos(turn),math.sin(turn),0))
             origin=radial*12+Vector((0,0,height))
             hit, normal, _, _ = terrain.ray_cast(origin,-radial,20)
@@ -1272,6 +1273,26 @@ def sculpt_cliff_roots(tree: bpy.types.Object) -> None:
         for point, world, radius in zip(spline.bezier_points,points,radii,strict=True):
             point.co=world-obj.location; point.radius=radius
             point.handle_left_type="AUTO"; point.handle_right_type="AUTO"
+        if index == 3:
+            # Two fine tributaries belong to the same root object/material,
+            # winding across the cliff instead of adding more thick straps.
+            for sign in (-1, 1):
+                tributary = obj.data.splines.new("BEZIER")
+                tributary.bezier_points.add(5)
+                route = [points[0], points[1] + Vector((sign*.26, .08, 0))]
+                for step, height in enumerate((-.66, -1.45, -2.4, -3.35)):
+                    turn = angle + sign*.25 + math.sin(step*.95 + sign)*.22
+                    radial = Vector((math.cos(turn), math.sin(turn), 0))
+                    hit, _, _, _ = terrain.ray_cast(radial*12 + Vector((0,0,height)), -radial, 20)
+                    if hit is None:
+                        raise RuntimeError("細根未碰到岩壁")
+                    route.append(hit + radial*(.025 if step<3 else -.04))
+                for point, world, radius in zip(tributary.bezier_points, route,
+                                                (.35,.30,.23,.17,.08,.008), strict=True):
+                    point.co = world - obj.location
+                    point.radius = radius
+                    point.handle_left_type = "AUTO"
+                    point.handle_right_type = "AUTO"
 
 
 def add_preview_scene(root: bpy.types.Object) -> None:
