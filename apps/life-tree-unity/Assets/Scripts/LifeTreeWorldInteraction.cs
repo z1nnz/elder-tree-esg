@@ -55,10 +55,19 @@ namespace TreeCompanion.LifeTree
         private void Update()
         {
             if (world == null || viewCamera == null) return;
-            if (UnityEngine.EventSystems.EventSystem.current != null &&
-                (UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject() ||
-                 (Input.touchCount > 0 && UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject(Input.GetTouch(0).fingerId)))) return;
             var count = Input.touchCount;
+            var events = UnityEngine.EventSystems.EventSystem.current;
+            if (events != null)
+            {
+                var overInterface = count == 0 && events.IsPointerOverGameObject();
+                for (var index = 0; index < count; index++)
+                    overInterface |= events.IsPointerOverGameObject(Input.GetTouch(index).fingerId);
+                if (overInterface)
+                {
+                    CancelGesture();
+                    return;
+                }
+            }
             if (count > 0)
             {
                 mouseDragging = false;
@@ -97,10 +106,27 @@ namespace TreeCompanion.LifeTree
             if (Input.GetKeyDown(KeyCode.R)) ResetView();
         }
 
-        private void OnDisable()
+        private void CancelGesture()
         {
             mouseDragging = false;
             previousTouchCount = 0;
+            previousPinchDistance = 0;
+            previousMouse = Vector2.zero;
+        }
+
+        private void OnApplicationFocus(bool focused)
+        {
+            if (!focused) CancelGesture();
+        }
+
+        private void OnApplicationPause(bool paused)
+        {
+            if (paused) CancelGesture();
+        }
+
+        private void OnDisable()
+        {
+            CancelGesture();
             ResetView();
         }
     }

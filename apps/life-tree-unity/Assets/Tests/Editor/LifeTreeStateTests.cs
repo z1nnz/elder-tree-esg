@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Reflection;
 using NUnit.Framework;
 using TreeCompanion.LifeTree;
 using UnityEditor;
@@ -8,6 +9,38 @@ namespace TreeCompanion.Tests
 {
     public sealed class LifeTreeStateTests
     {
+        [TestCase("OnApplicationFocus", false)]
+        [TestCase("OnApplicationPause", true)]
+        public void InterruptedGestureClearsInputWithoutResettingTheView(string message, bool value)
+        {
+            var world = new GameObject("手勢測試浮島");
+            var owner = new GameObject("手勢測試取景");
+            try
+            {
+                var controls = owner.AddComponent<LifeTreeWorldInteraction>();
+                controls.Configure(world.transform, owner.AddComponent<Camera>(), null);
+                controls.SetView(30, 1.2f);
+                const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+                var type = typeof(LifeTreeWorldInteraction);
+                // Seed an in-flight input frame, then invoke the lifecycle
+                // handler. This checks cancellation, not device input delivery.
+                type.GetField("mouseDragging", flags).SetValue(controls, true);
+                type.GetField("previousTouchCount", flags).SetValue(controls, 2);
+                type.GetField("previousPinchDistance", flags).SetValue(controls, 180f);
+                type.GetMethod(message, flags).Invoke(controls, new object[] { value });
+                Assert.That(type.GetField("mouseDragging", flags).GetValue(controls), Is.False);
+                Assert.That(type.GetField("previousTouchCount", flags).GetValue(controls), Is.EqualTo(0));
+                Assert.That(type.GetField("previousPinchDistance", flags).GetValue(controls), Is.EqualTo(0f));
+                Assert.That(controls.CurrentYaw, Is.EqualTo(30));
+                Assert.That(controls.CurrentZoom, Is.EqualTo(1.2f));
+            }
+            finally
+            {
+                Object.DestroyImmediate(owner);
+                Object.DestroyImmediate(world);
+            }
+        }
+
         [Test]
         public void StreamBanksRetainTheirBlendWeightsAfterFbxImport()
         {
