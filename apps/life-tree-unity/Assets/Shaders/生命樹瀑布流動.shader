@@ -109,14 +109,14 @@ Shader "樹伴/生命樹瀑布流動"
                 float edge = smoothstep(raggedEdge, raggedEdge + .06, u)
                     * smoothstep(raggedEdge, raggedEdge + .06, 1 - u);
                 float endFade = 1 - smoothstep(.67, .98, v + (sheets - .5) * .20);
-                // A river must reach the lip intact. Previously the shared
-                // waterfall fade also erased its last quarter, exposing a seam.
+                // River geometry shares the shader but never the fall fade.
                 endFade = lerp(endFade, 1, _IsStream);
-                float breakup = lerp(1, smoothstep(.17, .52, strands * .6 + sheets * .4), falling);
-                float whiteWater = falling * (.64 + foam * .34);
+                // Keep a continuous water body behind local foam. Multiplying
+                // the whole curtain by strand noise made isolated white wires.
+                float whiteWater = falling * (.20 + foam * .72);
                 fixed4 colorSample = lerp(_Color, _FoamColor, saturate(whiteWater + foam * .22));
                 colorSample.a = _Opacity * edge * endFade
-                    * lerp(.78 + foam * .15, (.38 + foam * .62) * breakup, falling);
+                    * lerp(.78 + foam * .15, .68 + foam * .30, falling);
                 UNITY_APPLY_FOG(input.fogCoord, colorSample);
                 return colorSample;
             }

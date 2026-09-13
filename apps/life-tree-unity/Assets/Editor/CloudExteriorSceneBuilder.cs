@@ -24,7 +24,7 @@ namespace TreeCompanion.Editor
             state.EvaluateWindAt(1.8f);
             atmosphere.EvaluateAt(1.8f);
             var output = Path.GetFullPath(Path.Combine(Application.dataPath,
-                "../../../docs/leadership-evidence/screenshots/world-tree-rebuild-2026-09-13"));
+                "../../../docs/leadership-evidence/screenshots/world-tree-scene-finish-2026-09-13"));
             foreach (var yaw in new[] { 0f, -35f, 35f })
             {
                 controls.SetView(yaw, 1);
@@ -63,6 +63,7 @@ namespace TreeCompanion.Editor
                     var bank = volume.transform.parent;
                     if (bank.name.Contains("後景中")) bank.localScale *= 2.6f;
                     else if (bank.name.Contains("後景左") || bank.name.Contains("後景右")) bank.localScale *= 1.6f;
+                    else if (bank.name.Contains("近景")) bank.localScale *= .70f;
                     LifeTreeSceneBuilder.PlaceCloudBank(volume.transform.parent, volume, camera);
                 }
             CreateDistantClouds(camera);
@@ -92,6 +93,10 @@ namespace TreeCompanion.Editor
                     template.transform.parent.parent);
                 bank.name=$"遠景雲牆_{i:00}";
                 bank.transform.localScale *= banks[i].w;
+                // Far banks read as wind-stretched layers rather than six
+                // equally prominent upright cloud icons around the tree.
+                bank.transform.localScale = Vector3.Scale(bank.transform.localScale,
+                    new Vector3(1.55f, .68f, .90f));
                 var volume=bank.GetComponentsInChildren<MeshRenderer>().Single(item=>item.name=="雲層體積");
                 volume.GetComponent<CloudVolumeAppearance>().Configure(Mathf.Repeat(i*.37f+.08f,1));
                 bank.transform.position += camera.ViewportToWorldPoint(

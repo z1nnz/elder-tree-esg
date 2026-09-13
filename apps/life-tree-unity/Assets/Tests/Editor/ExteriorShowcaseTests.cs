@@ -54,6 +54,22 @@ namespace TreeCompanion.Tests
         }
 
         [Test]
+        public void ImportedCanopyRetainsAuthoredOcclusion()
+        {
+            var model = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Art/Generated/生命樹庭園.fbx");
+            var leaves = model.GetComponentsInChildren<MeshFilter>(true)
+                .Where(item => item.name.StartsWith("葉群網格_")).ToArray();
+            Assert.That(leaves.Length, Is.EqualTo(16));
+            foreach (var leaf in leaves)
+            {
+                var colors = leaf.sharedMesh.colors;
+                Assert.That(colors.Length, Is.EqualTo(leaf.sharedMesh.vertexCount));
+                Assert.That(colors.Min(color => color.a), Is.InRange(.50f, .80f));
+                Assert.That(colors.Max(color => color.a), Is.GreaterThan(.95f));
+            }
+        }
+
+        [Test]
         public void LandscapeCapturePreservesGeometryAspectAndRestoresCamera()
         {
             var owner = new GameObject("截圖相機測試");

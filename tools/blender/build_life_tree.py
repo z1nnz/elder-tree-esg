@@ -248,9 +248,9 @@ def add_solid_canopy_geometry(
     """
     rng = random.Random(SEED + index * 47 + (1100 if layer_name == "前景" else 0))
     vertices, faces, colours = [], [], []
-    palette = ((0.065, 0.23, 0.12, 1), (0.12, 0.36, 0.16, 1),
-               (0.26, 0.48, 0.18, 1), (0.47, 0.61, 0.22, 1),
-               (0.65, 0.69, 0.29, 1))
+    palette = ((0.045, 0.16, 0.095, 1), (0.10, 0.28, 0.12, 1),
+               (0.25, 0.43, 0.12, 1), (0.46, 0.61, 0.17, 1),
+               (0.70, 0.76, 0.30, 1))
     # Fine foliage, not oversized individual leaves: the crown reads as a
     # distant forest canopy. Keep the same sixteen wind/keepsake anchors.
     count = 1875
@@ -269,7 +269,7 @@ def add_solid_canopy_geometry(
         heading = spray * 2.399963 + .55 * math.sin(index)
         curl = heading + t * (1.15 + .35 * math.sin(spray))
         reach = .16 + .80 * t
-        scatter = .11 + .10 * math.sin(math.pi * t)
+        scatter = .075 + .08 * math.sin(math.pi * t)
         local = Vector((math.cos(curl) * reach + direction.x * scatter,
                         math.sin(curl) * reach + direction.y * scatter,
                         .34 * math.sin(t * math.pi + spray * .65) +
@@ -291,8 +291,18 @@ def add_solid_canopy_geometry(
             vertices.append(tuple(center + orientation @ spun))
         for side in range(4):
             faces.append((base + 4, base + side, base + (side + 1) % 4))
-        shade = max(0, min(4, int((z + 1) * 1.65 + rng.uniform(-.35, .35))))
-        colours.extend([palette[shade]] * 5)
+        # Lighting masses follow authored height, not the unrelated Fibonacci
+        # sample index. Blend continuously so no palette bands are visible.
+        exposure = max(0.0, min(1.0, (local.z + .54) / 1.08))
+        tone = max(0.0, min(4.0, exposure * 4 + rng.uniform(-.12, .12)))
+        low = min(3, int(tone))
+        mix = tone - low
+        colour = tuple(palette[low][channel] * (1-mix) + palette[low+1][channel] * mix
+                       for channel in range(3))
+        # Alpha is authored canopy occlusion, not transparency. Dense inner
+        # sprays retain less ambient light; peripheral leaves stay open.
+        occlusion = .52 + .48 * max(exposure, t)
+        colours.extend([(*colour, occlusion)] * 5)
     mesh = bpy.data.meshes.new(f"立體葉冠_{layer_name}_{index:02d}")
     mesh.from_pydata(vertices, [], faces)
     for polygon in mesh.polygons:

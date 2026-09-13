@@ -51,7 +51,12 @@ Shader "樹伴/生命樹浮島三向材質"
             fixed4 rock = SampleRock(input.worldPos, normal);
             // Air-lit mineral faces retain their strata without reading as
             // a black stone flowerpot beneath the bright canopy.
-            rock.rgb = lerp(rock.rgb, fixed3(.57, .60, .54), .42);
+            float strata = sin(input.worldPos.y * 4.3
+                + sin(input.worldPos.x * 1.7 + input.worldPos.z * .8) * 1.25
+                + rock.r * 3.0);
+            float mineral = smoothstep(-.35, .65, strata);
+            fixed3 limestone = lerp(fixed3(.57,.64,.60), fixed3(.66,.69,.63), mineral);
+            rock.rgb = lerp(rock.rgb, limestone, .56);
             fixed4 grass = tex2D(_GrassTex, input.worldPos.xz * _Tiling);
             half upward = smoothstep(0.46, 0.74, normal.y) * _GrassInfluence;
             half soil = input.color.r * _BankInfluence;
@@ -59,6 +64,9 @@ Shader "樹伴/生命樹浮島三向材質"
             upward *= 1 - soil;
             fixed4 colorSample = lerp(rock, grass, upward) * _Color;
             output.Albedo = colorSample.rgb;
+            // A restrained sky bounce keeps unlit cliff faces readable;
+            // grass and river soil retain their ordinary lighting response.
+            output.Emission = rock.rgb * .10 * (1-upward) * (1-soil);
             output.Alpha = 1.0;
         }
         ENDCG

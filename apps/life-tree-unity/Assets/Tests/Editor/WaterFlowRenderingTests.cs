@@ -19,6 +19,19 @@ namespace TreeCompanion.Tests
         }
 
         [Test]
+        public void FallingWaterRetainsAContinuousCentralSheet()
+        {
+            foreach (var time in new[] { 0f, .35f, 1.2f })
+            {
+                var pixels = RenderWater(false, time, 1);
+                for (var y = 16; y < 36; y++)
+                    for (var x = 20; x < 44; x++)
+                        Assert.That(pixels[y * 64 + x].a, Is.GreaterThan(.20f),
+                            "瀑布中段應保留水幕，不能只剩彼此斷開的白色絲線");
+            }
+        }
+
+        [Test]
         public void WaterFlowsAndReducedMotionFreezesItsSurface()
         {
             var start = RenderWater(false, 0, 1);

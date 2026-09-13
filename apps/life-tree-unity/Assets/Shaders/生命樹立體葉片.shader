@@ -37,7 +37,7 @@ Shader "樹伴/生命樹立體葉片"
             output.Normal = float3(0, 0, input.facing >= 0 ? 1 : -1);
             output.Metallic = 0;
             output.Smoothness = 0.12;
-            output.Occlusion = 1;
+            output.Occlusion = saturate(input.color.a);
             output.Alpha = 1;
         }
         ENDCG
