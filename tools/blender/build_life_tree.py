@@ -930,8 +930,8 @@ def build_tree(foliage_texture_path: Path) -> bpy.types.Object:
     for index, center in enumerate(back_centers, start=1):
         cluster = leaf_cluster(
             f"後景葉簇_{index:02d}",
-            (center[0], center[1] + .30, center[2]),
-            back_scales[index - 1],
+            (center[0], center[1] + .30, center[2] - .10),
+            tuple(value * factor for value, factor in zip(back_scales[index - 1], (1.10, 1.08, 1.60))),
             "深林綠" if index % 3 else "森林綠",
             leaf_back_collection,
         )
@@ -960,8 +960,8 @@ def build_tree(foliage_texture_path: Path) -> bpy.types.Object:
     for index, center in enumerate(front_centers, start=1):
         cluster = leaf_cluster(
             f"前景葉簇_{index:02d}",
-            (center[0], center[1] - .26, center[2]),
-            front_scales[index - 1],
+            (center[0], center[1] - .26, center[2] - .25),
+            tuple(value * factor for value, factor in zip(front_scales[index - 1], (1.10, 1.08, 1.60))),
             "暖日森林綠" if index in (5, 7) else "森林綠",
             leaf_front_collection,
         )
@@ -1087,7 +1087,7 @@ def add_island_woodland(terrain: BVHTree, target: bpy.types.Collection,
         hit, _, _, _ = terrain.ray_cast((x, y, 3), (0, 0, -1), 10)
         if hit is None or hit.z < -.83:
             continue
-        size = rng.uniform(.09, .19)
+        size = rng.uniform(.072, .152)
         green = rng.choice(((.13,.30,.09,1), (.24,.42,.11,1),
                             (.38,.53,.16,1), (.51,.57,.22,1)))
         base = len(vertices)

@@ -24,7 +24,7 @@ namespace TreeCompanion.Editor
             state.EvaluateWindAt(1.8f);
             atmosphere.EvaluateAt(1.8f);
             var output = Path.GetFullPath(Path.Combine(Application.dataPath,
-                "../../../docs/leadership-evidence/screenshots/exterior-canopy-2026-09-13"));
+                "../../../docs/leadership-evidence/screenshots/exterior-scale-2026-09-13"));
             foreach (var yaw in new[] { 0f, -35f, 35f })
             {
                 controls.SetView(yaw, 1);
