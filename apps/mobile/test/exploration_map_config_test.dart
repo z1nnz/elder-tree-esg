@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('exploration map presentation', () {
-    test('adventure mode uses a pitched game-style vector map', () {
+    test('adventure mode uses a pitched, visually quiet game-style map', () {
       final presentation = explorationMapPresentation(
         ExplorationMapMode.adventure,
         streetStyleUrl: 'https://example.com/street-style',
@@ -14,8 +14,8 @@ void main() {
       final sources = style['sources'] as Map<String, dynamic>;
       final layers = (style['layers'] as List)
           .cast<Map<String, dynamic>>()
-          .map((layer) => layer['id'])
-          .toSet();
+          .toList();
+      final layerIds = layers.map((layer) => layer['id']).toSet();
 
       expect(presentation.pitch, greaterThanOrEqualTo(45));
       expect(presentation.bearing, isNot(0));
@@ -24,15 +24,21 @@ void main() {
         'https://tiles.openfreemap.org/planet',
       );
       expect(
-        layers,
+        layerIds,
         containsAll([
           'game-background',
           'game-parks',
           'game-road-casing',
           'game-roads',
-          'game-buildings-3d',
+          'game-walkways',
         ]),
       );
+      expect(layerIds, isNot(contains('game-buildings')));
+      expect(layerIds, isNot(contains('game-buildings-3d')));
+      final mainRoads = layers.singleWhere(
+        (layer) => layer['id'] == 'game-roads',
+      );
+      expect(mainRoads['filter'], isNotNull);
     });
 
     test('street mode keeps the configured public map style flat', () {

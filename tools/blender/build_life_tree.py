@@ -20,6 +20,7 @@ from pathlib import Path
 
 import bpy
 from mathutils import Vector
+from mathutils.bvhtree import BVHTree
 
 
 SEED = 20260830
@@ -59,6 +60,8 @@ def material(
     *,
     roughness: float = 0.72,
     metallic: float = 0.0,
+    emission: tuple[float, float, float, float] | None = None,
+    emission_strength: float = 0.0,
 ) -> bpy.types.Material:
     item = bpy.data.materials.new(name)
     item.diffuse_color = color
@@ -67,6 +70,70 @@ def material(
     shader.inputs["Base Color"].default_value = color
     shader.inputs["Roughness"].default_value = roughness
     shader.inputs["Metallic"].default_value = metallic
+    if emission is not None:
+        emission_input = shader.inputs.get("Emission Color") or shader.inputs.get("Emission")
+        strength_input = shader.inputs.get("Emission Strength")
+        if emission_input is not None:
+            emission_input.default_value = emission
+        if strength_input is not None:
+            strength_input.default_value = emission_strength
+    return item
+
+
+def textured_foliage_material(texture_path: Path) -> bpy.types.Material:
+    if not texture_path.is_file():
+        raise RuntimeError(f"找不到生命樹葉簇貼圖：{texture_path}")
+    item = material("生命樹葉簇貼圖", (1.0, 1.0, 1.0, 1.0), roughness=0.92)
+    image = bpy.data.images.load(str(texture_path), check_existing=True)
+    nodes = item.node_tree.nodes
+    links = item.node_tree.links
+    shader = nodes.get("Principled BSDF")
+    texture = nodes.new("ShaderNodeTexImage")
+    texture.name = "生命樹葉簇色彩"
+    texture.image = image
+    links.new(texture.outputs["Color"], shader.inputs["Base Color"])
+    links.new(texture.outputs["Alpha"], shader.inputs["Alpha"])
+    if hasattr(item, "surface_render_method"):
+        item.surface_render_method = "DITHERED"
+    return item
+
+
+def bark_material(
+    name: str,
+    dark: tuple[float, float, float, float],
+    light: tuple[float, float, float, float],
+) -> bpy.types.Material:
+    """Layer broad vertical colour breakup and restrained bark relief.
+
+    The procedural pattern remains intentionally mid-frequency: the silhouette
+    and branch hierarchy must read before surface noise does.
+    """
+    item = material(name, dark, roughness=0.88)
+    nodes = item.node_tree.nodes
+    links = item.node_tree.links
+    shader = nodes.get("Principled BSDF")
+    coordinates = nodes.new("ShaderNodeTexCoord")
+    mapping = nodes.new("ShaderNodeMapping")
+    mapping.inputs["Scale"].default_value = (2.7, 2.7, 0.46)
+    noise = nodes.new("ShaderNodeTexNoise")
+    noise.inputs["Scale"].default_value = 3.4
+    noise.inputs["Detail"].default_value = 4.5
+    noise.inputs["Roughness"].default_value = 0.68
+    noise.inputs["Distortion"].default_value = 0.24
+    ramp = nodes.new("ShaderNodeValToRGB")
+    ramp.color_ramp.elements[0].position = 0.27
+    ramp.color_ramp.elements[0].color = dark
+    ramp.color_ramp.elements[1].position = 0.76
+    ramp.color_ramp.elements[1].color = light
+    bump = nodes.new("ShaderNodeBump")
+    bump.inputs["Strength"].default_value = 0.22
+    bump.inputs["Distance"].default_value = 0.10
+    links.new(coordinates.outputs["Generated"], mapping.inputs["Vector"])
+    links.new(mapping.outputs["Vector"], noise.inputs["Vector"])
+    links.new(noise.outputs["Fac"], ramp.inputs["Fac"])
+    links.new(ramp.outputs["Color"], shader.inputs["Base Color"])
+    links.new(noise.outputs["Fac"], bump.inputs["Height"])
+    links.new(bump.outputs["Normal"], shader.inputs["Normal"])
     return item
 
 
@@ -106,148 +173,617 @@ def leaf_cluster(
     name: str,
     location: tuple[float, float, float],
     scale: tuple[float, float, float],
-    leaf_material: bpy.types.Material,
+    palette_name: str,
     target: bpy.types.Collection,
 ) -> bpy.types.Object:
-    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=1, location=location)
-    obj = bpy.context.object
+    # A cluster is a stable data and motion anchor for one solid foliage mesh.
+    obj = bpy.data.objects.new(name, None)
     obj.name = name
-    obj.scale = tuple(value * 0.84 for value in scale)
+    obj.location = location
+    obj.scale = scale
     obj.rotation_euler = (
         random.uniform(-0.15, 0.15),
         random.uniform(-0.15, 0.15),
         random.uniform(-0.35, 0.35),
     )
-    obj.data.materials.append(leaf_material)
-    move_to_collection(obj, target)
+    obj["葉冠色系"] = palette_name
+    target.objects.link(obj)
     return obj
 
 
-def leaf_blade(
+def foliage_card(
     name: str,
-    location: Vector,
-    rotation: tuple[float, float, float],
-    scale: tuple[float, float, float],
-    leaf_material: bpy.types.Material,
+    location: tuple[float, float, float],
+    rotation_z: float,
+    scale: tuple[float, float],
+    foliage_material: bpy.types.Material,
     target: bpy.types.Collection,
     parent: bpy.types.Object,
+    *,
+    flip_horizontal: bool,
 ) -> bpy.types.Object:
-    """Create a small faceted leaf that breaks up the round canopy silhouette."""
-    vertices = [
-        (-0.34, 0.0, 0.0),
-        (-0.05, 0.15, 0.045),
-        (0.38, 0.0, 0.0),
-        (-0.05, -0.15, 0.045),
-        (-0.04, 0.0, 0.11),
-        (-0.34, 0.0, -0.012),
-        (-0.05, 0.15, -0.025),
-        (0.38, 0.0, -0.012),
-        (-0.05, -0.15, -0.025),
-    ]
-    faces = [
-        (0, 1, 4),
-        (1, 2, 4),
-        (2, 3, 4),
-        (3, 0, 4),
-        (8, 7, 5),
-        (7, 6, 5),
-        (0, 5, 6, 1),
-        (1, 6, 7, 2),
-        (2, 7, 8, 3),
-        (3, 8, 5, 0),
-    ]
+    """Create one alpha-cutout foliage plane for the limited-orbit crown."""
+    vertices = (
+        (-1.02, 0.0, -0.72),
+        (1.02, 0.0, -0.72),
+        (1.02, 0.0, 0.72),
+        (-1.02, 0.0, 0.72),
+    )
     data = bpy.data.meshes.new(name)
-    data.from_pydata(vertices, [], faces)
+    data.from_pydata(vertices, [], [(0, 1, 2, 3)])
+    data.materials.append(foliage_material)
+    uv_layer = data.uv_layers.new(name="生命樹葉簇貼圖")
+    uv_coordinates = (
+        ((1.0, 0.0), (0.0, 0.0), (0.0, 1.0), (1.0, 1.0))
+        if flip_horizontal
+        else ((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0))
+    )
+    for loop, coordinate in zip(data.polygons[0].loop_indices, uv_coordinates, strict=True):
+        uv_layer.data[loop].uv = coordinate
     data.update()
-    obj = bpy.data.objects.new(name, data)
-    obj.location = location
-    obj.rotation_euler = rotation
-    obj.scale = scale
-    obj.data.materials.append(leaf_material)
-    target.objects.link(obj)
-    bpy.context.view_layer.update()
-    world_matrix = obj.matrix_world.copy()
-    obj.parent = parent
-    obj.matrix_world = world_matrix
-    return obj
+
+    card = bpy.data.objects.new(name, data)
+    card.parent = parent
+    card.location = location
+    card.rotation_euler = (0.0, 0.0, rotation_z)
+    card.scale = (scale[0], scale[0], scale[1])
+    card["葉片元素數"] = 0
+    card["葉簇圖片數"] = 1
+    target.objects.link(card)
+    return card
 
 
-def add_cluster_edge_leaves(
+def add_solid_canopy_geometry(
     cluster: bpy.types.Object,
     index: int,
-    leaf_materials: tuple[bpy.types.Material, ...],
+    foliage_material: bpy.types.Material,
     target: bpy.types.Collection,
     layer_name: str,
 ) -> None:
-    directions: list[Vector] = []
-    leaf_count = 18
-    golden_angle = math.pi * (3.0 - math.sqrt(5.0))
-    for leaf_index in range(leaf_count):
-        vertical = 1.0 - 2.0 * ((leaf_index + 0.5) / leaf_count)
-        radial = math.sqrt(max(0.0, 1.0 - vertical * vertical))
-        angle = leaf_index * golden_angle
-        directions.append(
-            Vector(
+    """Author a solid-volume crown of cupped leaves in one draw mesh.
+
+    Each five-vertex leaf has a raised midrib and a turned tip. Colour belongs
+    to the leaf rather than a camera-facing photograph, so orbiting preserves
+    volume. Unequal branch-tip pads leave gaps instead of filling a sphere.
+    """
+    rng = random.Random(SEED + index * 47 + (1100 if layer_name == "前景" else 0))
+    vertices, faces, colours = [], [], []
+    palette = ((0.065, 0.23, 0.12, 1), (0.12, 0.36, 0.16, 1),
+               (0.26, 0.48, 0.18, 1), (0.47, 0.61, 0.22, 1),
+               (0.65, 0.69, 0.29, 1))
+    # Fine foliage, not oversized individual leaves: the crown reads as a
+    # distant forest canopy. Keep the same sixteen wind/keepsake anchors.
+    count = 1875
+    # Rotate the spreading sprays per anchor, preserving a continuous canopy
+    # without repeating a ball or bonsai-pad silhouette.
+    twist = index * .83 + (.4 if layer_name == "前景" else 0)
+    for leaf_index in range(count):
+        z = 1.0 - 2.0 * (leaf_index + 0.5) / count
+        azimuth = leaf_index * 2.3999632297 + index * 0.73
+        radial = math.sqrt(max(0, 1.0 - z * z))
+        direction = Vector((radial * math.cos(azimuth), radial * math.sin(azimuth), z))
+        # Foliage follows curled, spreading sprays. This authors the large
+        # directional flow rather than filling overlapping spherical pads.
+        spray = leaf_index % 11
+        t = rng.random()
+        heading = spray * 2.399963 + .55 * math.sin(index)
+        curl = heading + t * (1.15 + .35 * math.sin(spray))
+        reach = .16 + .80 * t
+        scatter = .11 + .10 * math.sin(math.pi * t)
+        local = Vector((math.cos(curl) * reach + direction.x * scatter,
+                        math.sin(curl) * reach + direction.y * scatter,
+                        .34 * math.sin(t * math.pi + spray * .65) +
+                        .20 * math.cos(heading) + direction.z * scatter))
+        center = Vector((local.x * math.cos(twist) - local.y * math.sin(twist),
+                         local.x * math.sin(twist) + local.y * math.cos(twist), local.z))
+        normal = (direction * 0.50 + Vector((0, 0, 0.68))).normalized()
+        orientation = normal.to_track_quat("Z", "Y")
+        spin = rng.uniform(-math.pi, math.pi)
+        length = rng.uniform(0.032, 0.060)
+        width = length * rng.uniform(0.43, 0.64)
+        # Perimeter winds counter-clockwise; center is the raised midrib.
+        shape = ((0, -length, 0), (width, 0, -.005),
+                 (0, length, .008), (-width, 0, -.005), (0, 0, .011))
+        base = len(vertices)
+        for x, y, height in shape:
+            spun = Vector((x * math.cos(spin) - y * math.sin(spin),
+                           x * math.sin(spin) + y * math.cos(spin), height))
+            vertices.append(tuple(center + orientation @ spun))
+        for side in range(4):
+            faces.append((base + 4, base + side, base + (side + 1) % 4))
+        shade = max(0, min(4, int((z + 1) * 1.65 + rng.uniform(-.35, .35))))
+        colours.extend([palette[shade]] * 5)
+    mesh = bpy.data.meshes.new(f"立體葉冠_{layer_name}_{index:02d}")
+    mesh.from_pydata(vertices, [], faces)
+    for polygon in mesh.polygons:
+        polygon.use_smooth = True
+    mesh.update()
+    attribute = mesh.color_attributes.new(name="葉色", type="FLOAT_COLOR", domain="POINT")
+    for slot, colour in zip(attribute.data, colours, strict=True):
+        slot.color = colour
+    solid_material = bpy.data.materials.get("立體葉片_柔霧玉綠")
+    if solid_material is None:
+        solid_material = material("立體葉片_柔霧玉綠", (0.24, .48, .18, 1), roughness=.88)
+        shader = solid_material.node_tree.nodes.get("Principled BSDF")
+        vertex_colour = solid_material.node_tree.nodes.new("ShaderNodeVertexColor")
+        vertex_colour.layer_name = "葉色"
+        solid_material.node_tree.links.new(vertex_colour.outputs["Color"], shader.inputs["Base Color"])
+    mesh.materials.append(solid_material)
+    leaf = bpy.data.objects.new(f"{layer_name}葉片_立體葉冠_{index:02d}", mesh)
+    leaf.parent = cluster
+    leaf["葉片元素數"] = count
+    leaf["葉簇圖片數"] = 0
+    target.objects.link(leaf)
+
+
+def add_branch_hierarchy(
+    main_branch: bpy.types.Object,
+    main_index: int,
+    points: tuple[tuple[float, float, float], ...],
+    branch_material: bpy.types.Material,
+    target: bpy.types.Collection,
+) -> None:
+    """Grow visible second- and third-order branches from one authored limb."""
+    _, middle, original_end = (Vector(point) for point in points)
+    end = middle.lerp(original_end, 0.67)
+    axis = (end - middle).normalized()
+    lateral = Vector((-axis.y, axis.x, 0.0))
+    if lateral.length < 0.01:
+        lateral = Vector((1.0, 0.0, 0.0))
+    lateral.normalize()
+
+    for secondary_index, sign in enumerate((-1.0, 1.0), start=1):
+        split = 0.28 + secondary_index * 0.18
+        secondary_start = middle.lerp(end, split)
+        secondary_middle = (
+            secondary_start
+            + axis * (0.20 + secondary_index * 0.04)
+            + lateral * sign * (0.20 + main_index % 3 * 0.035)
+            + Vector((0.0, 0.0, 0.08 + secondary_index * 0.03))
+        )
+        secondary_end = (
+            secondary_start
+            + axis * (0.40 + secondary_index * 0.05)
+            + lateral * sign * (0.42 + main_index % 2 * 0.06)
+            + Vector((0.0, 0.0, 0.18 + secondary_index * 0.04))
+        )
+        secondary = curve_branch(
+            f"次枝_{main_index:02d}_{secondary_index:02d}",
+            [tuple(secondary_start), tuple(secondary_middle), tuple(secondary_end)],
+            [0.58, 0.30, 0.04],
+            branch_material,
+            target,
+            bevel=0.115,
+        )
+        bpy.context.view_layer.update()
+        secondary_world_matrix = secondary.matrix_world.copy()
+        secondary.parent = main_branch
+        secondary.matrix_world = secondary_world_matrix
+        secondary["風動相位"] = round((main_index * 0.19 + secondary_index * 0.23) % 1, 3)
+
+        for twig_index, twig_sign in enumerate((-1.0, 1.0), start=1):
+            twig_start = secondary_middle.lerp(secondary_end, 0.42 + twig_index * 0.14)
+            twig_axis = (secondary_end - secondary_middle).normalized()
+            twig_lateral = Vector((-twig_axis.y, twig_axis.x, 0.0))
+            if twig_lateral.length < 0.01:
+                twig_lateral = lateral.copy()
+            twig_lateral.normalize()
+            twig_middle = (
+                twig_start
+                + twig_axis * 0.12
+                + twig_lateral * twig_sign * (0.09 + secondary_index * 0.02)
+                + Vector((0.0, 0.0, 0.06))
+            )
+            twig_end = (
+                twig_start
+                + twig_axis * 0.24
+                + twig_lateral * twig_sign * (0.20 + secondary_index * 0.025)
+                + Vector((0.0, 0.0, 0.035))
+            )
+            twig = curve_branch(
+                f"末梢枝_{main_index:02d}_{secondary_index:02d}_{twig_index:02d}",
+                [tuple(twig_start), tuple(twig_middle), tuple(twig_end)],
+                [0.42, 0.20, 0.025],
+                branch_material,
+                target,
+                bevel=0.070,
+            )
+            bpy.context.view_layer.update()
+            twig_world_matrix = twig.matrix_world.copy()
+            twig.parent = secondary
+            twig.matrix_world = twig_world_matrix
+            twig["紀念掛點禁用"] = True
+
+
+def floating_island(
+    name: str,
+    location: tuple[float, float, float],
+    radius: tuple[float, float],
+    depth: float,
+    grass_material: bpy.types.Material,
+    rock_material: bpy.types.Material,
+    target: bpy.types.Collection,
+    parent: bpy.types.Object,
+    *,
+    seed: int,
+    segments: int = 28,
+) -> bpy.types.Object:
+    """Create a game-ready floating island with a grassy crown and tapered rock keel."""
+    island_random = random.Random(seed)
+    vertices: list[tuple[float, float, float]] = [(0.0, 0.0, 0.18)]
+    rings: list[list[int]] = []
+    ring_material_indices: list[int] = []
+    grass_material_index = 0
+    rock_material_index = 1
+    ring_specs = (
+        (0.28, 0.16, grass_material_index),
+        (0.52, 0.09, grass_material_index),
+        (0.66, -0.12, grass_material_index),
+        # A sloped rocky transition, rather than a 24 cm vertical riser in
+        # only 1% of the island radius, lets the stream follow the ground.
+        (0.73, -0.33, rock_material_index),
+        (0.82, -0.38, grass_material_index),
+        (0.95, -0.50, grass_material_index),
+        (1.00, -0.70, rock_material_index),
+        (0.94, -1.15, rock_material_index),
+        (0.76, -depth * 0.58, rock_material_index),
+        (0.48, -depth * 0.86, rock_material_index),
+        (0.14, -depth, rock_material_index),
+    )
+    edge_noise = [island_random.uniform(0.86, 1.13) for _ in range(segments)]
+    for ring_index, (scale, z, material_index) in enumerate(ring_specs):
+        ring: list[int] = []
+        for index in range(segments):
+            angle = math.tau * index / segments
+            # Preserve the two southern river mouths while shaping broad
+            # headlands and an elevated northern ridge, not concentric disks.
+            north = max(0.0, min(1.0, (math.sin(angle) + .82) / 1.15))
+            coast = 1 + north * (.19 * math.sin(angle * 2 + .3)
+                                 + .13 * math.cos(angle * 3 - .8))
+            if material_index == grass_material_index:
+                noise = 1.0 + (edge_noise[index] - 1.0) * (0.35 + ring_index * 0.10)
+            else:
+                noise = edge_noise[index] * island_random.uniform(0.91, 1.07)
+            surface_rise = 0.0
+            if material_index == grass_material_index:
+                surface_rise = 0.055 * math.sin(angle * 3.0 + seed * 0.01)
+                surface_rise += north * scale * scale * (.62 + .20 * math.sin(angle * 3 + .5))
+            else:
+                surface_rise = .40 * math.sin(angle * 3.0 + ring_index*.18)
+                surface_rise += .22 * math.sin(angle*7.0 - ring_index*.35)
+                # Keep the river lip continuous; deepen the irregular strata
+                # below the lip rather than lifting isolated creek corners.
+                surface_rise *= min(1.0, max(0.0, (ring_index-6)/3))
+                surface_rise += north * scale * scale * (.62 + .20 * math.sin(angle * 3 + .5))
+            keel = max(0, (ring_index - 6) / 4)
+            vertices.append(
                 (
-                    math.cos(angle) * radial,
-                    math.sin(angle) * radial * 0.72,
-                    vertical,
+                    math.cos(angle) * radius[0] * scale * noise * coast + keel * keel * .58,
+                    math.sin(angle) * radius[1] * scale * noise * coast + keel * keel * .28,
+                    z + surface_rise + island_random.uniform(-0.018, 0.018),
                 )
             )
-        )
-    center = cluster.location.copy()
-    for leaf_index, direction in enumerate(directions, start=1):
-        jitter = Vector(
-            (
-                random.uniform(-0.06, 0.06),
-                random.uniform(-0.04, 0.04),
-                random.uniform(-0.05, 0.05),
+            ring.append(len(vertices) - 1)
+        rings.append(ring)
+        ring_material_indices.append(material_index)
+
+    faces: list[tuple[int, ...]] = []
+    material_indices: list[int] = []
+    for index in range(segments):
+        faces.append((0, rings[0][index], rings[0][(index + 1) % segments]))
+        material_indices.append(0)
+    for ring_index, (upper_ring, lower_ring) in enumerate(zip(rings, rings[1:])):
+        for index in range(segments):
+            faces.append(
+                (
+                    upper_ring[index],
+                    lower_ring[index],
+                    lower_ring[(index + 1) % segments],
+                    upper_ring[(index + 1) % segments],
+                )
             )
-        )
-        position = center + Vector(
-            (
-                direction.x * cluster.scale.x,
-                direction.y,
-                direction.z * cluster.scale.z,
-            )
-        ) * 0.90 + jitter
-        rotation = direction.to_track_quat("Z", "Y").to_euler()
-        rotation.rotate_axis("Z", random.uniform(-0.55, 0.55))
-        leaf_blade(
-            f"{layer_name}葉片_{index:02d}_{leaf_index:02d}",
-            position,
-            tuple(rotation),
-            (
-                random.uniform(0.62, 0.86),
-                random.uniform(0.62, 0.88),
-                random.uniform(0.58, 0.78),
-            ),
-            leaf_materials[(index + leaf_index) % len(leaf_materials)],
-            target,
-            cluster,
-        )
+            material_indices.append(ring_material_indices[ring_index + 1])
+    faces.append(tuple(reversed(rings[-1])))
+    material_indices.append(1)
+
+    data = bpy.data.meshes.new(name)
+    data.from_pydata(vertices, [], faces)
+    data.materials.append(grass_material)
+    data.materials.append(rock_material)
+    for polygon, material_index in zip(data.polygons, material_indices, strict=True):
+        polygon.material_index = material_index
+        polygon.use_smooth = material_index == 1
+    data.update()
+
+    island = bpy.data.objects.new(name, data)
+    island.location = location
+    island.parent = parent
+    target.objects.link(island)
+    return island
 
 
-def build_tree() -> bpy.types.Object:
+def waterfall_ribbon(
+    name: str,
+    location: tuple[float, float, float],
+    width: float,
+    height: float,
+    water_material: bpy.types.Material,
+    target: bpy.types.Collection,
+    parent: bpy.types.Object,
+    *,
+    terrain: BVHTree | None = None,
+) -> bpy.types.Object:
+    # The first section lies on the island, then curls over the lip. A dense
+    # but bounded grid gives the silhouette real depth from oblique views.
+    rows, columns = 32, 8
+    vertices: list[tuple[float, float, float]] = []
+    for row in range(rows + 1):
+        t = row / rows
+        falling = max(0, (t - .18) / .82)
+        forward = .60 * (1 - min(1, t / .18)) - .30 * math.sqrt(falling)
+        z = .15 * (1 - min(1, t / .18)) - height * falling
+        width_scale = 1 - .18 * math.sin(falling * math.pi) + .28 * falling * falling
+        for col in range(columns + 1):
+            u = col / columns
+            cross = (u - .5) * width * width_scale
+            ripple = math.sin(u * 17 + t * 9) * .015 * falling
+            vertex = Vector((cross, forward + ripple, z + math.sin(u * math.pi) * .025))
+            if terrain is not None and t < .18:
+                world = vertex + Vector(location)
+                hit, _, _, _ = terrain.ray_cast((world.x, world.y, 3), (0, 0, -1), 10)
+                if hit is not None:
+                    vertex.z = hit.z + .06 - location[2]
+            vertices.append(tuple(vertex))
+    faces = []
+    for row in range(rows):
+        for col in range(columns):
+            a = row * (columns + 1) + col
+            faces.append((a, a + 1, a + columns + 2, a + columns + 1))
+    data = bpy.data.meshes.new(name)
+    data.from_pydata(vertices, [], faces)
+    data.materials.append(water_material)
+    uv = data.uv_layers.new(name="水流座標")
+    for polygon in data.polygons:
+        polygon.use_smooth = True
+        for loop_index in polygon.loop_indices:
+            vertex_index = data.loops[loop_index].vertex_index
+            uv.data[loop_index].uv = (vertex_index % (columns + 1) / columns,
+                                      vertex_index // (columns + 1) / rows)
+    data.update()
+    waterfall = bpy.data.objects.new(name, data)
+    waterfall.location = location
+    waterfall.parent = parent
+    target.objects.link(waterfall)
+    return waterfall
+
+
+def island_path(
+    name: str,
+    points: tuple[tuple[float, float, float], ...],
+    width: float,
+    path_material: bpy.types.Material,
+    target: bpy.types.Collection,
+    parent: bpy.types.Object,
+    *,
+    terrain: BVHTree | None = None,
+) -> bpy.types.Object:
+    """Create a slightly uneven ground ribbon that gives the island human scale."""
+    if terrain is not None:
+        # Sample the actual triangulated ground instead of guessing five Z values.
+        # The extra transverse samples also follow the bank rather than cutting
+        # a single wide quad through the grass at terrace boundaries.
+        sampled = []
+        for start, end in zip(points, points[1:]):
+            count = max(1, math.ceil((Vector(end) - Vector(start)).length / .035))
+            sampled.extend(tuple(Vector(start).lerp(Vector(end), step / count))
+                           for step in range(count))
+        points = [*sampled, points[-1]]
+    columns = 4 if terrain is not None else 1
+    vertices: list[tuple[float, float, float]] = []
+    for index, point in enumerate(points):
+        current = Vector(point)
+        previous = Vector(points[max(0, index - 1)])
+        following = Vector(points[min(len(points) - 1, index + 1)])
+        tangent = following - previous
+        lateral = Vector((-tangent.y, tangent.x, 0.0)).normalized()
+        progress = index / max(1, len(points) - 1)
+        local_width = (width * (.70 + .30 * progress) if terrain is not None
+                       else width * (0.82 + 0.18 * math.sin(index * 1.7 + 0.4)))
+        for column in range(columns + 1):
+            vertex = current + lateral * local_width * (column / columns - .5)
+            if terrain is not None:
+                hit, _, _, _ = terrain.ray_cast((vertex.x, vertex.y, 3), (0, 0, -1), 10)
+                if hit is None:
+                    raise RuntimeError(f"{name}溪流離開地表：{tuple(vertex)}")
+                vertex.z = hit.z + .06
+            vertices.append(tuple(vertex))
+    if terrain is not None:
+        # Lift only triangles that actually cross the terrain. The old
+        # upstream/adjacent-column maximum raised entire strips into steps.
+        grounded = [Vector(vertex) for vertex in vertices]
+        lifts = [0.0] * len(vertices)
+        for row in range(len(points) - 1):
+            for column in range(columns):
+                a = row * (columns + 1) + column
+                b, c, d = a + 1, a + columns + 2, a + columns + 1
+                # Cover either diagonal used when exporting a non-planar quad.
+                for indices in ((a,b,c), (a,c,d), (a,b,d), (b,c,d)):
+                    for weights in ((1/3,1/3,1/3), (.5,.25,.25), (.25,.5,.25), (.25,.25,.5)):
+                        sample = sum((grounded[i] * w for i,w in zip(indices,weights)), Vector())
+                        hit, _, _, _ = terrain.ray_cast((sample.x,sample.y,3), (0,0,-1), 10)
+                        if hit is not None:
+                            deficit = max(0, hit.z + .035 - sample.z)
+                            for i in indices:
+                                lifts[i] = max(lifts[i], deficit)
+        vertices = [(point.x, point.y, point.z + lift) for point,lift in zip(grounded,lifts)]
+    faces = [
+        (index * (columns + 1) + column,
+         index * (columns + 1) + column + 1,
+         (index + 1) * (columns + 1) + column + 1,
+         (index + 1) * (columns + 1) + column)
+        for index in range(len(points) - 1)
+        for column in range(columns)
+    ]
+    # Keep the water and its reversed-winding bed on the same diagonal.
+    # Independently tessellated non-planar quads can intersect despite each
+    # corresponding bed vertex being below the water vertex.
+    if name.startswith("溪流_"):
+        faces = [(face[0], face[1], face[2]) for face in faces] + [
+            (face[0], face[2], face[3]) for face in faces]
+    data = bpy.data.meshes.new(name)
+    data.from_pydata(vertices, [], faces)
+    data.materials.append(path_material)
+    if name.startswith("溪流_"):
+        uv = data.uv_layers.new(name="溪流座標")
+        for polygon in data.polygons:
+            for loop_index in polygon.loop_indices:
+                vertex_index = data.loops[loop_index].vertex_index
+                uv.data[loop_index].uv = ((vertex_index % (columns + 1)) / columns,
+                    (vertex_index // (columns + 1)) / max(1, len(points) - 1) * .18)
+    data.update()
+    path = bpy.data.objects.new(name, data)
+    path.parent = parent
+    target.objects.link(path)
+    return path
+
+
+def add_stream_banks(stream: bpy.types.Object, terrain: BVHTree,
+                     bank_material: bpy.types.Material,
+                     target: bpy.types.Collection, parent: bpy.types.Object) -> None:
+    """Build a submerged bed and two irregular soil-to-grass banks per stream."""
+    rows = len(stream.data.vertices) // 5
+    suffix = stream.name.removeprefix("溪流_")
+    bed = stream.copy()
+    bed.data = bpy.data.meshes.new(f"河床_{suffix}")
+    bed.data.from_pydata(
+        [(vertex.co.x, vertex.co.y, vertex.co.z - .035) for vertex in stream.data.vertices],
+        [], [tuple(reversed(face.vertices)) for face in stream.data.polygons],
+    )
+    bed.name = f"河床_{suffix}"
+    bed.data.materials.append(bank_material)
+    bed_colors = bed.data.color_attributes.new(name="溪岸混合", type="FLOAT_COLOR", domain="POINT")
+    for color in bed_colors.data:
+        color.color = (1, 0, 0, 1)
+    target.objects.link(bed)
+    for side, edge_column in enumerate((0, 4)):
+        vertices, weights = [], []
+        for row in range(rows):
+            edge = stream.data.vertices[row * 5 + edge_column].co.copy()
+            center = stream.data.vertices[row * 5 + 2].co
+            outward = Vector((edge.x - center.x, edge.y - center.y, 0)).normalized()
+            progress = row / (rows - 1)
+            spread = .20 + .055 * math.sin(progress * 17 + side * 2.3)
+            for column, offset in enumerate((-.025, .075, spread)):
+                point = edge + outward * offset
+                hit, _, _, _ = terrain.ray_cast((point.x, point.y, 3), (0, 0, -1), 10)
+                if hit is None:
+                    raise RuntimeError(f"溪岸超出主島：{suffix}")
+                if column == 0:
+                    point.z = edge.z - .022
+                elif column == 1:
+                    point.z = max(hit.z + .035, edge.z + .022)
+                else:
+                    point.z = hit.z + .02
+                vertices.append(tuple(point))
+                weights.append((1, .72, 0)[column])
+        faces = [(row * 3 + col, row * 3 + col + 1,
+                  (row + 1) * 3 + col + 1, (row + 1) * 3 + col)
+                 for row in range(rows - 1) for col in range(2)]
+        # Each bank runs in the opposite winding around the stream centerline.
+        if side == 1:
+            faces = [tuple(reversed(face)) for face in faces]
+        mesh = bpy.data.meshes.new(f"溪岸_{suffix}_{side}")
+        mesh.from_pydata(vertices, [], faces)
+        mesh.materials.append(bank_material)
+        colors = mesh.color_attributes.new(name="溪岸混合", type="FLOAT_COLOR", domain="POINT")
+        for color, weight in zip(colors.data, weights, strict=True):
+            color.color = (weight, 0, 0, 1)
+        for face in mesh.polygons:
+            face.use_smooth = True
+        mesh.update()
+        bank = bpy.data.objects.new(mesh.name, mesh)
+        bank.parent = parent
+        target.objects.link(bank)
+
+
+def add_central_island_details(
+    rock_material: bpy.types.Material,
+    path_material: bpy.types.Material,
+    target: bpy.types.Collection,
+    parent: bpy.types.Object,
+    terrain: BVHTree,
+) -> None:
+    island_path(
+        "中央島_同行步道",
+        (
+            (-0.48, -1.92, -0.49),
+            (-0.20, -1.48, -0.15),
+            (0.34, -1.02, -0.065),
+            (0.18, -0.58, -0.01),
+            (-0.12, -0.18, 0.012),
+        ),
+        0.12,
+        path_material,
+        target,
+        parent,
+        terrain=terrain,
+    )
+    # Five composed cliff markers frame the tree and waterfalls without the
+    # evenly spaced "test rocks" that made the old island look procedural.
+    rock_specs = (
+        ((-2.55, 0.22, -0.32), (0.64, 0.36, 0.62), 0.22),
+        ((-2.04, 1.30, -0.38), (0.38, 0.30, 0.46), -0.18),
+        ((2.30, 0.92, -0.35), (0.68, 0.35, 0.54), -0.30),
+        ((2.44, -0.62, -0.32), (0.44, 0.28, 0.43), 0.16),
+        ((-2.26, -1.42, -0.43), (0.36, 0.25, 0.25), -0.12),
+    )
+    for index, (location, scale, rotation) in enumerate(rock_specs, start=1):
+        bpy.ops.mesh.primitive_ico_sphere_add(
+            subdivisions=2,
+            radius=1,
+            location=location,
+            rotation=(0.0, 0.0, rotation),
+        )
+        rock = bpy.context.object
+        rock.name = f"中央島_岩塊_{index:02d}"
+        rock.scale = scale
+        for vertex_index, vertex in enumerate(rock.data.vertices):
+            direction = vertex.co.normalized()
+            vertex.co *= 1.0 + 0.09 * math.sin(
+                direction.x * 8.0 + direction.z * 5.0 + index * 0.77 + vertex_index * 0.03
+            )
+        for polygon in rock.data.polygons:
+            polygon.use_smooth = True
+        rock.data.materials.append(rock_material)
+        move_to_collection(rock, target)
+        rock.parent = parent
+
+
+def build_tree(foliage_texture_path: Path) -> bpy.types.Object:
     random.seed(SEED)
-    trunk_material = material("樹皮暖棕", (0.24, 0.095, 0.035, 1))
-    trunk_light = material("樹皮光面", (0.42, 0.19, 0.07, 1))
-    leaf_dark = material("深林葉", (0.025, 0.22, 0.12, 1))
-    leaf_mid = material("同行葉", (0.08, 0.42, 0.22, 1))
-    leaf_light = material("新芽葉", (0.30, 0.68, 0.30, 1))
-    leaf_warm = material("日照葉", (0.22, 0.58, 0.22, 1))
-    ground_material = material("暖土", (0.25, 0.14, 0.07, 1))
+    trunk_material = bark_material(
+        "樹皮深棕",
+        (0.105, 0.030, 0.012, 1),
+        (0.40, 0.14, 0.035, 1),
+    )
+    trunk_mid = bark_material(
+        "樹皮暖棕",
+        (0.16, 0.052, 0.018, 1),
+        (0.48, 0.20, 0.055, 1),
+    )
+    trunk_light = material("樹皮日照面", (0.50, 0.24, 0.075, 1), roughness=0.70)
+    foliage_material = textured_foliage_material(foliage_texture_path)
 
     root_collection = collection("生命樹_主體")
     branch_collection = collection("生命樹_主枝")
     leaf_back_collection = collection("生命樹_後景葉冠")
     leaf_front_collection = collection("生命樹_前景葉冠")
     socket_collection = collection("生命樹_紀念掛點")
-    ground_collection = collection("生命樹_地表")
+    root_detail_collection = collection("生命樹_盤根與樹皮")
 
     root = bpy.data.objects.new("生命樹_根節點", None)
     root_collection.objects.link(root)
-    root["資產版本"] = 1
+    root["資產版本"] = 2
     root["生長階段數"] = 6
     root["紀念掛點數"] = 12
 
@@ -255,127 +791,187 @@ def build_tree() -> bpy.types.Object:
         "主幹",
         [
             (0.0, 0.0, 0.05),
-            (-0.08, 0.02, 0.95),
-            (0.10, -0.02, 2.0),
-            (-0.04, 0.04, 3.05),
-            (0.10, 0.02, 4.05),
-            (0.02, 0.0, 4.7),
+            (0.42, -0.04, 0.78),
+            (0.72, 0.04, 1.45),
+            (0.54, 0.10, 2.10),
+            (-0.06, 0.02, 2.75),
+            (-0.45, 0.0, 3.35),
+            (-0.12, 0.02, 4.30),
         ],
-        [1.0, 0.92, 0.78, 0.60, 0.38, 0.12],
+        [1.45, 1.15, 0.99, 0.85, 0.62, 0.36, 0.08],
         trunk_material,
         root_collection,
-        bevel=0.42,
+            bevel=0.58,
     )
     trunk.parent = root
 
-    # A second slimmer highlight makes the trunk read as painted form instead
-    # of one uniformly shaded tube on small phone screens.
-    highlight = curve_branch(
-        "主幹_暖光紋理",
-        [
-            (-0.24, -0.30, 0.12),
-            (-0.29, -0.30, 1.1),
-            (-0.10, -0.29, 2.2),
-            (-0.18, -0.24, 3.15),
-        ],
-        [0.45, 0.34, 0.22, 0.05],
-        trunk_light,
-        root_collection,
-        bevel=0.11,
-    )
-    highlight.parent = root
+    # Sculpt the authored sweep into broad twisting lobes. These change the
+    # silhouette and grazing light, rather than painting noisy bark on a tube.
+    bpy.ops.object.select_all(action="DESELECT")
+    trunk.select_set(True)
+    bpy.context.view_layer.objects.active = trunk
+    bpy.ops.object.convert(target="MESH")
+    centerline = [(0, 0, .05), (.42, -.04, .78), (.72, .04, 1.45),
+                  (.54, .10, 2.10), (-.06, .02, 2.75), (-.45, 0, 3.35),
+                  (-.12, .02, 4.30)]
+    for vertex in trunk.data.vertices:
+        world = vertex.co + trunk.location
+        segment = next((i for i in range(6) if world.z <= centerline[i + 1][2]), 5)
+        a, b = Vector(centerline[segment]), Vector(centerline[segment + 1])
+        t = max(0, min(1, (world.z - a.z) / (b.z - a.z)))
+        center = a.lerp(b, t)
+        radial = Vector((world.x - center.x, world.y - center.y, 0))
+        angle = math.atan2(radial.y, radial.x)
+        amplitude = .09 + .12 * max(0, 1 - world.z / 1.6)
+        flute = math.sin(angle * 5 + world.z * 1.15) * amplitude
+        flute += .035 * math.sin(angle * 9 - world.z * .72)
+        vertex.co += radial * flute
+    for polygon in trunk.data.polygons:
+        polygon.use_smooth = True
+    trunk.select_set(False)
+
+    bark_ridges = ()
+    for ridge_name, ridge_points, ridge_material in bark_ridges:
+        ridge = curve_branch(
+            ridge_name,
+            ridge_points,
+            [0.50, 0.36, 0.20, 0.04],
+            ridge_material,
+            root_detail_collection,
+            bevel=0.095,
+        )
+        ridge.parent = root
 
     branch_specs = [
-        ((-0.02, 0.0, 1.45), (-1.35, 0.06, 2.00), (-2.30, 0.08, 2.52)),
-        ((0.05, 0.0, 1.72), (1.25, -0.02, 2.20), (2.30, 0.12, 2.65)),
-        ((0.06, 0.0, 2.15), (-1.20, -0.14, 2.72), (-2.08, -0.18, 3.25)),
-        ((0.04, 0.0, 2.45), (1.12, 0.16, 3.00), (2.05, 0.20, 3.38)),
-        ((-0.02, 0.0, 2.85), (-0.92, 0.22, 3.46), (-1.62, 0.26, 3.95)),
-        ((0.02, 0.0, 3.10), (0.92, -0.18, 3.65), (1.62, -0.20, 4.10)),
-        ((0.05, 0.0, 3.48), (-0.72, -0.08, 4.05), (-1.16, -0.04, 4.52)),
-        ((0.06, 0.0, 3.72), (0.70, 0.12, 4.22), (1.08, 0.14, 4.66)),
+        # The first three limbs own the silhouette. The remaining five support
+        # them instead of repeating an evenly spaced left/right staircase.
+        ((.62, .01, 1.75), (-.45, -.10, 2.80), (-3.75, -.05, 3.30)),
+        ((.42, .02, 2.25), (1.95, -.10, 3.15), (3.80, -.25, 3.35)),
+        ((.08, .08, 2.60), (-1.10, .65, 3.32), (-2.85, 1.10, 4.05)),
+        ((.10, .06, 2.72), (1.25, .75, 3.55), (2.60, 1.20, 4.20)),
+        ((-.30, -.02, 3.10), (-1.25, -.70, 3.82), (-2.05, -1.10, 4.70)),
+        ((-.25, .04, 3.30), (.72, -.65, 3.98), (1.75, -1.05, 4.65)),
+        ((-.32, .08, 3.48), (-.80, .34, 4.35), (-.95, .42, 5.20)),
+        ((-.25, .03, 3.65), (.40, .17, 4.42), (.75, .22, 5.08)),
     ]
     branch_ends: list[Vector] = []
     for index, points in enumerate(branch_specs, start=1):
         branch = curve_branch(
             f"主枝_{index:02d}",
             list(points),
-            [0.82, 0.45, 0.08],
+            [1.12 if index < 4 else 0.88, 0.48, 0.08],
             trunk_material,
             branch_collection,
-            bevel=max(0.11, 0.20 - index * 0.009),
+            bevel=max(0.14, 0.32 - index * 0.018),
         )
         branch.parent = root
         branch["風動相位"] = round((index * 0.17) % 1, 3)
         branch["風動幅度"] = round(0.35 + index * 0.035, 3)
+        add_branch_hierarchy(
+            branch,
+            index,
+            points,
+            trunk_material,
+            branch_collection,
+        )
         branch_ends.append(Vector(points[-1]))
 
     # Roots anchor the silhouette and keep the tree from looking like a toy
     # planted on top of a disk.
-    for index, angle in enumerate((0.15, 1.4, 2.7, 3.8, 5.15), start=1):
-        end = (math.cos(angle) * 1.55, math.sin(angle) * 0.68, -0.06)
+    major_roots = (
+        ((-1.82, -0.54, -0.08), (-0.92, -0.22, 0.04)),
+        ((1.48, -0.68, -0.09), (0.72, -0.32, 0.03)),
+        ((0.98, 0.82, -0.10), (0.34, 0.46, 0.02)),
+        ((-1.28, 0.52, -0.07), (-0.58, 0.34, 0.04)),
+        ((0.30, -0.92, -0.05), (-0.08, -0.46, 0.03)),
+    )
+    for index, (end, middle) in enumerate(major_roots, start=1):
+        buried_end = (end[0], end[1], -0.18)
         root_branch = curve_branch(
             f"樹根_{index:02d}",
-            [(0.0, 0.0, 0.12), (end[0] * 0.55, end[1] * 0.55, 0.02), end],
-            [0.72, 0.34, 0.04],
+            [(-0.16, 0.0, 0.58 if index < 3 else 0.34), middle, buried_end],
+            [1.35 if index < 3 else 0.80, 0.47, 0.14],
             trunk_material,
-            ground_collection,
-            bevel=0.18,
+            root_detail_collection,
+            bevel=0.23 if index < 3 else 0.18,
+        )
+        root_branch.parent = root
+
+    minor_roots = (
+        ((-0.58, -0.74, -0.04), (-0.34, -0.31, 0.04)),
+        ((1.05, 0.18, -0.04), (0.48, 0.08, 0.05)),
+        ((-0.72, 0.32, -0.03), (-0.32, 0.16, 0.05)),
+        ((0.58, -0.52, -0.04), (0.20, -0.26, 0.05)),
+        ((0.12, 0.64, -0.03), (0.00, 0.30, 0.05)),
+    )
+    for index, (end, middle) in enumerate(minor_roots, start=6):
+        buried_end = (end[0], end[1], -0.14)
+        root_branch = curve_branch(
+            f"樹根_{index:02d}",
+            [(-0.06, 0.0, 0.11), middle, buried_end],
+            [0.54, 0.26, 0.10],
+            trunk_mid,
+            root_detail_collection,
+            bevel=0.14,
         )
         root_branch.parent = root
 
     back_centers = [
-        (-1.95, 0.24, 2.76),
-        (1.95, 0.22, 2.93),
-        (-1.58, 0.36, 3.70),
-        (1.55, 0.35, 3.78),
-        (-0.70, 0.42, 4.43),
-        (0.70, 0.40, 4.52),
-        (0.0, 0.46, 4.84),
-        (0.0, 0.50, 3.70),
+        (-2.95, .45, 3.90),
+        (-1.90, 1.05, 4.55),
+        (2.90, .40, 3.85),
+        (1.85, 1.12, 4.65),
+        (-.85, 1.0, 5.28),
+        (.35, .60, 5.16),
+        (1.10, .20, 4.85),
+        (-.12, 1.50, 4.60),
     ]
+    back_scales = ((1.82,1.50,1.55), (1.72,1.48,1.65), (1.90,1.35,1.45), (1.62,1.55,1.50),
+                   (1.60,1.50,1.55), (1.68,1.55,1.80), (1.50,1.55,1.45), (1.52,1.70,1.45))
     for index, center in enumerate(back_centers, start=1):
         cluster = leaf_cluster(
             f"後景葉簇_{index:02d}",
-            center,
-            (0.78 + (index % 3) * 0.10, 0.56, 0.60 + (index % 2) * 0.11),
-            leaf_dark if index % 3 else leaf_mid,
+            (center[0], center[1] + .30, center[2]),
+            back_scales[index - 1],
+            "深林綠" if index % 3 else "森林綠",
             leaf_back_collection,
         )
         cluster.parent = root
         cluster["風動相位"] = round((index * 0.13) % 1, 3)
-        add_cluster_edge_leaves(
+        add_solid_canopy_geometry(
             cluster,
             index,
-            (leaf_dark, leaf_mid, leaf_light),
+            foliage_material,
             leaf_back_collection,
             "後景",
         )
 
     front_centers = [
-        (-2.18, -0.18, 2.62),
-        (2.14, -0.22, 2.82),
-        (-1.66, -0.35, 3.35),
-        (1.68, -0.30, 3.52),
-        (-0.80, -0.42, 4.15),
-        (0.86, -0.39, 4.24),
-        (0.0, -0.46, 4.62),
-        (0.05, -0.48, 3.62),
+        (-3.10, -.32, 3.52),
+        (-1.80, -1.02, 3.92),
+        (3.15, -.36, 3.55),
+        (1.82, -1.08, 4.05),
+        (-1.30, -.72, 4.75),
+        (-.40, -.54, 5.15),
+        (.90, -.70, 4.76),
+        (.12, -1.28, 3.90),
     ]
+    front_scales = ((1.70,1.25,1.40), (1.95,1.50,1.55), (1.70,1.32,1.35), (1.85,1.5,1.60),
+                    (1.75,1.45,1.70), (1.72,1.50,1.70), (1.55,1.5,1.40), (1.65,1.5,1.40))
     for index, center in enumerate(front_centers, start=1):
         cluster = leaf_cluster(
             f"前景葉簇_{index:02d}",
-            center,
-            (0.72 + (index % 2) * 0.14, 0.48, 0.56 + (index % 3) * 0.09),
-            leaf_light if index in (5, 7) else leaf_mid,
+            (center[0], center[1] - .26, center[2]),
+            front_scales[index - 1],
+            "暖日森林綠" if index in (5, 7) else "森林綠",
             leaf_front_collection,
         )
         cluster.parent = root
         cluster["風動相位"] = round((0.41 + index * 0.11) % 1, 3)
-        add_cluster_edge_leaves(
+        add_solid_canopy_geometry(
             cluster,
             index,
-            (leaf_mid, leaf_light, leaf_warm),
+            foliage_material,
             leaf_front_collection,
             "前景",
         )
@@ -403,55 +999,354 @@ def build_tree() -> bpy.types.Object:
         socket["掛點序號"] = index - 1
         socket_collection.objects.link(socket)
 
-    bpy.ops.mesh.primitive_cylinder_add(vertices=64, radius=2.6, depth=0.16, location=(0, 0, -0.15))
-    ground = bpy.context.object
-    ground.name = "同行土地"
-    ground.scale.y = 0.62
-    ground.data.materials.append(ground_material)
-    move_to_collection(ground, ground_collection)
-    ground.parent = root
-
+    # Fuse the fixed root collar into the trunk. Animated branches and named
+    # keepsake anchors stay separate; their data interface is unchanged.
+    fixed_roots = [obj for obj in root_detail_collection.objects if obj.name.startswith("樹根_")]
+    bpy.ops.object.select_all(action="DESELECT")
+    for fixed_root in fixed_roots:
+        fixed_root.select_set(True)
+        bpy.context.view_layer.objects.active = fixed_root
+        bpy.ops.object.convert(target="MESH")
+        fixed_root.select_set(False)
+    for obj in [trunk, *fixed_roots]:
+        obj.select_set(True)
+    bpy.context.view_layer.objects.active = trunk
+    bpy.ops.object.join()
+    union = trunk.modifiers.new("主根與樹幹連續表面", "REMESH")
+    union.mode = "VOXEL"
+    union.voxel_size = 0.045
+    union.use_smooth_shade = True
+    bpy.ops.object.modifier_apply(modifier=union.name)
+    soften = trunk.modifiers.new("根頸過渡雕整", "SMOOTH")
+    soften.factor = 0.75
+    soften.iterations = 4
+    bpy.ops.object.modifier_apply(modifier=soften.name)
+    simplify = trunk.modifiers.new("固定主體手機面數", "DECIMATE")
+    simplify.ratio = min(1.0, 11000 / max(1, len(trunk.data.polygons) * 2))
+    bpy.ops.object.modifier_apply(modifier=simplify.name)
+    for vertex in trunk.data.vertices:
+        if vertex.co.z < 0.15:
+            vertex.co.z -= 0.12 * (1 - max(0, vertex.co.z) / 0.15)
+    for polygon in trunk.data.polygons:
+        polygon.use_smooth = True
+    # Voxel union removes the old curve UVs; unwrap the fused surface before
+    # export so Unity's reviewed bark texture remains usable.
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.uv.smart_project(angle_limit=1.15, island_margin=0.025)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    trunk.select_set(False)
+    for index, points in enumerate([
+        [(-.20, 0, .36), (-1.1, .25, .03), (-2.5, .65, -.45), (-3.2, .72, -1.2), (-2.9, .72, -2.5)],
+        [(.1, 0, .28), (1.15, .52, -.04), (2.45, 1.0, -.56), (3.0, 1.15, -1.3), (2.7, 1.2, -2.35)],
+        [(-.1, .2, .20), (-.3, 1.1, -.04), (.1, 2.1, -.58), (.35, 2.55, -1.3), (.75, 2.5, -2.7)],
+    ]):
+        points = [(x * 1.20, y * 1.20, z) for x, y, z in points]
+        hanging_root = curve_branch(f"垂根_{index:02d}", points, [1.45, 1, .65, .36, .03],
+                                    trunk_material, root_detail_collection, bevel=.21)
+        hanging_root.parent = root
+    # The principal front root is readable between the two falls, with finer
+    # tributaries rather than another ring of evenly sized spokes.
+    for index, (x, width) in enumerate(((.08, .27), (.48, .11), (-.34, .08)), start=3):
+        points = [(x-.15, -.10, .70), (x+.12, -.82, .02),
+                  (x+.30, -1.82, -.28), (x+.12, -2.76, -.95),
+                  (x-.36, -2.92, -2.02), (x-.55, -2.57, -3.20)]
+        hanging_root = curve_branch(f"垂根_{index:02d}", points,
+            [1.05, .92, .72, .46, .22, .015], trunk_material, root_detail_collection, bevel=width)
+        hanging_root.parent = root
     return root
+
+
+def add_island_woodland(terrain: BVHTree, target: bpy.types.Collection,
+                       parent: bpy.types.Object) -> None:
+    """A small-scale forest gives the central tree a visible size reference.
+
+    All crowns share one mesh/material; no hundreds of per-tree draw objects.
+    The stream corridors and root clearing remain open.
+    """
+    rng = random.Random(9137)
+    vertices, faces, colours = [], [], []
+    stream_corridors = []
+    for suffix in ("中央左", "中央右"):
+        water = bpy.data.objects[f"溪流_{suffix}"].data.vertices
+        for row in range(len(water) // 5):
+            center = water[row * 5 + 2].co
+            half_width = (water[row * 5].co.xy - center.xy).length
+            stream_corridors.append((center.x, center.y, half_width + .24))
+    trees = 0
+    for attempt in range(600):
+        angle = rng.uniform(0, math.tau)
+        radial = rng.uniform(.48, .94)
+        north = max(0.0, min(1.0, (math.sin(angle) + .82) / 1.15))
+        coast = 1 + north * (.19 * math.sin(angle * 2 + .3) + .13 * math.cos(angle * 3 - .8))
+        x, y = math.cos(angle) * 3.65 * radial * coast, math.sin(angle) * 2.45 * radial * coast
+        if any((x - sx) ** 2 + (y - sy) ** 2 < clearance ** 2
+               for sx, sy, clearance in stream_corridors):
+            continue
+        if abs(x) < .75 and y < .25:
+            continue
+        hit, _, _, _ = terrain.ray_cast((x, y, 3), (0, 0, -1), 10)
+        if hit is None or hit.z < -.83:
+            continue
+        size = rng.uniform(.072, .152)
+        green = rng.choice(((.13,.30,.09,1), (.24,.42,.11,1),
+                            (.38,.53,.16,1), (.51,.57,.22,1)))
+        base = len(vertices)
+        for height, radius in ((0, size*.14), (size*1.9, size*.055)):
+            for side in range(6):
+                turn=side*math.tau/6
+                vertices.append(tuple(hit+Vector((math.cos(turn)*radius,
+                    math.sin(turn)*radius,height))))
+                colours.append((.16,.08,.025,1))
+        for side in range(6):
+            nxt=(side+1)%6
+            faces.extend(((base+side,base+nxt,base+6+nxt),
+                          (base+side,base+6+nxt,base+6+side)))
+        for leaf in range(70):
+            z = 1 - 2 * (leaf+.5) / 70
+            angle = leaf * 2.39996
+            radial = math.sqrt(1-z*z)
+            direction = Vector((radial*math.cos(angle), radial*math.sin(angle), z))
+            center = hit + Vector((direction.x*size, direction.y*size,
+                                   size*(1.8 + direction.z*.90)))
+            orientation = (direction*.5 + Vector((0,0,.8))).to_track_quat("Z", "Y")
+            length = size*rng.uniform(.20,.34)
+            base = len(vertices)
+            for point in ((0,-length,0), (length*.52,0,0), (0,length,0),
+                          (-length*.52,0,0), (0,0,length*.2)):
+                vertices.append(tuple(center + orientation @ Vector(point)))
+                factor = .65 + (z+1)*.20
+                colours.append((*[value*factor for value in green[:3]], 1))
+            faces.extend((base+4, base+side, base+(side+1)%4) for side in range(4))
+        trees += 1
+        if trees >= 220:
+            break
+    data = bpy.data.meshes.new("島面林地_合併葉冠")
+    data.from_pydata(vertices, [], faces)
+    for face in data.polygons:
+        face.use_smooth = True
+    attr = data.color_attributes.new(name="葉色", type="FLOAT_COLOR", domain="POINT")
+    for slot, color in zip(attr.data, colours, strict=True):
+        slot.color = color
+    data.materials.append(bpy.data.materials["立體葉片_柔霧玉綠"])
+    obj = bpy.data.objects.new("林地_葉冠", data)
+    obj.parent = parent
+    obj["林木尺度參照數"] = trees
+    target.objects.link(obj)
+
+
+def build_floating_world() -> bpy.types.Object:
+    grass_material = material("浮島新芽草", (0.075, 0.25, 0.09, 1), roughness=0.88)
+    rock_material = material("浮島暖灰岩", (0.15, 0.13, 0.105, 1), roughness=0.95)
+    path_material = material("同行步道暖石", (0.39, 0.29, 0.17, 1), roughness=0.94)
+    bank_material = material("溪岸濕土", (0.18, 0.16, 0.105, 1), roughness=.98)
+    waterfall_material = material(
+        "瀑布微光",
+        (0.24, 0.62, 0.78, 1),
+        roughness=0.22,
+        emission=(0.16, 0.54, 0.82, 1),
+        emission_strength=0.30,
+    )
+
+    world_collection = collection("浮島世界_主體")
+    island_collection = collection("浮島世界_旅程島")
+    water_collection = collection("浮島世界_瀑布")
+    world_root = bpy.data.objects.new("浮島世界_根節點", None)
+    world_collection.objects.link(world_root)
+    world_root["世界版本"] = 1
+    world_root["三維中央島數"] = 1
+    world_root["遠景形式"] = "三維雲海與天空材質"
+
+    island = floating_island(
+        "浮島_中央生命島",
+        (0.0, 0.0, -0.18),
+        (3.8, 2.6),
+        4.10,
+        grass_material,
+        rock_material,
+        island_collection,
+        world_root,
+        seed=3101,
+        segments=48,
+    )
+    island.data.calc_loop_triangles()
+    terrain = BVHTree.FromPolygons(
+        [vertex.co + island.location for vertex in island.data.vertices],
+        [tuple(triangle.vertices) for triangle in island.data.loop_triangles],
+        all_triangles=True,
+    )
+    add_central_island_details(
+        rock_material,
+        path_material,
+        island_collection,
+        world_root,
+        terrain,
+    )
+    for name, start, bend, end, width in [
+        ("溪流_中央左", (-.70, -.60, 0), (-1.72, -.95, 0), (-1.72, -1.76, 0), .64),
+        ("溪流_中央右", (.78, -.55, 0), (1.45, -.95, 0), (1.45, -1.83, 0), .44),
+    ]:
+        # A continuous curve avoids folded bank strips at sharp polyline corners.
+        start, bend, end = Vector(start), Vector(bend), Vector(end)
+        points = [start * (1 - t) ** 2 + bend * (2 * t * (1 - t)) + end * t ** 2
+                  for t in [step / 48 for step in range(49)]]
+        points[-2].x = end.x  # Match the waterfall's cross-section at the seam.
+        stream = island_path(name, points, width, waterfall_material, water_collection, world_root,
+                             terrain=terrain)
+        add_stream_banks(stream, terrain, bank_material, island_collection, world_root)
+    waterfall_ribbon(
+        "瀑布_中央左",
+        (-1.72, -2.36, -0.67),
+        0.64,
+        3.7,
+        waterfall_material,
+        water_collection,
+        world_root,
+        terrain=terrain,
+    )
+    waterfall_ribbon(
+        "水沫內光_中央左",
+        (-1.72, -2.385, -0.67),
+        0.19,
+        3.7,
+        material(
+            "瀑布白沫",
+            (0.72, 0.90, 0.96, 1),
+            roughness=0.34,
+            emission=(0.42, 0.72, 0.88, 1),
+            emission_strength=0.18,
+        ),
+        water_collection,
+        world_root,
+    )
+    waterfall_ribbon(
+        "瀑布_中央右",
+        (1.45, -2.43, -0.67),
+        0.44,
+        3.4,
+        waterfall_material,
+        water_collection,
+        world_root,
+        terrain=terrain,
+    )
+    waterfall_ribbon(
+        "水沫內光_中央右",
+        (1.45, -2.455, -0.67),
+        0.13,
+        3.4,
+        bpy.data.materials["瀑布白沫"],
+        water_collection,
+        world_root,
+    )
+    add_island_woodland(terrain, island_collection, world_root)
+    # Widen the land and its already-grounded river system together. Do not
+    # independently stretch water endpoints away from the checked seams.
+    world_root.scale = (1.20, 1.20, 1.0)
+    return world_root
+
+
+def sculpt_cliff_roots(tree: bpy.types.Object) -> None:
+    """Fit the six authored roots to the actual island cliff instead of
+    leaving straight tapered spikes hanging clear of the rock."""
+    bpy.context.view_layer.update()
+    island=bpy.data.objects["浮島_中央生命島"]
+    island.data.calc_loop_triangles()
+    terrain=BVHTree.FromPolygons(
+        [island.matrix_world @ vertex.co for vertex in island.data.vertices],
+        [tuple(triangle.vertices) for triangle in island.data.loop_triangles], all_triangles=True)
+    angles=(2.90, .45, 1.55, -1.55, -1.31, -1.80)
+    for index, angle in enumerate(angles):
+        obj=bpy.data.objects[f"垂根_{index:02d}"]
+        # Six points provide a buttress above ground and a winding mineral-
+        # hugging curve below it; the terminal root disappears into the cliff.
+        points=[Vector((-.12,0,.72)), Vector((math.cos(angle)*1.10,math.sin(angle)*.8,.01))]
+        for step, height in enumerate((-.66,-1.45,-2.4,-3.35)):
+            turn=angle + math.sin(step*.9+index*.3)*.30
+            radial=Vector((math.cos(turn),math.sin(turn),0))
+            origin=radial*12+Vector((0,0,height))
+            hit, normal, _, _ = terrain.ray_cast(origin,-radial,20)
+            if hit is None: raise RuntimeError(f"垂根 {index} 未碰到岩壁")
+            points.append(hit+radial*(.06 if step<3 else -.07))
+        spline=obj.data.splines[0]
+        if len(spline.bezier_points)<len(points): spline.bezier_points.add(len(points)-len(spline.bezier_points))
+        radii=(1.4,1.05,.76,.47,.25,.025)
+        for point, world, radius in zip(spline.bezier_points,points,radii,strict=True):
+            point.co=world-obj.location; point.radius=radius
+            point.handle_left_type="AUTO"; point.handle_right_type="AUTO"
+        if index == 3:
+            # Two fine tributaries belong to the same root object/material,
+            # winding across the cliff instead of adding more thick straps.
+            for sign in (-1, 1):
+                tributary = obj.data.splines.new("BEZIER")
+                tributary.bezier_points.add(5)
+                route = [points[0], points[1] + Vector((sign*.26, .08, 0))]
+                for step, height in enumerate((-.66, -1.45, -2.4, -3.35)):
+                    turn = angle + sign*.25 + math.sin(step*.95 + sign)*.22
+                    radial = Vector((math.cos(turn), math.sin(turn), 0))
+                    hit, _, _, _ = terrain.ray_cast(radial*12 + Vector((0,0,height)), -radial, 20)
+                    if hit is None:
+                        raise RuntimeError("細根未碰到岩壁")
+                    route.append(hit + radial*(.025 if step<3 else -.04))
+                for point, world, radius in zip(tributary.bezier_points, route,
+                                                (.35,.30,.23,.17,.08,.008), strict=True):
+                    point.co = world - obj.location
+                    point.radius = radius
+                    point.handle_left_type = "AUTO"
+                    point.handle_right_type = "AUTO"
 
 
 def add_preview_scene(root: bpy.types.Object) -> None:
     scene = bpy.context.scene
     scene.render.engine = "BLENDER_EEVEE"
     scene.render.resolution_x = 768
-    scene.render.resolution_y = 768
+    scene.render.resolution_y = 1024
     scene.render.resolution_percentage = 100
     scene.render.image_settings.file_format = "PNG"
     scene.render.film_transparent = False
-    scene.world.color = (0.018, 0.055, 0.040)
+    scene.world.use_nodes = True
+    background = scene.world.node_tree.nodes.get("Background")
+    background.inputs["Color"].default_value = (0.075, 0.19, 0.30, 1)
+    background.inputs["Strength"].default_value = 0.52
 
     bpy.ops.object.light_add(type="AREA", location=(-4.2, -4.5, 7.2))
     key = bpy.context.object
     key.name = "預覽_暖陽主光"
-    key.data.energy = 1050
+    key.data.energy = 920
     key.data.shape = "DISK"
     key.data.size = 5.0
-    key.data.color = (1.0, 0.72, 0.42)
+    key.data.color = (1.0, 0.74, 0.43)
     key.rotation_euler = (math.radians(28), 0, math.radians(-36))
 
     bpy.ops.object.light_add(type="AREA", location=(4.0, 1.5, 5.4))
     fill = bpy.context.object
     fill.name = "預覽_葉冠補光"
-    fill.data.energy = 720
+    fill.data.energy = 360
     fill.data.size = 4.0
-    fill.data.color = (0.42, 0.76, 0.58)
+    fill.data.color = (0.38, 0.66, 0.88)
     fill.rotation_euler = (math.radians(58), 0, math.radians(140))
 
-    bpy.ops.object.light_add(type="POINT", location=(0, 1.8, 1.2))
+    bpy.ops.object.light_add(type="POINT", location=(0, -1.2, 1.3))
     rim = bpy.context.object
     rim.name = "預覽_根部微光"
-    rim.data.energy = 280
-    rim.data.color = (0.98, 0.50, 0.18)
+    rim.data.energy = 105
+    rim.data.color = (0.42, 0.82, 1.0)
 
-    bpy.ops.object.camera_add(location=(7.8, -10.8, 5.9))
+    ocean_material = material(
+        "預覽海面材質",
+        (0.018, 0.12, 0.19, 1),
+        roughness=0.32,
+        metallic=0.02,
+    )
+    bpy.ops.mesh.primitive_plane_add(size=40, location=(0, 3.5, -2.05))
+    ocean = bpy.context.object
+    ocean.name = "預覽_海面"
+    ocean.data.materials.append(ocean_material)
+
+    bpy.ops.object.camera_add(location=(9.4, -15.4, 7.4))
     camera = bpy.context.object
     camera.name = "預覽_相機"
     camera.data.lens = 58
-    direction = Vector((0, 0, 2.55)) - camera.location
+    direction = Vector((0, 0.40, 2.18)) - camera.location
     camera.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
     scene.camera = camera
     root["預覽相機距離"] = round(camera.location.length, 2)
@@ -467,25 +1362,105 @@ def convert_curves_for_export() -> None:
         obj.select_set(False)
 
 
+def combine_leaf_meshes_for_export() -> None:
+    """Collapse each animated crown to one renderer while retaining material slots."""
+    clusters = [
+        obj
+        for obj in bpy.context.scene.objects
+        if obj.name.startswith("前景葉簇_") or obj.name.startswith("後景葉簇_")
+    ]
+    for cluster in clusters:
+        descendants: list[bpy.types.Object] = []
+        pending = list(cluster.children)
+        while pending:
+            item = pending.pop()
+            pending.extend(item.children)
+            if item.type == "MESH" and "葉片_" in item.name:
+                descendants.append(item)
+        if not descendants:
+            raise RuntimeError(f"{cluster.name} 沒有可合併的葉片")
+        leaf_element_count = sum(
+            int(leaf.get("葉片元素數", 0)) for leaf in descendants
+        )
+        foliage_card_count = sum(
+            int(leaf.get("葉簇圖片數", 0)) for leaf in descendants
+        )
+
+        bpy.ops.object.select_all(action="DESELECT")
+        for leaf in descendants:
+            bpy.context.view_layer.update()
+            world_matrix = leaf.matrix_world.copy()
+            leaf.parent = None
+            leaf.matrix_world = world_matrix
+            leaf.select_set(True)
+        bpy.context.view_layer.objects.active = descendants[0]
+        if len(descendants) > 1:
+            bpy.ops.object.join()
+        joined = bpy.context.object
+        joined.name = f"葉群網格_{cluster.name}"
+        joined["原始葉片數"] = leaf_element_count
+        joined["葉簇圖片數"] = foliage_card_count
+        bpy.context.view_layer.update()
+        world_matrix = joined.matrix_world.copy()
+        joined.parent = cluster
+        joined.matrix_world = world_matrix
+        joined.select_set(False)
+
+
 def write_asset_stats(output: Path) -> None:
-    mesh_objects = [obj for obj in bpy.context.scene.objects if obj.type == "MESH"]
+    mesh_objects = [
+        obj
+        for obj in bpy.context.scene.objects
+        if obj.type == "MESH" and not obj.name.startswith("預覽_")
+    ]
+    triangle_count = sum(
+        max(0, len(polygon.vertices) - 2)
+        for obj in mesh_objects
+        for polygon in obj.data.polygons
+    )
     stats = {
-        "資產版本": 1,
+        "資產版本": 2,
         "網格物件數": len(mesh_objects),
         "頂點數": sum(len(obj.data.vertices) for obj in mesh_objects),
-        "三角面數": sum(
-            max(0, len(polygon.vertices) - 2)
-            for obj in mesh_objects
-            for polygon in obj.data.polygons
-        ),
+        "三角面數": triangle_count,
         "主枝數": sum(obj.name.startswith("主枝_") for obj in bpy.context.scene.objects),
         "葉冠群組數": sum(
             obj.name.startswith("前景葉簇_") or obj.name.startswith("後景葉簇_")
             for obj in bpy.context.scene.objects
         ),
-        "獨立葉片數": sum("葉片_" in obj.name for obj in bpy.context.scene.objects),
+        "葉片元素數": sum(
+            int(obj.get("原始葉片數", 0)) for obj in bpy.context.scene.objects
+        ),
+        "葉群合併網格數": sum(
+            obj.name.startswith("葉群網格_") for obj in bpy.context.scene.objects
+        ),
+        "葉簇圖片數": sum(
+            int(obj.get("葉簇圖片數", 0)) for obj in bpy.context.scene.objects
+        ),
         "紀念掛點數": sum(obj.name.startswith("紀念掛點_") for obj in bpy.context.scene.objects),
+        "三維浮島數": sum(obj.name.startswith("浮島_") for obj in bpy.context.scene.objects),
+        "瀑布數": sum(obj.name.startswith("瀑布_") for obj in bpy.context.scene.objects),
+        "雲海塊數": sum(obj.name.startswith("雲海_") for obj in bpy.context.scene.objects),
     }
+    expected = {
+        "主枝數": 8,
+        "葉冠群組數": 16,
+        "葉群合併網格數": 16,
+        "葉簇圖片數": 0,
+        "紀念掛點數": 12,
+        "三維浮島數": 1,
+        "瀑布數": 2,
+        "雲海塊數": 0,
+    }
+    for label, expected_count in expected.items():
+        if stats[label] != expected_count:
+            raise RuntimeError(f"{label}應為 {expected_count}，實際為 {stats[label]}")
+    stats["中景群島數"] = sum(obj.name.startswith("群島地形_") for obj in bpy.context.scene.objects)
+    if stats["中景群島數"] != 0:
+        raise RuntimeError("單島版本不可包含中景群島")
+    stats["品質目標"] = "桌面外觀展示；手機效能待實測"
+    if not 14000 <= triangle_count <= 220000:
+        raise RuntimeError(f"外觀展示三角面預算應介於 14000～220000，實際為 {triangle_count}")
     with (output / "生命樹庭園_資產統計.json").open("w", encoding="utf-8") as handle:
         json.dump(stats, handle, ensure_ascii=False, indent=2)
         handle.write("\n")
@@ -503,9 +1478,16 @@ def export_assets(output: Path, source: Path) -> None:
     # Preserve the editable curve source before converting for game export.
     bpy.ops.wm.save_as_mainfile(filepath=str(source / "生命樹庭園_母稿.blend"))
     convert_curves_for_export()
+    combine_leaf_meshes_for_export()
     write_asset_stats(output)
 
-    excluded = {"預覽_暖陽主光", "預覽_葉冠補光", "預覽_根部微光", "預覽_相機"}
+    excluded = {
+        "預覽_暖陽主光",
+        "預覽_葉冠補光",
+        "預覽_根部微光",
+        "預覽_相機",
+        "預覽_海面",
+    }
     for obj in bpy.context.scene.objects:
         obj.hide_render = obj.name in excluded
         obj.select_set(obj.name not in excluded)
@@ -531,10 +1513,15 @@ def export_assets(output: Path, source: Path) -> None:
 
 def main() -> None:
     args = parse_args()
+    output = Path(args.output).resolve()
+    source = Path(args.source).resolve()
+    foliage_texture = output.parent / "Textures" / "生命樹_葉簇色彩_v2.png"
     reset_scene()
-    tree = build_tree()
+    tree = build_tree(foliage_texture)
+    build_floating_world()
+    sculpt_cliff_roots(tree)
     add_preview_scene(tree)
-    export_assets(Path(args.output).resolve(), Path(args.source).resolve())
+    export_assets(output, source)
 
 
 if __name__ == "__main__":

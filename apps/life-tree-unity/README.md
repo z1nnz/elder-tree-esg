@@ -39,6 +39,18 @@ blender --background --python tools/blender/build_life_tree.py -- \
 
 這會從 FBX 建立 `Assets/Scenes/生命樹庭園.unity`，並輸出 Unity 真實場景檢查圖至 `docs/leadership-evidence/screenshots/life-tree-unity-garden.png`。首次套件解析需要網路。
 
+輸出三秒、每秒 30 張的正常動態檢查影格至系統暫存資料夾：
+
+```sh
+/Applications/Unity/Hub/Editor/6000.0.82f1/Unity.app/Contents/MacOS/Unity \
+  -batchmode -quit \
+  -projectPath apps/life-tree-unity \
+  -executeMethod TreeCompanion.Editor.LifeTreeSceneBuilder.BuildAndCaptureMotionPreview \
+  -logFile /tmp/tree-companion-life-tree-motion.log
+```
+
+影格用來檢查主枝、葉簇、瀑布和有限環繞是否同時運作；離線輸出速度不能當作手機實機每秒 30 幀證據。
+
 編輯器測試：
 
 ```sh
