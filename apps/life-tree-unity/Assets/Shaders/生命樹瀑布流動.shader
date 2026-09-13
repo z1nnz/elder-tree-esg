@@ -99,10 +99,13 @@ Shader "樹伴/生命樹瀑布流動"
                 float falling = smoothstep(.065, .20, v) * (1 - _IsStream);
                 // Unequal, interrupted sheets of white water. Low-frequency
                 // warp breaks parallel bands; fine grain travels WITH them.
-                float warp = WaterNoise(float2(u * 4.1, travel * 8)) - .5;
-                float strands = WaterNoise(float2(u * 27 + warp * 2.8, travel * 18));
-                float sheets = WaterNoise(float2(u * 7.3 + warp, travel * 6.3 + 17));
-                float grain = WaterNoise(float2(u * 63 + warp * 3, travel * 55));
+                // Falling foam stretches with the flow instead of reading as
+                // round white spots. Keep the river's smaller surface ripples.
+                float warp = WaterNoise(float2(u * 4.1, travel * lerp(8, 3.8, falling))) - .5;
+                float strands = WaterNoise(float2(u * lerp(27, 32, falling) + warp * 2.2,
+                    travel * lerp(18, 10, falling)));
+                float sheets = WaterNoise(float2(u * 7.3 + warp, travel * lerp(6.3, 3.2, falling) + 17));
+                float grain = WaterNoise(float2(u * 93 + warp * 3, travel * lerp(55, 22, falling)));
                 float foam = smoothstep(.36, .78, strands * .55 + sheets * .45);
                 foam = saturate(foam * .8 + grain * foam * .35);
                 float raggedEdge = lerp(.018, .025 + sheets * .09, falling);
