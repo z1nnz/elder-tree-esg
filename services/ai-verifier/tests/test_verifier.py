@@ -1,7 +1,23 @@
 from app.schemas import ModelClassification, PhotoVerificationRequest
 import asyncio
+from types import SimpleNamespace
+from io import BytesIO
+from PIL import Image
+import pytest
+from app import verifier
 
 from app.verifier import apply_rules, verify_photo
+
+
+def test_image_sanitizer_removes_embedded_exif():
+    source = BytesIO()
+    exif = Image.Exif()
+    exif[315] = "test photographer"
+    Image.new("RGB", (32, 32), "green").save(source, format="JPEG", exif=exif)
+    assert Image.open(BytesIO(source.getvalue())).getexif()[315] == "test photographer"
+    cleaned, content_type = verifier.sanitize_image_bytes(source.getvalue(), "image/jpeg")
+    assert content_type == "image/jpeg"
+    assert not Image.open(BytesIO(cleaned)).getexif()
 
 
 def request(**overrides):
@@ -105,6 +121,40 @@ def test_missing_gemini_key_does_not_pass(monkeypatch):
     assert result.decision == "FAIL"
     assert result.model == "rules-only"
     assert "LOW_CONFIDENCE" in result.reason_codes
+
+
+def test_unprocessed_url_does_not_claim_exif_removal(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    result = asyncio.run(verify_photo(request(image_url="https://example.com/photo.jpg")))
+    assert result.exif_removed is False
+    assert result.decision == "FAIL"
+
+
+@pytest.mark.parametrize("use_url", [False, True])
+def test_sanitized_inputs_report_exif_removal(monkeypatch, use_url):
+    monkeypatch.setenv("GEMINI_API_KEY", "test-only-no-network")
+    sanitized = []
+
+    def sanitize(raw, content_type):
+        sanitized.append("bytes")
+        return b"sanitized", "image/jpeg"
+
+    async def download(url):
+        sanitized.append("url")
+        return b"sanitized", "image/jpeg"
+
+    classification = ModelClassification(labels=["plant"], confidence=.93, description="Plant")
+    client = SimpleNamespace(models=SimpleNamespace(generate_content=lambda **kwargs:
+        SimpleNamespace(text=classification.model_dump_json())))
+    monkeypatch.setattr(verifier, "sanitize_image_bytes", sanitize)
+    monkeypatch.setattr(verifier, "download_and_sanitize", download)
+    monkeypatch.setattr(verifier.genai, "Client", lambda **kwargs: client)
+    payload = {"image_url": "https://example.com/photo.jpg"} if use_url else {
+        "image_base64": "ZmFrZS1qcGVn", "content_type": "image/jpeg"}
+    result = asyncio.run(verify_photo(request(**payload)))
+    assert sanitized == (["url"] if use_url else ["bytes"])
+    assert result.exif_removed is True
+    assert result.decision == "PASS"
 
 
 def test_demo_override_payload_does_not_bypass_missing_gemini_key(monkeypatch):
