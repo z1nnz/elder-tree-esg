@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="17" result="Passed" total="17" passed="17" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-08 15:01:11Z" end-time="2026-09-08 15:01:11Z" duration="0.0762811">
+  <test-suite type="TestSuite" id="1000" name="樹伴生命樹庭園" fullname="樹伴生命樹庭園" runstate="Runnable" testcasecount="17" result="Passed" start-time="2026-09-08 15:01:11Z" end-time="2026-09-08 15:01:11Z" duration="0.076281" total="17" passed="17" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="1019" name="TreeCompanion.LifeTree.EditorTests.dll" fullname="/Users/whzi_111/.codex/worktrees/app-ready-20260828/elder-tree-esg/apps/life-tree-unity/Library/ScriptAssemblies/TreeCompanion.LifeTree.EditorTests.dll" runstate="Runnable" testcasecount="17" result="Passed" start-time="2026-09-08 15:01:11Z" end-time="2026-09-08 15:01:11Z" duration="0.072921" total="17" passed="17" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="4852" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="1020" name="TreeCompanion" fullname="TreeCompanion" runstate="Runnable" testcasecount="17" result="Passed" start-time="2026-09-08 15:01:11Z" end-time="2026-09-08 15:01:11Z" duration="0.072625" total="17" passed="17" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1021" name="Tests" fullname="TreeCompanion.Tests" runstate="Runnable" testcasecount="17" result="Passed" start-time="2026-09-08 15:01:11Z" end-time="2026-09-08 15:01:11Z" duration="0.072397" total="17" passed="17" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestFixture" id="1001" name="LifeTreeStateTests" fullname="TreeCompanion.Tests.LifeTreeStateTests" classname="TreeCompanion.Tests.LifeTreeStateTests" runstate="Runnable" testcasecount="17" result="Passed" start-time="2026-09-08 15:01:11Z" end-time="2026-09-08 15:01:11Z" duration="0.071816" total="17" passed="17" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-case id="1006" name="AuthoredStagesSwitchWithoutRescalingTheMatureTree" fullname="TreeCompanion.Tests.LifeTreeStateTests.AuthoredStagesSwitchWithoutRescalingTheMatureTree" methodname="AuthoredStagesSwitchWithoutRescalingTheMatureTree" classname="TreeCompanion.Tests.LifeTreeStateTests" runstate="Runnable" seed="2126859801" result="Passed" start-time="2026-09-08 15:01:11Z" end-time="2026-09-08 15:01:11Z" duration="0.012770" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1007" name="BlenderYoungStagesContainDistinctMeshes" fullname="TreeCompanion.Tests.LifeTreeStateTests.BlenderYoungStagesContainDistinctMeshes" methodname="BlenderYoungStagesContainDistinctMeshes" classname="TreeCompanion.Tests.LifeTreeStateTests" runstate="Runnable" seed="860745254" result="Passed" start-time="2026-09-08 15:01:11Z" end-time="2026-09-08 15:01:11Z" duration="0.007428" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1017" name="FloatingIslandMaterialsUseReviewedStylizedTextures" fullname="TreeCompanion.Tests.LifeTreeStateTests.FloatingIslandMaterialsUseReviewedStylizedTextures" methodname="FloatingIslandMaterialsUseReviewedStylizedTextures" classname="TreeCompanion.Tests.LifeTreeStateTests" runstate="Runnable" seed="1917567778" result="Passed" start-time="2026-09-08 15:01:11Z" end-time="2026-09-08 15:01:11Z" duration="0.004239" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1014" name="HybridBackgroundMatchesPortraitCameraAspect" fullname="TreeCompanion.Tests.LifeTreeStateTests.HybridBackgroundMatchesPortraitCameraAspect" methodname="HybridBackgroundMatchesPortraitCameraAspect" classname="TreeCompanion.Tests.LifeTreeStateTests" runstate="Runnable" seed="277844636" result="Passed" start-time="2026-09-08 15:01:11Z" end-time="2026-09-08 15:01:11Z" duration="0.011540" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1005" name="IslandViewClampsZoomAndCanRestoreItsAuthoredPose" fullname="TreeCompanion.Tests.LifeTreeStateTests.IslandViewClampsZoomAndCanRestoreItsAuthoredPose" methodname="IslandViewClampsZoomAndCanRestoreItsAuthoredPose" classname="TreeCompanion.Tests.LifeTreeStateTests" runstate="Runnable" seed="1466832121" result="Passed" start-time="2026-09-08 15:01:11Z" end-time="2026-09-08 15:01:11Z" duration="0.001300" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1008" name="ParsesVerifiedStateWithStableKeepsakeSlot" fullname="TreeCompanion.Tests.LifeTreeStateTests.ParsesVerifiedStateWithStableKeepsakeSlot" methodname="ParsesVerifiedStateWithStableKeepsakeSlot" classname="TreeCompanion.Tests.LifeTreeStateTests" runstate="Runnable" seed="513147965" result="Passed" start-time="2026-09-08 15:01:11Z" end-time="2026-09-08 15:01:11Z" duration="0.001929" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1003" name="ReducedMotionClearsWaterfallMist" fullname="TreeCompanion.Tests.LifeTreeStateTests.ReducedMotionClearsWaterfallMist" methodname="ReducedMotionClearsWaterfallMist" classname="TreeCompanion.Tests.LifeTreeStateTests" runstate="Runnable" seed="1895939147" result="Passed" start-time="2026-09-08 15:01:11Z" end-time="2026-09-08 15:01:11Z" duration="0.002518" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1013" name="ReduceMotionFreezesAtmosphereAndRestoresCameraPose" fullname="TreeCompanion.Tests.LifeTreeStateTests.ReduceMotionFreezesAtmosphereAndRestoresCameraPose" methodname="ReduceMotionFreezesAtmosphereAndRestoresCameraPose" classname="TreeCompanion.Tests.LifeTreeStateTests" runstate="Runnable" seed="1851588047" result="Passed" start-time="2026-09-08 15:01:11Z" end-time="2026-09-08 15:01:11Z" duration="0.001351" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1012" name="ReduceMotionRestoresAuthoredBranchRotation" fullname="TreeCompanion.Tests.LifeTreeStateTests.ReduceMotionRestoresAuthoredBranchRotation" methodname="ReduceMotionRestoresAuthoredBranchRotation" classname="TreeCompanion.Tests.LifeTreeStateTests" runstate="Runnable" seed="475928607" result="Passed" start-time="2026-09-08 15:01:11Z" end-time="2026-09-08 15:01:11Z" duration="0.000746" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1010" name="RejectsClientInventedGrowthStage" fullname="TreeCompanion.Tests.LifeTreeStateTests.RejectsClientInventedGrowthStage" methodname="RejectsClientInventedGrowthStage" classname="TreeCompanion.Tests.LifeTreeStateTests" runstate="Runnable" seed="2051979783" result="Passed" start-time="2026-09-08 15:01:11Z" end-time="2026-09-08 15:01:11Z" duration="0.000735" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1009" name="RejectsDuplicateKeepsakeSlot" fullname="TreeCompanion.Tests.LifeTreeStateTests.RejectsDuplicateKeepsakeSlot" methodname="RejectsDuplicateKeepsakeSlot" classname="TreeCompanion.Tests.LifeTreeStateTests" runstate="Runnable" seed="773202527" result="Passed" start-time="2026-09-08 15:01:11Z" end-time="2026-09-08 15:01:11Z" duration="0.000112" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1015" name="SharedBarkMaterialUsesTheReviewedTexture" fullname="TreeCompanion.Tests.LifeTreeStateTests.SharedBarkMaterialUsesTheReviewedTexture" methodname="SharedBarkMaterialUsesTheReviewedTexture" classname="TreeCompanion.Tests.LifeTreeStateTests" runstate="Runnable" seed="340987227" result="Passed" start-time="2026-09-08 15:01:11Z" end-time="2026-09-08 15:01:11Z" duration="0.005435" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1016" name="SharedFoliageMaterialUsesSolidVertexColourAndMotion" fullname="TreeCompanion.Tests.LifeTreeStateTests.SharedFoliageMaterialUsesSolidVertexColourAndMotion" methodname="SharedFoliageMaterialUsesSolidVertexColourAndMotion" classname="TreeCompanion.Tests.LifeTreeStateTests" runstate="Runnable" seed="440522692" result="Passed" start-time="2026-09-08 15:01:11Z" end-time="2026-09-08 15:01:11Z" duration="0.011661" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1002" name="StreamBanksRetainTheirBlendWeightsAfterFbxImport" fullname="TreeCompanion.Tests.LifeTreeStateTests.StreamBanksRetainTheirBlendWeightsAfterFbxImport" methodname="StreamBanksRetainTheirBlendWeightsAfterFbxImport" classname="TreeCompanion.Tests.LifeTreeStateTests" runstate="Runnable" seed="842123398" result="Passed" start-time="2026-09-08 15:01:11Z" end-time="2026-09-08 15:01:11Z" duration="0.001274" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1011" name="UnconfiguredStateStartsAtSeedlingStage" fullname="TreeCompanion.Tests.LifeTreeStateTests.UnconfiguredStateStartsAtSeedlingStage" methodname="UnconfiguredStateStartsAtSeedlingStage" classname="TreeCompanion.Tests.LifeTreeStateTests" runstate="Runnable" seed="688751727" result="Passed" start-time="2026-09-08 15:01:11Z" end-time="2026-09-08 15:01:11Z" duration="0.000069" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1018" name="WaterfallMaterialUsesMotionControlledShader" fullname="TreeCompanion.Tests.LifeTreeStateTests.WaterfallMaterialUsesMotionControlledShader" methodname="WaterfallMaterialUsesMotionControlledShader" classname="TreeCompanion.Tests.LifeTreeStateTests" runstate="Runnable" seed="1629300924" result="Passed" start-time="2026-09-08 15:01:11Z" end-time="2026-09-08 15:01:11Z" duration="0.000824" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+            </test-case>
+            <test-case id="1004" name="WorldContainsOneTerracedIslandAndNoSatelliteIslands" fullname="TreeCompanion.Tests.LifeTreeStateTests.WorldContainsOneTerracedIslandAndNoSatelliteIslands" methodname="WorldContainsOneTerracedIslandAndNoSatelliteIslands" classname="TreeCompanion.Tests.LifeTreeStateTests" runstate="Runnable" seed="60144405" result="Passed" start-time="2026-09-08 15:01:11Z" end-time="2026-09-08 15:01:11Z" duration="0.000652" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+              <output><![CDATA[Saving results to: /Users/whzi_111/Library/Application Support/樹伴/樹伴生命樹庭園/TestResults.xml
+]]></output>
+            </test-case>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

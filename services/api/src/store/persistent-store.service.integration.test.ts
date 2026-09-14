@@ -1816,7 +1816,9 @@ describeWithDatabase("PersistentStoreService", () => {
       createdFirebaseUids.add(explorerUid);
       createdRouteIds.add(routeId);
       createdTaskIds.add(taskId);
-      let now = new Date("2026-08-30T01:00:00.000Z");
+      // Use a current anchor: a running API shares this database and its
+      // privacy job correctly expires sessions older than four hours.
+      let now = new Date();
       const explorationStore = new PersistentStoreService(prisma, {
         now: () => now,
       } as ClockService);

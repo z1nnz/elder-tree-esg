@@ -1,0 +1,5 @@
+{
+  "name": "TreeCompanion.LifeTree.Editor",
+  "references": ["TreeCompanion.LifeTree", "Unity.ugui"],
+  "includePlatforms": ["Editor"]
+}

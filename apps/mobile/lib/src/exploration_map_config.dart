@@ -121,44 +121,17 @@ const adventureMapStyle = r'''
       }
     },
     {
-      "id": "game-buildings",
-      "type": "fill",
-      "source": "openmaptiles",
-      "source-layer": "building",
-      "minzoom": 13,
-      "maxzoom": 15.5,
-      "paint": {
-        "fill-color": "#A7E8C8",
-        "fill-outline-color": "#7BCAA6",
-        "fill-opacity": 0.82
-      }
-    },
-    {
-      "id": "game-buildings-3d",
-      "type": "fill-extrusion",
-      "source": "openmaptiles",
-      "source-layer": "building",
-      "minzoom": 15.5,
-      "paint": {
-        "fill-extrusion-color": "#AFE7C8",
-        "fill-extrusion-height": [
-          "coalesce",
-          ["get", "render_height"],
-          8
-        ],
-        "fill-extrusion-base": [
-          "coalesce",
-          ["get", "render_min_height"],
-          0
-        ],
-        "fill-extrusion-opacity": 0.82
-      }
-    },
-    {
       "id": "game-road-casing",
       "type": "line",
       "source": "openmaptiles",
       "source-layer": "transportation",
+      "filter": [
+        "match",
+        ["get", "class"],
+        ["motorway", "trunk", "primary", "secondary", "tertiary"],
+        true,
+        false
+      ],
       "layout": {
         "line-cap": "round",
         "line-join": "round"
@@ -167,9 +140,9 @@ const adventureMapStyle = r'''
         "line-color": "#F7E5B3",
         "line-width": [
           "interpolate", ["linear"], ["zoom"],
-          12, 2.4,
-          16, 10,
-          19, 25
+          12, 1.8,
+          16, 7.5,
+          19, 19
         ]
       }
     },
@@ -178,24 +151,52 @@ const adventureMapStyle = r'''
       "type": "line",
       "source": "openmaptiles",
       "source-layer": "transportation",
+      "filter": [
+        "match",
+        ["get", "class"],
+        ["motorway", "trunk", "primary", "secondary", "tertiary"],
+        true,
+        false
+      ],
       "layout": {
         "line-cap": "round",
         "line-join": "round"
       },
       "paint": {
-        "line-color": [
-          "match",
-          ["get", "class"],
-          "path", "#4D91A3",
-          "track", "#4D91A3",
-          "service", "#477F91",
-          "#367A8F"
-        ],
+        "line-color": "#5E9D99",
         "line-width": [
           "interpolate", ["linear"], ["zoom"],
-          12, 1.2,
-          16, 6.5,
-          19, 18
+          12, 0.9,
+          16, 4.6,
+          19, 13
+        ]
+      }
+    },
+    {
+      "id": "game-walkways",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "filter": [
+        "match",
+        ["get", "class"],
+        ["path", "track", "pedestrian"],
+        true,
+        false
+      ],
+      "minzoom": 14.5,
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#73AFA0",
+        "line-opacity": 0.78,
+        "line-width": [
+          "interpolate", ["linear"], ["zoom"],
+          14.5, 0.8,
+          17, 2.4,
+          19, 4.5
         ]
       }
     }

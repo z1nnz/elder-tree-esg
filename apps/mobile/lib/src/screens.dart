@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:maplibre/maplibre.dart';
 
 import 'app_controller.dart';
@@ -1043,6 +1044,9 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
   bool _missionSheetOpen = false;
   bool _cameraOutOfRange = false;
   bool _recenteringMap = false;
+  bool _followingPlayer = true;
+  double? _lastFollowedLatitude;
+  double? _lastFollowedLongitude;
   MapController? _mapController;
 
   AppController get controller => widget.controller;
@@ -1085,6 +1089,7 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
             lat: controller.latestLatitude!,
           )
         : const Geographic(lon: 121.5362, lat: 25.0316);
+    _schedulePlayerFollow(mapCenter, hasCurrentLocation: hasCurrentLocation);
     final selectedMissionForSheet = selectedMission ?? featuredMission;
     final selectedMissionScreenBearing =
         hasCurrentLocation && selectedMissionForSheet != null
@@ -1131,7 +1136,12 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
               maxPitch: 60,
               gestures: const MapGestures.all(),
             ),
-            onMapCreated: (controller) => _mapController = controller,
+            onMapCreated: (controller) {
+              _mapController = controller;
+              if (_followingPlayer) {
+                unawaited(_recenterOnPlayer(zoom: mapPresentation.zoom));
+              }
+            },
             onEvent: _handleMapEvent,
             layers: const [],
             children: [
@@ -1169,16 +1179,12 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
                       ),
                     ),
                   ),
-                  if (controller.latestLatitude != null &&
-                      controller.latestLongitude != null)
+                  if (!_followingPlayer)
                     Marker(
-                      point: Geographic(
-                        lon: controller.latestLongitude!,
-                        lat: controller.latestLatitude!,
-                      ),
-                      size: const Size(94, 112),
+                      point: mapCenter,
+                      size: const Size(104, 136),
                       alignment: Alignment.bottomCenter,
-                      child: const _ExplorerAvatar(),
+                      child: const ExplorerAvatar(),
                     ),
                 ],
               ),
@@ -1191,6 +1197,19 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
           ),
         ),
         const _AdventureMapOverlay(),
+        if (_followingPlayer)
+          const Positioned.fill(
+            child: IgnorePointer(
+              child: Align(
+                alignment: Alignment(0, 0.12),
+                child: SizedBox(
+                  width: 104,
+                  height: 136,
+                  child: ExplorerAvatar(),
+                ),
+              ),
+            ),
+          ),
         if (!_treeMenuOpen &&
             _selectedRadarMissionId != null &&
             selectedMissionForSheet != null &&
@@ -1224,6 +1243,16 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
             top: 198,
             child: IgnorePointer(child: _SimulatorLocationNotice()),
           ),
+        Positioned(
+          right: 14,
+          top: 126 + safeTop,
+          child: _MapCameraControls(
+            followingPlayer: _followingPlayer,
+            onZoomIn: () => _zoomAroundPlayer(0.8),
+            onRecenter: () => _recenterOnPlayer(),
+            onZoomOut: () => _zoomAroundPlayer(-0.8),
+          ),
+        ),
         if (controller.lastGrowthAwardPoints != null)
           Positioned(
             left: 14,
@@ -1345,6 +1374,9 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
   }
 
   Future<void> _focusRadarMission(RadarMissionViewState view) async {
+    if (_followingPlayer && mounted) {
+      setState(() => _followingPlayer = false);
+    }
     await _mapController?.animateCamera(
       center: Geographic(
         lon: view.mission.longitude,
@@ -1358,6 +1390,12 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
   }
 
   void _handleMapEvent(MapEvent event) {
+    if (event is MapEventStartMoveCamera) {
+      if (event.reason == CameraChangeReason.apiGesture && _followingPlayer) {
+        setState(() => _followingPlayer = false);
+      }
+      return;
+    }
     if (event is! MapEventMoveCamera) return;
     final playerLat = controller.latestLatitude ?? 25.0316;
     final playerLng = controller.latestLongitude ?? 121.5362;
@@ -1388,6 +1426,63 @@ class _ExplorationScreenState extends State<ExplorationScreen> {
             }),
       );
     }
+  }
+
+  Geographic get _playerCenter => Geographic(
+    lon: controller.latestLongitude ?? 121.5362,
+    lat: controller.latestLatitude ?? 25.0316,
+  );
+
+  void _schedulePlayerFollow(
+    Geographic center, {
+    required bool hasCurrentLocation,
+  }) {
+    if (!_followingPlayer || !hasCurrentLocation) return;
+    if (_lastFollowedLatitude == center.lat &&
+        _lastFollowedLongitude == center.lon) {
+      return;
+    }
+    _lastFollowedLatitude = center.lat;
+    _lastFollowedLongitude = center.lon;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_followingPlayer) return;
+      unawaited(_recenterOnPlayer());
+    });
+  }
+
+  Future<void> _recenterOnPlayer({double? zoom}) async {
+    final map = _mapController;
+    if (map == null) return;
+    if (mounted && !_followingPlayer) {
+      setState(() => _followingPlayer = true);
+    }
+    final presentation = explorationMapPresentation(
+      _mapMode,
+      streetStyleUrl: ExplorationScreen.mapStyleUrl,
+    );
+    try {
+      await map.animateCamera(
+        center: _playerCenter,
+        zoom: zoom ?? map.getCamera().zoom.clamp(15.2, 17.8).toDouble(),
+        pitch: presentation.pitch,
+        bearing: presentation.bearing,
+        nativeDuration: const Duration(milliseconds: 520),
+      );
+    } on PlatformException catch (error) {
+      if (error.code != 'CancellationException') rethrow;
+    }
+    if (mounted && _cameraOutOfRange) {
+      setState(() => _cameraOutOfRange = false);
+    }
+  }
+
+  Future<void> _zoomAroundPlayer(double delta) async {
+    final map = _mapController;
+    if (map == null) return;
+    final nextZoom = (map.getCamera().zoom + delta)
+        .clamp(14.2, 18.8)
+        .toDouble();
+    await _recenterOnPlayer(zoom: nextZoom);
   }
 
   Future<void> _confirmCompleteRadarMission(RadarMissionViewState view) async {
@@ -3844,107 +3939,96 @@ class _AdventureMapHint extends StatelessWidget {
   }
 }
 
-class _ExplorerAvatar extends StatelessWidget {
-  const _ExplorerAvatar();
+class ExplorerAvatar extends StatelessWidget {
+  const ExplorerAvatar({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Align(
-      alignment: Alignment.center,
+      alignment: Alignment.bottomCenter,
       child: Stack(
-        alignment: Alignment.center,
+        fit: StackFit.expand,
+        clipBehavior: Clip.none,
+        alignment: Alignment.bottomCenter,
         children: [
           Positioned(
-            bottom: 10,
+            bottom: 2,
             child: Container(
-              width: 48,
-              height: 13,
+              width: 74,
+              height: 18,
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-          ),
-          Container(
-            width: 92,
-            height: 92,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.72),
-                width: 4,
-              ),
-              color: lime.withValues(alpha: 0.16),
-            ),
-          ),
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: const RadialGradient(
-                colors: [Color(0xFF22C78A), Color(0xFF0C5D47)],
-              ),
-              border: Border.all(color: Colors.white, width: 5),
-              boxShadow: [
-                BoxShadow(
-                  color: forestDark.withValues(alpha: 0.36),
-                  blurRadius: 24,
-                  offset: const Offset(0, 10),
-                ),
-                BoxShadow(
-                  color: lime.withValues(alpha: 0.34),
-                  blurRadius: 30,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: const Icon(
-              Icons.navigation_rounded,
-              color: warmYellow,
-              size: 34,
-            ),
-          ),
-          Positioned(
-            top: 2,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.94),
+                color: Colors.black.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(999),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.16),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
+                    color: lime.withValues(alpha: 0.32),
+                    blurRadius: 18,
+                    spreadRadius: 5,
                   ),
                 ],
-              ),
-              child: const Text(
-                '你',
-                style: TextStyle(
-                  color: forestDark,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                ),
               ),
             ),
           ),
           Positioned(
-            right: 15,
-            top: 22,
-            child: Transform.rotate(
-              angle: 0.62,
-              child: Container(
-                width: 18,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: warmYellow,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: Colors.white, width: 2),
-                ),
-              ),
+            bottom: 8,
+            child: Image.asset(
+              'assets/characters/explorer_v1.png',
+              width: 90,
+              height: 122,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MapCameraControls extends StatelessWidget {
+  const _MapCameraControls({
+    required this.followingPlayer,
+    required this.onZoomIn,
+    required this.onRecenter,
+    required this.onZoomOut,
+  });
+
+  final bool followingPlayer;
+  final VoidCallback onZoomIn;
+  final VoidCallback onRecenter;
+  final VoidCallback onZoomOut;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.94),
+      elevation: 4,
+      shadowColor: forestDark.withValues(alpha: 0.2),
+      borderRadius: BorderRadius.circular(18),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: '拉近地圖',
+            onPressed: onZoomIn,
+            icon: const Icon(Icons.add_rounded),
+          ),
+          Container(width: 28, height: 1, color: const Color(0xFFE3EBE5)),
+          IconButton(
+            tooltip: followingPlayer ? '目前跟隨我的位置' : '回到我的位置',
+            onPressed: onRecenter,
+            icon: Icon(
+              followingPlayer
+                  ? Icons.my_location_rounded
+                  : Icons.location_searching_rounded,
+              color: followingPlayer ? forest : mutedInk,
+            ),
+          ),
+          Container(width: 28, height: 1, color: const Color(0xFFE3EBE5)),
+          IconButton(
+            tooltip: '拉遠地圖',
+            onPressed: onZoomOut,
+            icon: const Icon(Icons.remove_rounded),
           ),
         ],
       ),
