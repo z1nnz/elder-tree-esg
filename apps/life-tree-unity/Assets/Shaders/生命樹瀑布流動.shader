@@ -72,6 +72,14 @@ Shader "樹伴/生命樹瀑布流動"
                 float fold = sin(input.uv.x * 13.0 + input.uv.y * 5.0 - motionTime * 2.4)
                     * .035 + sin(input.uv.x * 23.0 - motionTime * 1.7) * .018;
                 worldPosition.xyz += normal * fallMask * arch * (.10 + fold);
+                // Let the lower curtain fan into the mist instead of retaining
+                // a ruler-straight ribbon silhouette. Metres, not FBX units.
+                float3 across = cross(float3(0, 1, 0), normal);
+                across /= max(length(across), .001);
+                float release = smoothstep(.34, .86, input.uv.y) * (1 - _IsStream);
+                float side = input.uv.x * 2 - 1;
+                float flutter = sin(input.uv.y * 19 - motionTime * 3.2 + side * 2.7);
+                worldPosition.xyz += across * side * release * (.20 + flutter * .055);
                 float sway = sin((worldPosition.y * 2.1 - motionTime * 1.4) * 3.2)
                     * 0.012 * _LifeTreeMotionAmount;
                 // Keep the ripple at 1.2 cm even under FBX's unit conversion.
@@ -119,7 +127,9 @@ Shader "樹伴/生命樹瀑布流動"
                 float grain = WaterNoise(float2(u * 93 + warp * 3, travel * lerp(55, 22, falling)));
                 float foam = smoothstep(.36, .78, strands * .55 + sheets * .45);
                 foam = saturate(foam * .8 + grain * foam * .35);
-                float raggedEdge = lerp(.018, .025 + sheets * .09, falling);
+                float lowerFall = smoothstep(.42, .85, v) * falling;
+                float fringe = WaterNoise(float2(u * 8.1 + 29, travel * 5.7));
+                float raggedEdge = lerp(.018, .025 + sheets * .09 + lowerFall * fringe * .065, falling);
                 float edge = smoothstep(raggedEdge, raggedEdge + .06, u)
                     * smoothstep(raggedEdge, raggedEdge + .06, 1 - u);
                 float endFade = 1 - smoothstep(.67, .98, v + (sheets - .5) * .20);

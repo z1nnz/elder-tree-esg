@@ -20,4 +20,5 @@ for obj in targets:
     builder.shape_waterfall_drop(obj)
     assert all((point - vertex.co).length < 1e-7
                for point, vertex in zip(original_inlet, obj.data.vertices[:9]))
-builder.export_assets(root / "apps/life-tree-unity/Assets/Art/Generated", root / "art-source/blender")
+builder.export_assets(root / "apps/life-tree-unity/Assets/Art/Generated", root / "art-source/blender",
+                      render_preview=False)

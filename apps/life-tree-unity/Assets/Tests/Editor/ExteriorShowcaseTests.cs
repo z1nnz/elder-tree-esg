@@ -32,6 +32,20 @@ namespace TreeCompanion.Tests
                 var sprays = Object.FindObjectsByType<ParticleSystem>(FindObjectsSortMode.None)
                     .Where(item => item.name.StartsWith("落水飛沫_", StringComparison.Ordinal)).ToArray();
                 Assert.That(sprays.Length, Is.EqualTo(2));
+                var falls = Object.FindObjectsByType<MeshFilter>(FindObjectsSortMode.None)
+                    .Where(item => item.name.StartsWith("瀑布_", StringComparison.Ordinal)).ToArray();
+                var mists = Object.FindObjectsByType<ParticleSystem>(FindObjectsSortMode.None)
+                    .Where(item => item.name.StartsWith("水霧_", StringComparison.Ordinal)).ToArray();
+                Assert.That(mists.Length, Is.EqualTo(2));
+                foreach (var fall in falls)
+                {
+                    var mesh = fall.sharedMesh;
+                    var endIndex = Enumerable.Range(0, mesh.vertexCount)
+                        .OrderBy(vertex => (mesh.uv[vertex] - new Vector2(.5f, .88f)).sqrMagnitude).First();
+                    var point = fall.transform.TransformPoint(mesh.vertices[endIndex]);
+                    Assert.That(mists.Min(mist => Vector3.Distance(mist.transform.position, point)),
+                        Is.LessThan(.01f), "水霧應接在實際水幕末端，不是包圍盒中央");
+                }
                 foreach (var spray in sprays)
                 {
                     spray.Simulate(.5f, true, true, false);
@@ -45,6 +59,8 @@ namespace TreeCompanion.Tests
                 Object.FindFirstObjectByType<LifeTreeAtmosphereController>().ApplyMotionPreference(true);
                 foreach (var spray in sprays)
                     Assert.That(spray.particleCount, Is.Zero, "減少動態必須一併清除飛沫");
+                foreach (var mist in mists)
+                    Assert.That(mist.particleCount, Is.Zero, "減少動態必須一併清除水霧");
                 EditorSceneManager.OpenScene("Assets/Scenes/生命樹庭園.unity");
                 Assert.That(Object.FindFirstObjectByType<CloudExteriorPreview>(), Is.Null);
             }

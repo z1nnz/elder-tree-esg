@@ -24,7 +24,7 @@ namespace TreeCompanion.Editor
             state.EvaluateWindAt(1.8f);
             atmosphere.EvaluateAt(1.8f);
             var output = Path.GetFullPath(Path.Combine(Application.dataPath,
-                "../../../docs/leadership-evidence/screenshots/world-tree-water-spray-2026-09-15"));
+                "../../../docs/leadership-evidence/screenshots/world-tree-broad-fall-2026-09-15"));
             foreach (var yaw in new[] { 0f, -35f, 35f })
             {
                 controls.SetView(yaw, 1);
@@ -59,6 +59,11 @@ namespace TreeCompanion.Editor
             var target = new Vector3(0, .80f, 0);
             camera.transform.position = target + new Vector3(.23f, .43f, .87f).normalized * 24.5f;
             camera.transform.LookAt(target);
+            // Keep the hero island crisp; soften only the distant cloud walls.
+            RenderSettings.fogMode = FogMode.Linear;
+            RenderSettings.fogStartDistance = 32f;
+            RenderSettings.fogEndDistance = 135f;
+            RenderSettings.fogColor = new Color(.64f, .80f, .90f);
             if (RenderSettings.sun != null)
                 RenderSettings.sun.transform.rotation = Quaternion.Euler(42f, 34f, 0f);
             foreach (var volume in UnityEngine.Object.FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None))
@@ -71,7 +76,7 @@ namespace TreeCompanion.Editor
                     LifeTreeSceneBuilder.PlaceCloudBank(volume.transform.parent, volume, camera);
                 }
             CreateDistantClouds(camera);
-            CreateLowerCloudSea(camera);
+            CreateLowerCloudSea();
             var air = UnityEngine.Object.FindFirstObjectByType<LifeTreeAtmosphereController>();
             air.Bind(camera, target);
             air.BindClouds(UnityEngine.Object.FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None)
@@ -109,29 +114,31 @@ namespace TreeCompanion.Editor
             }
         }
 
-        private static void CreateLowerCloudSea(Camera camera)
+        private static void CreateLowerCloudSea()
         {
-            var template = UnityEngine.Object.FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None)
-                .First(item => item.name == "雲層體積" && item.transform.parent.name.Contains("高空左"));
-            // Overlapping banks below the island, placed in world space so the
-            // sea retains depth when the user orbits instead of following the camera.
-            var banks = new[] {
-                new Vector4(.12f,.22f,42,3.2f), new Vector4(.48f,.20f,46,3.8f),
-                new Vector4(.88f,.23f,43,3.1f), new Vector4(-.10f,.02f,29,2.5f),
-                new Vector4(.40f,-.08f,31,3.0f), new Vector4(1.05f,.01f,30,2.8f)
-            };
-            for (var i = 0; i < banks.Length; i++)
+            const string path = "Assets/Art/Generated/Materials/雲境_連續雲海.mat";
+            var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material == null)
             {
-                var bank = UnityEngine.Object.Instantiate(template.transform.parent.gameObject,
-                    template.transform.parent.parent);
-                bank.name = $"島下雲海_{i:00}";
-                bank.transform.localScale = Vector3.Scale(bank.transform.localScale,
-                    new Vector3(banks[i].w * 1.35f, banks[i].w * .78f, banks[i].w * 1.25f));
-                var volume = bank.GetComponentsInChildren<MeshRenderer>().Single(item => item.name == "雲層體積");
-                volume.GetComponent<CloudVolumeAppearance>().Configure(.16f + i * .12f);
-                bank.transform.position += camera.ViewportToWorldPoint(
-                    new Vector3(banks[i].x, banks[i].y, banks[i].z)) - volume.bounds.center;
+                material = new Material(Shader.Find("樹伴/雲境柔光雲"));
+                AssetDatabase.CreateAsset(material, path);
             }
+            material.SetFloat("_SeaLayer", 1);
+            material.SetColor("_Bottom", new Color(.48f, .65f, .78f, 1));
+            material.SetColor("_Top", new Color(.99f, .99f, .95f, 1));
+            EditorUtility.SetDirty(material);
+            var bank = new GameObject("島下連續雲海");
+            bank.transform.position = new Vector3(0, -6.1f, 0);
+            var volume = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            volume.name = "雲層體積";
+            volume.transform.SetParent(bank.transform, false);
+            volume.transform.localScale = new Vector3(34, 5.6f, 30);
+            UnityEngine.Object.DestroyImmediate(volume.GetComponent<Collider>());
+            var renderer = volume.GetComponent<MeshRenderer>();
+            renderer.sharedMaterial = material;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            volume.AddComponent<CloudVolumeAppearance>().Configure(.42f);
         }
 
         private static void CreateDistantSea()

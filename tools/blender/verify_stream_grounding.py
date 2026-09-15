@@ -58,6 +58,13 @@ def verify():
 
 
 class StreamGroundingTests(unittest.TestCase):
+    def test_falling_sheet_broadens_beyond_inlet(self):
+        for suffix in ("中央左", "中央右"):
+            vertices = bpy.data.objects[f"瀑布_{suffix}"].data.vertices
+            inlet = abs(vertices[8].co.x - vertices[0].co.x)
+            middle = abs(vertices[19 * 9 + 8].co.x - vertices[19 * 9].co.x)
+            self.assertGreater(middle, inlet * 1.5, "落下水幕需要實際寬度，不只加亮流紋")
+
     def test_waterfall_turns_progressively_down_from_lip(self):
         for suffix in ("中央左", "中央右"):
             water = bpy.data.objects[f"瀑布_{suffix}"].data.vertices

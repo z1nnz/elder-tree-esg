@@ -5,6 +5,7 @@ Shader "樹伴/雲境柔光雲"
         _Top ("雲頂暖光", Color) = (.98,.98,.94,1)
         _Bottom ("雲底冷色", Color) = (.66,.81,.9,1)
         _Seed ("雲形差異", Range(0,1)) = .5
+        _SeaLayer ("連續雲海", Range(0,1)) = 0
     }
     SubShader
     {
@@ -23,7 +24,7 @@ Shader "樹伴/雲境柔光雲"
             #pragma target 3.0
             #include "UnityCG.cginc"
             float4 _Top, _Bottom;
-            float _Seed;
+            float _Seed, _SeaLayer;
             float _LifeTreeMotionTime, _LifeTreeMotionAmount;
             struct Varyings { float4 vertex:SV_POSITION; float3 local:TEXCOORD0; UNITY_FOG_COORDS(1) };
             Varyings Vertex(float4 vertex:POSITION)
@@ -54,6 +55,28 @@ Shader "樹伴/雲境柔光雲"
                 float3 right = normalize(cross(up,float3(.23,.83,.4)));
                 float3 q = float3(dot(p,right),dot(p,up),dot(p,cross(right,up)));
                 float3 seed = float3(_Seed*13,_Seed*5,_Seed*7);
+                if (_SeaLayer > .5)
+                {
+                    float drift = _LifeTreeMotionTime * _LifeTreeMotionAmount;
+                    float3 field = float3(q.x * 7, _Seed * 9, q.z * 7)
+                        + float3(drift * .016, 0, drift * .011);
+                    float billows = Noise(field) * .65 + Noise(field * 2.3) * .35;
+                    float surface = -.30 + billows * .85;
+                    float body = 1 - smoothstep(surface - .22, surface + .12, q.y);
+                    // Larger, unequal billows emerge from the same continuous
+                    // field. Keep a lower clearing beneath the island centre.
+                    float3 sculpt = q;
+                    sculpt.y += (Noise(field * 1.7) - .5) * .15;
+                    float peaks = 1 - length((sculpt - float3(-.48,.08,.27)) / float3(.29,.65,.26));
+                    peaks = max(peaks, 1 - length((sculpt - float3(.40,.00,.36)) / float3(.24,.55,.30)));
+                    peaks = max(peaks, 1 - length((sculpt - float3(-.24,-.04,-.50)) / float3(.32,.43,.23)));
+                    peaks = max(peaks, 1 - length((sculpt - float3(.52,.06,-.28)) / float3(.25,.61,.29)));
+                    peaks = max(peaks, 1 - length((sculpt - float3(.03,-.05,.62)) / float3(.30,.48,.21)));
+                    body = max(body, saturate(peaks * 4.5 - .12));
+                    float rim = 1 - smoothstep(.58, .98, length(q.xz));
+                    float floorFade = smoothstep(-.95, -.55, q.y);
+                    return body * rim * floorFade;
+                }
                 // Seed changes the silhouette, not just the surface noise:
                 // shallow banks, off-centre towers and broken trailing wisps.
                 float tower = smoothstep(.15,.85,_Seed);
@@ -100,7 +123,15 @@ Shader "樹伴/雲境柔光雲"
                     float3 p = origin + direction * (entry + (sampleIndex+.5)*stepSize);
                     float absorption = 1-exp(-Density(p,up)*stepSize*11);
                     float3 tint = lerp(_Bottom.rgb,_Top.rgb,smoothstep(-.65,.70,dot(p,up)));
-                    tint *= .64 + .36*exp(-Density(p+sun*.22,up)*2.6);
+                    float shade = Density(p+sun*.22,up);
+                    if (_SeaLayer > .5)
+                    {
+                        // Probe further toward the sun so a billow can shade
+                        // its valley, rather than merely tinting its own skin.
+                        shade = shade * .65 + Density(p+sun*.50,up) * .35;
+                        tint *= .48 + .52*exp(-shade*3.1);
+                    }
+                    else tint *= .64 + .36*exp(-shade*2.6);
                     light += (1-opacity) * tint * absorption;
                     opacity += (1-opacity) * absorption;
                     if(opacity>.985) break;

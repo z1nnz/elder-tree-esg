@@ -583,6 +583,11 @@ def shape_waterfall_drop(waterfall: bpy.types.Object) -> None:
             # Forward travel slows as gravity turns the flow down. Quadratic
             # height gives a horizontal tangent at the lip, not a hinged flap.
             vertex.co.x = start.x + (end.x - start.x) * t
+            # A broad falling sheet, anchored to the unchanged inlet and end.
+            # Recomputed from boundary rows, so saved-model refinement is idempotent.
+            center_x = (waterfall.data.vertices[lip_row * columns + 4].co.x * (1 - t)
+                        + waterfall.data.vertices[rows * columns + 4].co.x * t)
+            vertex.co.x = center_x + (vertex.co.x - center_x) * (1 + .65 * math.sin(t * math.pi))
             vertex.co.y = start.y + (end.y - start.y) * (1 - (1 - t) ** 3)
             vertex.co.y -= math.sin(u * math.pi) * math.sin(t * math.pi) * .12
             vertex.co.z = start.z + (end.z - start.z) * t * t
@@ -1499,13 +1504,14 @@ def write_asset_stats(output: Path) -> None:
     print(f"生命樹資產統計：{json.dumps(stats, ensure_ascii=False)}")
 
 
-def export_assets(output: Path, source: Path) -> None:
+def export_assets(output: Path, source: Path, *, render_preview: bool = True) -> None:
     output.mkdir(parents=True, exist_ok=True)
     source.mkdir(parents=True, exist_ok=True)
     scene = bpy.context.scene
 
     scene.render.filepath = str(output / "生命樹庭園_品質預覽.png")
-    bpy.ops.render.render(write_still=True)
+    if render_preview:
+        bpy.ops.render.render(write_still=True)
 
     # Preserve the editable curve source before converting for game export.
     bpy.ops.wm.save_as_mainfile(filepath=str(source / "生命樹庭園_母稿.blend"))

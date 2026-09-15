@@ -777,9 +777,12 @@ namespace TreeCompanion.Editor
             for (var index = 0; index < falls.Length; index++)
             {
                 var bounds = falls[index].bounds;
+                var mesh = falls[index].GetComponent<MeshFilter>().sharedMesh;
+                var mistIndex = Enumerable.Range(0, mesh.vertexCount)
+                    .OrderBy(vertex => (mesh.uv[vertex] - new Vector2(.5f, .88f)).sqrMagnitude).First();
                 var item = new GameObject($"水霧_{index:00}");
                 item.transform.SetParent(world, false);
-                item.transform.position = new Vector3(bounds.center.x, bounds.min.y + .18f, bounds.center.z);
+                item.transform.position = falls[index].transform.TransformPoint(mesh.vertices[mistIndex]);
                 item.transform.rotation = Quaternion.Euler(-90f, 0, 0);
                 var mist = item.AddComponent<ParticleSystem>();
                 mist.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
@@ -789,17 +792,17 @@ namespace TreeCompanion.Editor
                 main.loop = true;
                 main.playOnAwake = true;
                 main.startLifetime = new ParticleSystem.MinMaxCurve(2.4f, 4f);
-                main.startSpeed = new ParticleSystem.MinMaxCurve(.18f, .48f);
-                main.startSize = new ParticleSystem.MinMaxCurve(.65f, 1.4f);
-                main.startColor = new Color(.80f, .90f, .97f, .20f);
+                main.startSpeed = new ParticleSystem.MinMaxCurve(.12f, .32f);
+                main.startSize = new ParticleSystem.MinMaxCurve(1.1f, 2.2f);
+                main.startColor = new Color(.86f, .94f, .98f, .30f);
                 main.simulationSpace = ParticleSystemSimulationSpace.Local;
                 main.maxParticles = 72;
                 var emission = mist.emission;
                 emission.rateOverTime = 16f;
                 var shape = mist.shape;
                 shape.shapeType = ParticleSystemShapeType.Cone;
-                shape.angle = 40f;
-                shape.radius = .36f;
+                shape.angle = 72f;
+                shape.radius = .48f;
                 var size = mist.sizeOverLifetime;
                 size.enabled = true;
                 size.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0, .55f, 1, 1.8f));
@@ -818,7 +821,6 @@ namespace TreeCompanion.Editor
                 // terminal mist above remains broad and slow, not falling rain.
                 var sprayObject = UnityEngine.Object.Instantiate(item, world);
                 sprayObject.name = $"落水飛沫_{index:00}";
-                var mesh = falls[index].GetComponent<MeshFilter>().sharedMesh;
                 var lipIndex = Enumerable.Range(0, mesh.vertexCount)
                     .OrderBy(vertex => (mesh.uv[vertex] - new Vector2(.5f, .18f)).sqrMagnitude).First();
                 sprayObject.transform.position = falls[index].transform.TransformPoint(mesh.vertices[lipIndex]);

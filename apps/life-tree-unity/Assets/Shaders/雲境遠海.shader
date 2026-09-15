@@ -48,7 +48,7 @@ Shader "樹伴/雲境遠海"
                 float3 ray=normalize(input.world-_WorldSpaceCameraPos);
                 float high=smoothstep(-.65,.7,ray.y);
                 fixed3 sky=lerp(fixed3(.57,.79,.90),fixed3(.12,.39,.72),high);
-                color = lerp(color,sky,smoothstep(70,150,distance));
+                color = lerp(color,sky,smoothstep(45,135,distance));
                 fixed4 result = fixed4(color,1);
                 // Distance already blends to the same sky colour. Applying
                 // scene fog again would reveal a hard rectangular horizon.

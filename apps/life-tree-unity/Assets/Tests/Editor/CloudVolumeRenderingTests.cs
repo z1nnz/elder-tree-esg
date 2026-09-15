@@ -84,6 +84,13 @@ namespace TreeCompanion.Tests
                     for (var index = 0; index < beforeMotion.Length; index++)
                         Assert.That(reducedMotion[index].r, Is.EqualTo(beforeMotion[index].r).Within(.001f),
                             "減少動態必須固定雲體密度");
+                    material.SetFloat("_SeaLayer", 1);
+                    camera.Render(); pixels.ReadPixels(new Rect(0,0,64,64),0,0); pixels.Apply();
+                    for (var x = 23; x <= 41; x++)
+                        Assert.That(pixels.GetPixel(x, 25).a, Is.GreaterThan(.5f),
+                            "連續雲海中央不能留下分組空隙");
+                    Assert.That(pixels.GetPixel(1, 1).a, Is.LessThan(.05f),
+                        "連續雲海仍須隱去包圍盒角落");
                 }
             }
             finally
