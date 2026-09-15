@@ -29,6 +29,22 @@ namespace TreeCompanion.Tests
                 Assert.That(streams.Length, Is.EqualTo(2));
                 foreach (var stream in streams)
                     Assert.That(stream.sharedMaterial.GetFloat("_IsStream"), Is.EqualTo(1), "島面溪流必須使用不消散的材質");
+                var sprays = Object.FindObjectsByType<ParticleSystem>(FindObjectsSortMode.None)
+                    .Where(item => item.name.StartsWith("落水飛沫_", StringComparison.Ordinal)).ToArray();
+                Assert.That(sprays.Length, Is.EqualTo(2));
+                foreach (var spray in sprays)
+                {
+                    spray.Simulate(.5f, true, true, false);
+                    var particles = new ParticleSystem.Particle[spray.main.maxParticles];
+                    var count = spray.GetParticles(particles);
+                    Assert.That(count, Is.GreaterThan(0));
+                    for (var index = 0; index < count; index++)
+                        Assert.That(spray.transform.TransformDirection(particles[index].velocity).y,
+                            Is.LessThan(0), "飛沫必須往下落，不能向上噴");
+                }
+                Object.FindFirstObjectByType<LifeTreeAtmosphereController>().ApplyMotionPreference(true);
+                foreach (var spray in sprays)
+                    Assert.That(spray.particleCount, Is.Zero, "減少動態必須一併清除飛沫");
                 EditorSceneManager.OpenScene("Assets/Scenes/生命樹庭園.unity");
                 Assert.That(Object.FindFirstObjectByType<CloudExteriorPreview>(), Is.Null);
             }

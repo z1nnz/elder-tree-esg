@@ -773,7 +773,7 @@ namespace TreeCompanion.Editor
             }
             var falls = world.GetComponentsInChildren<Renderer>(true)
                 .Where(renderer => renderer.name.StartsWith("瀑布_", StringComparison.Ordinal)).ToArray();
-            var result = new ParticleSystem[falls.Length];
+            var result = new ParticleSystem[falls.Length * 2];
             for (var index = 0; index < falls.Length; index++)
             {
                 var bounds = falls[index].bounds;
@@ -788,18 +788,21 @@ namespace TreeCompanion.Editor
                 var main = mist.main;
                 main.loop = true;
                 main.playOnAwake = true;
-                main.startLifetime = new ParticleSystem.MinMaxCurve(1.5f, 3f);
-                main.startSpeed = new ParticleSystem.MinMaxCurve(.12f, .30f);
-                main.startSize = new ParticleSystem.MinMaxCurve(.55f, 1.15f);
-                main.startColor = new Color(.80f, .90f, .97f, .24f);
+                main.startLifetime = new ParticleSystem.MinMaxCurve(2.4f, 4f);
+                main.startSpeed = new ParticleSystem.MinMaxCurve(.18f, .48f);
+                main.startSize = new ParticleSystem.MinMaxCurve(.65f, 1.4f);
+                main.startColor = new Color(.80f, .90f, .97f, .20f);
                 main.simulationSpace = ParticleSystemSimulationSpace.Local;
-                main.maxParticles = 32;
+                main.maxParticles = 72;
                 var emission = mist.emission;
-                emission.rateOverTime = 9f;
+                emission.rateOverTime = 16f;
                 var shape = mist.shape;
                 shape.shapeType = ParticleSystemShapeType.Cone;
                 shape.angle = 40f;
-                shape.radius = .22f;
+                shape.radius = .36f;
+                var size = mist.sizeOverLifetime;
+                size.enabled = true;
+                size.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0, .55f, 1, 1.8f));
                 var color = mist.colorOverLifetime;
                 color.enabled = true;
                 var gradient = new Gradient();
@@ -811,6 +814,37 @@ namespace TreeCompanion.Editor
                 renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 renderer.receiveShadows = false;
                 result[index] = mist;
+                // A separate, gravity-driven spray starts at the lip. The
+                // terminal mist above remains broad and slow, not falling rain.
+                var sprayObject = UnityEngine.Object.Instantiate(item, world);
+                sprayObject.name = $"落水飛沫_{index:00}";
+                var mesh = falls[index].GetComponent<MeshFilter>().sharedMesh;
+                var lipIndex = Enumerable.Range(0, mesh.vertexCount)
+                    .OrderBy(vertex => (mesh.uv[vertex] - new Vector2(.5f, .18f)).sqrMagnitude).First();
+                sprayObject.transform.position = falls[index].transform.TransformPoint(mesh.vertices[lipIndex]);
+                sprayObject.transform.rotation = Quaternion.LookRotation(Vector3.down);
+                var spray = sprayObject.GetComponent<ParticleSystem>();
+                spray.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                spray.randomSeed = (uint)(3108 + index);
+                var sprayMain = spray.main;
+                sprayMain.startLifetime = new ParticleSystem.MinMaxCurve(.7f, 1.3f);
+                sprayMain.startSpeed = new ParticleSystem.MinMaxCurve(.8f, 1.4f);
+                sprayMain.startSize = new ParticleSystem.MinMaxCurve(.025f, .07f);
+                sprayMain.startColor = new Color(.88f, .96f, 1f, .55f);
+                sprayMain.gravityModifier = .25f;
+                sprayMain.maxParticles = 64;
+                var sprayEmission = spray.emission;
+                sprayEmission.rateOverTime = 40f;
+                var sprayShape = spray.shape;
+                sprayShape.angle = 8f;
+                sprayShape.radius = Mathf.Min(bounds.size.x, bounds.size.z) * .25f;
+                var spraySize = spray.sizeOverLifetime;
+                spraySize.enabled = false;
+                var sprayRenderer = spray.GetComponent<ParticleSystemRenderer>();
+                sprayRenderer.renderMode = ParticleSystemRenderMode.Stretch;
+                sprayRenderer.velocityScale = .08f;
+                sprayRenderer.lengthScale = 2f;
+                result[index + falls.Length] = spray;
             }
             return result;
         }

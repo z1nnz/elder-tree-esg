@@ -24,6 +24,7 @@ Shader "樹伴/雲境柔光雲"
             #include "UnityCG.cginc"
             float4 _Top, _Bottom;
             float _Seed;
+            float _LifeTreeMotionTime, _LifeTreeMotionAmount;
             struct Varyings { float4 vertex:SV_POSITION; float3 local:TEXCOORD0; UNITY_FOG_COORDS(1) };
             Varyings Vertex(float4 vertex:POSITION)
             {
@@ -58,7 +59,7 @@ Shader "樹伴/雲境柔光雲"
                 float tower = smoothstep(.15,.85,_Seed);
                 float lean = (_Seed-.5)*.55;
                 q.x += (Noise(q*3.2+seed)-.5)*.17;
-                q.y += (Noise(q*4.1+seed.yzx)-.5)*.13;
+                q.y += (Noise(q*4.1+seed.yzx)-.5)*.26;
                 float shape = 1-length((q-float3(0,-.27,0))/float3(.91,.32,.64));
                 shape = max(shape, 1-length((q-float3(-.29+lean,-.15+tower*.29,-.04))
                     /float3(.44+tower*.07,.26+tower*.36,.46)));
@@ -70,8 +71,14 @@ Shader "樹伴/雲境柔光雲"
                     /float3(.24,.15+tower*.09,.32)));
                 shape = max(shape, 1-length((q-float3(.69,-.32,.06))
                     /float3(.25,.14+(1-tower)*.1,.33)));
-                float detail = Noise(p*5.8+seed) * .65 + Noise(p*14.2+seed) * .35;
-                return saturate(shape * 4.5 - .35 - detail * 1.35);
+                // Advect internal density slowly; keep the enclosing silhouette
+                // stable and honour the shared reduced-motion control.
+                float drift = _LifeTreeMotionTime * _LifeTreeMotionAmount;
+                float3 wind = float3(drift * .035, drift * -.012, drift * .018);
+                float detail = Noise(p*5.8+seed+wind) * .65
+                    + Noise(p*14.2+seed+wind*1.7) * .35;
+                float billow = Noise(q * 8.0 + seed.zxy + wind * .5);
+                return saturate(shape * 4.5 - .30 - detail * 1.35 + (billow - .5) * .42);
             }
             float4 Fragment(Varyings i):SV_Target
             {

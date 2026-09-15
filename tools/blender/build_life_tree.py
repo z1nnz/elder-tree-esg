@@ -564,7 +564,29 @@ def waterfall_ribbon(
     waterfall.location = location
     waterfall.parent = parent
     target.objects.link(waterfall)
+    shape_waterfall_drop(waterfall)
     return waterfall
+
+
+def shape_waterfall_drop(waterfall: bpy.types.Object) -> None:
+    """Round the grounded lip into a falling sheet without moving its inlet."""
+    columns, rows, lip_row = 9, 32, 5
+    if len(waterfall.data.vertices) != columns * (rows + 1):
+        raise ValueError(f"Unexpected waterfall grid: {waterfall.name}")
+    for column in range(columns):
+        start = waterfall.data.vertices[lip_row * columns + column].co.copy()
+        end = waterfall.data.vertices[rows * columns + column].co.copy()
+        u = column / (columns - 1)
+        for row in range(lip_row + 1, rows):
+            t = (row - lip_row) / (rows - lip_row)
+            vertex = waterfall.data.vertices[row * columns + column]
+            # Forward travel slows as gravity turns the flow down. Quadratic
+            # height gives a horizontal tangent at the lip, not a hinged flap.
+            vertex.co.x = start.x + (end.x - start.x) * t
+            vertex.co.y = start.y + (end.y - start.y) * (1 - (1 - t) ** 3)
+            vertex.co.y -= math.sin(u * math.pi) * math.sin(t * math.pi) * .12
+            vertex.co.z = start.z + (end.z - start.z) * t * t
+    waterfall.data.update()
 
 
 def island_path(

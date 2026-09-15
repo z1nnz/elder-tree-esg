@@ -24,7 +24,7 @@ namespace TreeCompanion.Editor
             state.EvaluateWindAt(1.8f);
             atmosphere.EvaluateAt(1.8f);
             var output = Path.GetFullPath(Path.Combine(Application.dataPath,
-                "../../../docs/leadership-evidence/screenshots/world-tree-waterfall-2026-09-14"));
+                "../../../docs/leadership-evidence/screenshots/world-tree-water-spray-2026-09-15"));
             foreach (var yaw in new[] { 0f, -35f, 35f })
             {
                 controls.SetView(yaw, 1);
@@ -32,10 +32,14 @@ namespace TreeCompanion.Editor
                     Path.Combine(output, $"世界樹外觀_{yaw:0}.png"), 1200, 1600);
             }
             controls.ResetView();
+            controls.SetView(0, 1.35f);
+            LifeTreePreviewCapture.CaptureStill(Camera.main,
+                Path.Combine(output, "主樹近景.png"), 1600, 1600);
+            controls.ResetView();
             LifeTreePreviewCapture.CaptureStill(Camera.main,
                 Path.Combine(output, "世界樹橫幅.png"), 1600, 1000);
-            LifeTreePreviewCapture.CaptureSequence(Camera.main, output, "水流連續實景", 600, 800, 4,
-                frame => { state.EvaluateWindAt(1.8f + frame * .25f); atmosphere.EvaluateAt(1.8f + frame * .25f); });
+            LifeTreePreviewCapture.CaptureSequence(Camera.main, output, "水流連續實景", 600, 800, 72,
+                frame => { state.EvaluateWindAt(1.8f + frame / 12f); atmosphere.EvaluateAt(1.8f + frame / 12f); });
             Debug.Log($"外觀審查實景：{output}");
         }
 
@@ -67,6 +71,7 @@ namespace TreeCompanion.Editor
                     LifeTreeSceneBuilder.PlaceCloudBank(volume.transform.parent, volume, camera);
                 }
             CreateDistantClouds(camera);
+            CreateLowerCloudSea(camera);
             var air = UnityEngine.Object.FindFirstObjectByType<LifeTreeAtmosphereController>();
             air.Bind(camera, target);
             air.BindClouds(UnityEngine.Object.FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None)
@@ -101,6 +106,31 @@ namespace TreeCompanion.Editor
                 volume.GetComponent<CloudVolumeAppearance>().Configure(Mathf.Repeat(i*.37f+.08f,1));
                 bank.transform.position += camera.ViewportToWorldPoint(
                     new Vector3(banks[i].x,banks[i].y,banks[i].z)) - volume.bounds.center;
+            }
+        }
+
+        private static void CreateLowerCloudSea(Camera camera)
+        {
+            var template = UnityEngine.Object.FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None)
+                .First(item => item.name == "雲層體積" && item.transform.parent.name.Contains("高空左"));
+            // Overlapping banks below the island, placed in world space so the
+            // sea retains depth when the user orbits instead of following the camera.
+            var banks = new[] {
+                new Vector4(.12f,.22f,42,3.2f), new Vector4(.48f,.20f,46,3.8f),
+                new Vector4(.88f,.23f,43,3.1f), new Vector4(-.10f,.02f,29,2.5f),
+                new Vector4(.40f,-.08f,31,3.0f), new Vector4(1.05f,.01f,30,2.8f)
+            };
+            for (var i = 0; i < banks.Length; i++)
+            {
+                var bank = UnityEngine.Object.Instantiate(template.transform.parent.gameObject,
+                    template.transform.parent.parent);
+                bank.name = $"島下雲海_{i:00}";
+                bank.transform.localScale = Vector3.Scale(bank.transform.localScale,
+                    new Vector3(banks[i].w * 1.35f, banks[i].w * .78f, banks[i].w * 1.25f));
+                var volume = bank.GetComponentsInChildren<MeshRenderer>().Single(item => item.name == "雲層體積");
+                volume.GetComponent<CloudVolumeAppearance>().Configure(.16f + i * .12f);
+                bank.transform.position += camera.ViewportToWorldPoint(
+                    new Vector3(banks[i].x, banks[i].y, banks[i].z)) - volume.bounds.center;
             }
         }
 

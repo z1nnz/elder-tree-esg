@@ -32,6 +32,16 @@ namespace TreeCompanion.Tests
         }
 
         [Test]
+        public void FallingCoreOccludesCliffButKeepsSoftMargins()
+        {
+            var pixels = RenderWater(false, .7f, 1);
+            Assert.That(pixels[30 * 64 + 32].a, Is.GreaterThan(.80f),
+                "水幕中央應遮蔽後方岩壁輪廓");
+            Assert.That(pixels[30 * 64 + 1].a, Is.LessThan(.1f),
+                "水幕邊緣仍應透明而非矩形板");
+        }
+
+        [Test]
         public void WaterFlowsAndReducedMotionFreezesItsSurface()
         {
             var start = RenderWater(false, 0, 1);

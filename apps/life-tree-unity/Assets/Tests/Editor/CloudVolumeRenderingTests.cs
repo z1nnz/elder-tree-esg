@@ -17,6 +17,8 @@ namespace TreeCompanion.Tests
             var previous = RenderTexture.active;
             var material = new Material(Shader.Find("樹伴/雲境柔光雲"));
             var fog = RenderSettings.fog;
+            var previousTime = Shader.GetGlobalFloat("_LifeTreeMotionTime");
+            var previousAmount = Shader.GetGlobalFloat("_LifeTreeMotionAmount");
             try
             {
                 cube.layer = 31;
@@ -65,10 +67,29 @@ namespace TreeCompanion.Tests
                     for (var index = 0; index < lowBank.Length; index++)
                         if ((lowBank[index].a > .4f) != (tower[index].a > .4f)) silhouetteChanges++;
                     Assert.That(silhouetteChanges, Is.GreaterThan(100), "雲形差異必須改變輪廓，而非僅改表面雜訊");
+                    Shader.SetGlobalFloat("_LifeTreeMotionAmount", 1);
+                    Shader.SetGlobalFloat("_LifeTreeMotionTime", 0);
+                    camera.Render(); pixels.ReadPixels(new Rect(0,0,64,64),0,0); pixels.Apply();
+                    var beforeMotion = pixels.GetPixels();
+                    Shader.SetGlobalFloat("_LifeTreeMotionTime", 12);
+                    camera.Render(); pixels.ReadPixels(new Rect(0,0,64,64),0,0); pixels.Apply();
+                    var afterMotion = pixels.GetPixels();
+                    var difference = 0f;
+                    for (var index = 0; index < beforeMotion.Length; index++)
+                        difference += Mathf.Abs(beforeMotion[index].r - afterMotion[index].r);
+                    Assert.That(difference, Is.GreaterThan(1), "雲體密度應隨時間翻湧");
+                    Shader.SetGlobalFloat("_LifeTreeMotionAmount", 0);
+                    camera.Render(); pixels.ReadPixels(new Rect(0,0,64,64),0,0); pixels.Apply();
+                    var reducedMotion = pixels.GetPixels();
+                    for (var index = 0; index < beforeMotion.Length; index++)
+                        Assert.That(reducedMotion[index].r, Is.EqualTo(beforeMotion[index].r).Within(.001f),
+                            "減少動態必須固定雲體密度");
                 }
             }
             finally
             {
+                Shader.SetGlobalFloat("_LifeTreeMotionTime", previousTime);
+                Shader.SetGlobalFloat("_LifeTreeMotionAmount", previousAmount);
                 RenderSettings.fog = fog; RenderTexture.active = previous;
                 Object.DestroyImmediate(cameraObject); Object.DestroyImmediate(cube);
                 if (second != null) Object.DestroyImmediate(second);

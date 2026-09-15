@@ -58,6 +58,17 @@ def verify():
 
 
 class StreamGroundingTests(unittest.TestCase):
+    def test_waterfall_turns_progressively_down_from_lip(self):
+        for suffix in ("中央左", "中央右"):
+            water = bpy.data.objects[f"瀑布_{suffix}"].data.vertices
+            center = [water[row * 9 + 4].co for row in range(5, 33)]
+            drops = [a.z - b.z for a, b in zip(center, center[1:])]
+            self.assertTrue(all(drop > 0 for drop in drops), "落水不能逆坡")
+            self.assertLess(drops[0], drops[-1] * .1, "出水口應平滑轉向，不能直接折成直板")
+            mid = 18 * 9
+            self.assertGreater(abs(water[mid + 4].co.y - water[mid].co.y), .06,
+                               "水幕橫截面應有弧度，不是單一平板")
+
     def test_banks_do_not_pierce_river_interior(self):
         for suffix in ("中央左", "中央右"):
             stream = bpy.data.objects[f"溪流_{suffix}"]

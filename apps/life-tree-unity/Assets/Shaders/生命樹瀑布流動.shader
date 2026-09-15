@@ -46,6 +46,7 @@ Shader "樹伴/生命樹瀑布流動"
             struct AppData
             {
                 float4 vertex : POSITION;
+                float3 normal : NORMAL;
                 float2 uv : TEXCOORD0;
             };
 
@@ -55,6 +56,7 @@ Shader "樹伴/生命樹瀑布流動"
                 float3 worldPosition : TEXCOORD0;
                 float2 uv : TEXCOORD1;
                 UNITY_FOG_COORDS(2)
+                float3 worldNormal : TEXCOORD3;
             };
 
             Interpolators Vertex(AppData input)
@@ -62,12 +64,21 @@ Shader "樹伴/生命樹瀑布流動"
                 Interpolators output;
                 float4 worldPosition = mul(unity_ObjectToWorld, input.vertex);
                 float motionTime = _LifeTreeMotionTime * _LifeTreeMotionAmount;
+                float3 normal = UnityObjectToWorldNormal(input.normal);
+                // A bowed cross section and irregular moving folds provide a
+                // real oblique silhouette. Keep the grounded approach unchanged.
+                float fallMask = smoothstep(.18, .36, input.uv.y) * (1 - _IsStream);
+                float arch = sin(input.uv.x * UNITY_PI);
+                float fold = sin(input.uv.x * 13.0 + input.uv.y * 5.0 - motionTime * 2.4)
+                    * .035 + sin(input.uv.x * 23.0 - motionTime * 1.7) * .018;
+                worldPosition.xyz += normal * fallMask * arch * (.10 + fold);
                 float sway = sin((worldPosition.y * 2.1 - motionTime * 1.4) * 3.2)
                     * 0.012 * _LifeTreeMotionAmount;
                 // Keep the ripple at 1.2 cm even under FBX's unit conversion.
                 worldPosition.x += sway * smoothstep(.18, .45, input.uv.y) * (1 - _IsStream);
                 output.position = mul(UNITY_MATRIX_VP, worldPosition);
                 output.worldPosition = worldPosition.xyz;
+                output.worldNormal = normal;
                 output.uv = input.uv;
                 UNITY_TRANSFER_FOG(output, output.position);
                 return output;
@@ -102,7 +113,7 @@ Shader "樹伴/生命樹瀑布流動"
                 // Falling foam stretches with the flow instead of reading as
                 // round white spots. Keep the river's smaller surface ripples.
                 float warp = WaterNoise(float2(u * 4.1, travel * lerp(8, 3.8, falling))) - .5;
-                float strands = WaterNoise(float2(u * lerp(27, 32, falling) + warp * 2.2,
+                float strands = WaterNoise(float2(u * lerp(27, 18, falling) + warp * 3.4,
                     travel * lerp(18, 10, falling)));
                 float sheets = WaterNoise(float2(u * 7.3 + warp, travel * lerp(6.3, 3.2, falling) + 17));
                 float grain = WaterNoise(float2(u * 93 + warp * 3, travel * lerp(55, 22, falling)));
@@ -116,10 +127,20 @@ Shader "樹伴/生命樹瀑布流動"
                 endFade = lerp(endFade, 1, _IsStream);
                 // Keep a continuous water body behind local foam. Multiplying
                 // the whole curtain by strand noise made isolated white wires.
-                float whiteWater = falling * (.20 + foam * .72);
+                float whiteWater = falling * (.36 + foam * .42 + sheets * .12);
                 fixed4 colorSample = lerp(_Color, _FoamColor, saturate(whiteWater + foam * .22));
+                float grazing = 1 - abs(dot(normalize(input.worldNormal),
+                    normalize(_WorldSpaceCameraPos - input.worldPosition)));
+                colorSample.rgb = lerp(colorSample.rgb, _FoamColor.rgb,
+                    grazing * grazing * .16 * falling);
                 colorSample.a = _Opacity * edge * endFade
                     * lerp(.78 + foam * .15, .68 + foam * .30, falling);
+                // Aerated water has a dense core. A uniformly transparent
+                // sheet reveals the cliff's hard silhouette through the fall.
+                // Keep only the margins and terminal spray translucent.
+                float core = smoothstep(.10, .26, u) * smoothstep(.10, .26, 1-u);
+                float coreOpacity = .94 * edge * endFade * saturate(_Opacity / .85);
+                colorSample.a = lerp(colorSample.a, max(colorSample.a, coreOpacity), falling * core);
                 UNITY_APPLY_FOG(input.fogCoord, colorSample);
                 return colorSample;
             }
