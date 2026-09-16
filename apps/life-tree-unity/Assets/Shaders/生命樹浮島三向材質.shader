@@ -55,8 +55,12 @@ Shader "樹伴/生命樹浮島三向材質"
                 + sin(input.worldPos.x * 1.7 + input.worldPos.z * .8) * 1.25
                 + rock.r * 3.0);
             float mineral = smoothstep(-.35, .65, strata);
-            fixed3 limestone = lerp(fixed3(.57,.64,.60), fixed3(.66,.69,.63), mineral);
-            rock.rgb = lerp(rock.rgb, limestone, .56);
+            fixed3 limestone = lerp(fixed3(.43,.49,.48), fixed3(.76,.73,.62), mineral);
+            rock.rgb = lerp(rock.rgb, limestone, .68);
+            float seam = smoothstep(.86, .99, sin(input.worldPos.y * 9.1
+                + sin(input.worldPos.x * .83 + input.worldPos.z * 1.12) * 1.8
+                + rock.g * 4));
+            rock.rgb *= 1 - seam * .22;
             fixed4 grass = tex2D(_GrassTex, input.worldPos.xz * _Tiling);
             half upward = smoothstep(0.46, 0.74, normal.y) * _GrassInfluence;
             half soil = input.color.r * _BankInfluence;
@@ -66,7 +70,7 @@ Shader "樹伴/生命樹浮島三向材質"
             output.Albedo = colorSample.rgb;
             // A restrained sky bounce keeps unlit cliff faces readable;
             // grass and river soil retain their ordinary lighting response.
-            output.Emission = rock.rgb * .10 * (1-upward) * (1-soil);
+            output.Emission = rock.rgb * .22 * (1-upward) * (1-soil);
             output.Alpha = 1.0;
         }
         ENDCG
