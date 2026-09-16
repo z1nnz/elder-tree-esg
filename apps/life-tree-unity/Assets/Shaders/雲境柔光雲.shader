@@ -26,12 +26,14 @@ Shader "樹伴/雲境柔光雲"
             float4 _Top, _Bottom;
             float _Seed, _SeaLayer;
             float _LifeTreeMotionTime, _LifeTreeMotionAmount;
-            struct Varyings { float4 vertex:SV_POSITION; float3 local:TEXCOORD0; UNITY_FOG_COORDS(1) };
+            UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
+            struct Varyings { float4 vertex:SV_POSITION; float3 local:TEXCOORD0; UNITY_FOG_COORDS(1) float4 screen:TEXCOORD2; };
             Varyings Vertex(float4 vertex:POSITION)
             {
                 Varyings o;
                 o.vertex = UnityObjectToClipPos(vertex);
                 o.local = vertex.xyz * 2;
+                o.screen = ComputeScreenPos(o.vertex);
                 UNITY_TRANSFER_FOG(o, o.vertex);
                 return o;
             }
@@ -112,6 +114,11 @@ Shader "樹伴/雲境柔光雲"
                 float3 lo = min(a,b), hi = max(a,b);
                 float entry = max(0, max(lo.x,max(lo.y,lo.z)));
                 float leave = min(hi.x,min(hi.y,hi.z));
+                float sceneDepth = LinearEyeDepth(SAMPLE_DEPTH_TEXTURE_PROJ(
+                    _CameraDepthTexture, UNITY_PROJ_COORD(i.screen)));
+                float3 worldStep = mul((float3x3)unity_ObjectToWorld, direction * .5);
+                float eyeStep = -mul((float3x3)UNITY_MATRIX_V, worldStep).z;
+                leave = min(leave, sceneDepth / max(eyeStep, .0001));
                 if (leave <= entry) discard;
                 float3 up = normalize(mul((float3x3)unity_WorldToObject, float3(0,1,0)));
                 float3 sun = normalize(mul((float3x3)unity_WorldToObject, normalize(float3(.6,1,.35))));

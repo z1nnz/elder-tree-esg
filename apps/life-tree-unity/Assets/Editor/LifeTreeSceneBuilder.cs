@@ -400,6 +400,7 @@ namespace TreeCompanion.Editor
             cameraObject.transform.SetParent(parent, false);
 
             var camera = cameraObject.AddComponent<Camera>();
+            camera.depthTextureMode = DepthTextureMode.Depth;
             camera.fieldOfView = 37f;
             camera.aspect = 0.75f;
             camera.nearClipPlane = 0.1f;

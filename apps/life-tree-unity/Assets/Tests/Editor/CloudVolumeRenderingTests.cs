@@ -5,6 +5,54 @@ namespace TreeCompanion.Tests
 {
     public sealed class CloudVolumeRenderingTests
     {
+        [Test]
+        public void OpaqueSurfaceInsideVolumeStopsCloudBehindIt()
+        {
+            var cloud = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var owner = new GameObject("雲與岩壁遮擋驗證");
+            var material = new Material(Shader.Find("樹伴/雲境柔光雲"));
+            var stone = new Material(Shader.Find("Standard"));
+            var target = new RenderTexture(64,64,24);
+            var image = new Texture2D(64,64,TextureFormat.RGBA32,false);
+            var previous = RenderTexture.active;
+            var fog = RenderSettings.fog;
+            try
+            {
+                cloud.layer = wall.layer = 30;
+                cloud.transform.localScale = Vector3.one * 2;
+                cloud.GetComponent<Renderer>().sharedMaterial = material;
+                wall.transform.localScale = new Vector3(4,4,.02f);
+                wall.transform.position = new Vector3(0,0,-.85f);
+                stone.color = Color.black;
+                wall.GetComponent<Renderer>().sharedMaterial = stone;
+                var camera = owner.AddComponent<Camera>();
+                camera.cullingMask = 1 << 30;
+                camera.transform.position = new Vector3(0,0,-4);
+                camera.fieldOfView = 45; camera.aspect = 1;
+                camera.depthTextureMode = DepthTextureMode.Depth;
+                camera.targetTexture = target;
+                RenderSettings.fog = false;
+                camera.Render(); RenderTexture.active = target;
+                image.ReadPixels(new Rect(0,0,64,64),0,0); image.Apply();
+                var blocked = image.GetPixel(32,27).grayscale;
+                wall.transform.position = new Vector3(0,0,1.2f);
+                camera.Render();
+                image.ReadPixels(new Rect(0,0,64,64),0,0); image.Apply();
+                var unobstructed = image.GetPixel(32,27).grayscale;
+                Assert.That(unobstructed, Is.GreaterThan(.3f));
+                Assert.That(blocked, Is.LessThan(unobstructed * .25f),
+                    "靠近雲盒前端的岩壁應遮住後方雲，不可積分整個雲盒");
+            }
+            finally
+            {
+                RenderSettings.fog = fog; RenderTexture.active = previous;
+                Object.DestroyImmediate(cloud); Object.DestroyImmediate(wall); Object.DestroyImmediate(owner);
+                Object.DestroyImmediate(material); Object.DestroyImmediate(stone); Object.DestroyImmediate(image);
+                target.Release(); Object.DestroyImmediate(target);
+            }
+        }
+
         [TestCase(false)]
         [TestCase(true)]
         public void VolumeHasDenseLowerBodyAndTransparentCorners(bool multipleVolumes)
@@ -36,6 +84,7 @@ namespace TreeCompanion.Tests
                 camera.transform.position = new Vector3(0, 0, multipleVolumes ? -6 : -4);
                 camera.fieldOfView = 45; camera.aspect = 1;
                 camera.clearFlags = CameraClearFlags.SolidColor;
+                camera.depthTextureMode = DepthTextureMode.Depth;
                 camera.backgroundColor = Color.clear;
                 camera.targetTexture = texture;
                 RenderSettings.fog = false;

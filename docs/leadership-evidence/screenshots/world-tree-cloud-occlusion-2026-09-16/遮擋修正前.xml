@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Failed(Child)" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-15 22:27:05Z" end-time="2026-09-15 22:27:06Z" duration="0.6232519">
+  <test-suite type="TestSuite" id="1000" name="樹伴生命樹庭園" fullname="樹伴生命樹庭園" runstate="Runnable" testcasecount="39" result="Failed" site="Child" start-time="2026-09-15 22:27:05Z" end-time="2026-09-15 22:27:06Z" duration="0.623252" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="1048" name="TreeCompanion.LifeTree.EditorTests.dll" fullname="/Users/whzi_111/.codex/worktrees/app-ready-20260828/elder-tree-esg/apps/life-tree-unity/Library/ScriptAssemblies/TreeCompanion.LifeTree.EditorTests.dll" runstate="Runnable" testcasecount="39" result="Failed" site="Child" start-time="2026-09-15 22:27:05Z" end-time="2026-09-15 22:27:06Z" duration="0.619421" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="57140" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="1049" name="TreeCompanion" fullname="TreeCompanion" runstate="Runnable" testcasecount="39" result="Failed" site="Child" start-time="2026-09-15 22:27:05Z" end-time="2026-09-15 22:27:06Z" duration="0.619083" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="1050" name="Tests" fullname="TreeCompanion.Tests" runstate="Runnable" testcasecount="39" result="Failed" site="Child" start-time="2026-09-15 22:27:05Z" end-time="2026-09-15 22:27:06Z" duration="0.618862" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestFixture" id="1011" name="CloudVolumeRenderingTests" fullname="TreeCompanion.Tests.CloudVolumeRenderingTests" classname="TreeCompanion.Tests.CloudVolumeRenderingTests" runstate="Runnable" testcasecount="3" result="Failed" site="Child" start-time="2026-09-15 22:27:05Z" end-time="2026-09-15 22:27:06Z" duration="0.618085" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-case id="1012" name="OpaqueSurfaceInsideVolumeStopsCloudBehindIt" fullname="TreeCompanion.Tests.CloudVolumeRenderingTests.OpaqueSurfaceInsideVolumeStopsCloudBehindIt" methodname="OpaqueSurfaceInsideVolumeStopsCloudBehindIt" classname="TreeCompanion.Tests.CloudVolumeRenderingTests" runstate="Runnable" seed="192245312" result="Failed" start-time="2026-09-15 22:27:05Z" end-time="2026-09-15 22:27:06Z" duration="0.611812" asserts="0">
+              <properties>
+                <property name="retryIteration" value="0" />
+                <property name="repeatIteration" value="0" />
+              </properties>
+              <failure>
+                <message><![CDATA[  靠近雲盒前端的岩壁應遮住後方雲，不可積分整個雲盒
+  Expected: less than 0.157525495f
+  But was:  0.630101979f
+]]></message>
+                <stack-trace><![CDATA[at TreeCompanion.Tests.CloudVolumeRenderingTests.OpaqueSurfaceInsideVolumeStopsCloudBehindIt () [0x0021d] in /Users/whzi_111/.codex/worktrees/app-ready-20260828/elder-tree-esg/apps/life-tree-unity/Assets/Tests/Editor/CloudVolumeRenderingTests.cs:44
+]]></stack-trace>
+              </failure>
+              <output><![CDATA[Saving results to: /Users/whzi_111/Library/Application Support/樹伴/樹伴生命樹庭園/TestResults.xml
+]]></output>
+            </test-case>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

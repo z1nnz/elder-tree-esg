@@ -24,7 +24,7 @@ namespace TreeCompanion.Editor
             state.EvaluateWindAt(1.8f);
             atmosphere.EvaluateAt(1.8f);
             var output = Path.GetFullPath(Path.Combine(Application.dataPath,
-                "../../../docs/leadership-evidence/screenshots/world-tree-broad-fall-2026-09-15"));
+                "../../../docs/leadership-evidence/screenshots/world-tree-cloud-occlusion-2026-09-16"));
             foreach (var yaw in new[] { 0f, -35f, 35f })
             {
                 controls.SetView(yaw, 1);
@@ -77,6 +77,7 @@ namespace TreeCompanion.Editor
                 }
             CreateDistantClouds(camera);
             CreateLowerCloudSea();
+            CreateCloudPeaks();
             var air = UnityEngine.Object.FindFirstObjectByType<LifeTreeAtmosphereController>();
             air.Bind(camera, target);
             air.BindClouds(UnityEngine.Object.FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None)
@@ -128,17 +129,42 @@ namespace TreeCompanion.Editor
             material.SetColor("_Top", new Color(.99f, .99f, .95f, 1));
             EditorUtility.SetDirty(material);
             var bank = new GameObject("島下連續雲海");
-            bank.transform.position = new Vector3(0, -6.1f, 0);
+            bank.transform.position = new Vector3(0, -7.2f, 0);
             var volume = GameObject.CreatePrimitive(PrimitiveType.Cube);
             volume.name = "雲層體積";
             volume.transform.SetParent(bank.transform, false);
-            volume.transform.localScale = new Vector3(34, 5.6f, 30);
+            volume.transform.localScale = new Vector3(34, 3.6f, 30);
             UnityEngine.Object.DestroyImmediate(volume.GetComponent<Collider>());
             var renderer = volume.GetComponent<MeshRenderer>();
             renderer.sharedMaterial = material;
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             renderer.receiveShadows = false;
             volume.AddComponent<CloudVolumeAppearance>().Configure(.42f);
+        }
+
+        private static void CreateCloudPeaks()
+        {
+            var template = UnityEngine.Object.FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None)
+                .First(item => item.name == "雲層體積" && item.transform.parent.name.Contains("高空左"));
+            var positions = new[] {
+                new Vector3(-7.5f,-2.4f,1), new Vector3(7.8f,-3f,-1.5f),
+                new Vector3(-3.5f,-2.7f,-8), new Vector3(5.4f,-4.5f,8.5f),
+            };
+            var sizes = new[] {
+                new Vector3(11,6,8), new Vector3(12,5,9),
+                new Vector3(13,5.8f,8), new Vector3(9,4.2f,7),
+            };
+            for (var index = 0; index < positions.Length; index++)
+            {
+                var bank = new GameObject($"雲海立體雲峰_{index:00}");
+                bank.transform.position = positions[index];
+                var volume = UnityEngine.Object.Instantiate(template.gameObject, bank.transform);
+                volume.name = "雲層體積";
+                volume.transform.localPosition = Vector3.zero;
+                volume.transform.localRotation = Quaternion.identity;
+                volume.transform.localScale = sizes[index];
+                volume.GetComponent<CloudVolumeAppearance>().Configure(.23f + index * .19f);
+            }
         }
 
         private static void CreateDistantSea()
