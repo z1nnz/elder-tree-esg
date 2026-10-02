@@ -1,7 +1,9 @@
 {
   "name": "TreeCompanion.LifeTree.EditorTests",
   "references": [
-    "TreeCompanion.LifeTree"
+    "TreeCompanion.LifeTree",
+    "TreeCompanion.LifeTree.Editor",
+    "Unity.ugui"
   ],
   "optionalUnityReferences": [
     "TestAssemblies"

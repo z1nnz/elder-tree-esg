@@ -31,6 +31,14 @@
 
   <title>樹伴</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- MapLibre Flutter 0.3.x binds to the v5 browser global. Load it before
+       Flutter so the exploration map cannot start with an undefined runtime. -->
+  <script src="https://unpkg.com/maplibre-gl@^5.0/dist/maplibre-gl.js"></script>
+  <link
+    href="https://unpkg.com/maplibre-gl@^5.0/dist/maplibre-gl.css"
+    rel="stylesheet"
+  >
 </head>
 <body>
   <!--

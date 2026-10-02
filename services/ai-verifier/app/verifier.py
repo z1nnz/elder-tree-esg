@@ -67,7 +67,8 @@ def apply_rules(
         explanation=classification.description,
         model=model_name,
         rule_version=request.rule_version,
-        exif_removed=request.image_url is not None,
+        # Rule evaluation alone cannot attest that image bytes were sanitized.
+        exif_removed=False,
         human_review_required=decision == VerificationDecision.REVIEW,
     )
 
@@ -118,4 +119,6 @@ Confidence must represent how strongly the image supports the task.
         ),
     )
     classification = ModelClassification.model_validate_json(response.text or "{}")
-    return apply_rules(request, classification, model_name)
+    result = apply_rules(request, classification, model_name)
+    result.exif_removed = True  # Both input paths above completed sanitization.
+    return result

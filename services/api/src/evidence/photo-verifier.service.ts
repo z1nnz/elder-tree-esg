@@ -1,7 +1,4 @@
-import {
-  Injectable,
-  ServiceUnavailableException,
-} from "@nestjs/common";
+import { Injectable, ServiceUnavailableException } from "@nestjs/common";
 import {
   verificationResultSchema,
   type VerificationResult,
@@ -40,7 +37,9 @@ export class PhotoVerifierService {
     });
   }
 
-  async verifyInline(input: VerifyInlinePhotoInput): Promise<VerificationResult> {
+  async verifyInline(
+    input: VerifyInlinePhotoInput,
+  ): Promise<VerificationResult> {
     return this.requestVerification({
       evidence_id: input.evidenceId,
       task_title: input.taskTitle,
@@ -56,28 +55,41 @@ export class PhotoVerifierService {
   private async requestVerification(
     body: Record<string, unknown>,
   ): Promise<VerificationResult> {
-    const baseUrl =
-      process.env.AI_VERIFIER_URL ?? "http://127.0.0.1:4400";
-    const response = await fetch(`${baseUrl}/verify/photo`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(30_000),
-    });
-    if (!response.ok) {
+    const baseUrl = process.env.AI_VERIFIER_URL ?? "http://127.0.0.1:4400";
+    try {
+      const response = await fetch(`${baseUrl}/verify/photo`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!response.ok) {
+        throw new ServiceUnavailableException(
+          `Photo verifier returned ${response.status}`,
+        );
+      }
+      const result = (await response.json()) as Record<string, unknown>;
+      if (result.model === "rules-only") {
+        throw new ServiceUnavailableException(
+          "Photo AI verification is not configured",
+        );
+      }
+      return verificationResultSchema.parse({
+        decision: result.decision,
+        confidence: result.confidence,
+        labels: result.labels,
+        reasonCodes: result.reason_codes,
+        explanation: result.explanation,
+        model: result.model,
+        ruleVersion: result.rule_version,
+      });
+    } catch (error) {
+      if (error instanceof ServiceUnavailableException) throw error;
+      // Transport/provider failures must not become an evidence decision or
+      // leak upstream response details. The caller can retry unchanged input.
       throw new ServiceUnavailableException(
-        `Photo verifier returned ${response.status}`,
+        "Photo verification is temporarily unavailable",
       );
     }
-    const result = (await response.json()) as Record<string, unknown>;
-    return verificationResultSchema.parse({
-      decision: result.decision,
-      confidence: result.confidence,
-      labels: result.labels,
-      reasonCodes: result.reason_codes,
-      explanation: result.explanation,
-      model: result.model,
-      ruleVersion: result.rule_version,
-    });
   }
 }
