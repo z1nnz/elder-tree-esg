@@ -271,6 +271,7 @@ namespace TreeCompanion.Editor
         [MenuItem("樹伴/匯出 iOS 生命樹程式庫")]
         public static void ExportIosLibrary()
         {
+            CloudExteriorSceneBuilder.BuildAppScene();
             ValidateLibraryExport(BuildTargetGroup.iOS, BuildTarget.iOS, "iOS");
 
             var outputPath = Path.GetFullPath(Path.Combine(Application.dataPath, "../Builds/iOS"));
@@ -285,6 +286,7 @@ namespace TreeCompanion.Editor
         [MenuItem("樹伴/匯出 Android 生命樹程式庫")]
         public static void ExportAndroidLibrary()
         {
+            CloudExteriorSceneBuilder.BuildAppScene();
             ValidateLibraryExport(BuildTargetGroup.Android, BuildTarget.Android, "Android");
 
             var outputPath = Path.GetFullPath(Path.Combine(Application.dataPath, "../Builds/Android"));
@@ -315,10 +317,10 @@ namespace TreeCompanion.Editor
         )
         {
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) == null)
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(CloudExteriorSceneBuilder.AppScenePath) == null)
             {
                 throw new InvalidOperationException(
-                    $"找不到已版控的生命樹場景：{ScenePath}。請先執行「樹伴/重建生命樹庭園」並審查差異。"
+                    $"找不到手機生命樹場景：{CloudExteriorSceneBuilder.AppScenePath}。請先執行「樹伴/更新手機生命樹場景」並審查差異。"
                 );
             }
             if (!BuildPipeline.IsBuildTargetSupported(buildTargetGroup, buildTarget))
@@ -336,7 +338,7 @@ namespace TreeCompanion.Editor
         {
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
-                scenes = new[] { ScenePath },
+                scenes = new[] { CloudExteriorSceneBuilder.AppScenePath },
                 locationPathName = outputPath,
                 target = buildTarget,
                 options = options,

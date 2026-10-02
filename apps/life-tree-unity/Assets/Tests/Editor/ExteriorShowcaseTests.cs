@@ -15,6 +15,32 @@ namespace TreeCompanion.Tests
     public sealed class ExteriorShowcaseTests
     {
         [Test]
+        public void MobileSceneIncludesLatestWorldWithoutForcedPreviewGrowth()
+        {
+            var previous = EditorSceneManager.GetSceneManagerSetup();
+            try
+            {
+                CloudExteriorSceneBuilder.BuildAppScene();
+                EditorSceneManager.OpenScene(CloudExteriorSceneBuilder.AppScenePath);
+                Assert.That(Object.FindFirstObjectByType<CloudExteriorPreview>(), Is.Null);
+                Assert.That(Object.FindFirstObjectByType<CloudGardenPlayController>(), Is.Null);
+                Assert.That(Object.FindFirstObjectByType<LifeTreeWorldInteraction>(), Is.Not.Null);
+                Assert.That(GameObject.Find("島下連續雲海"), Is.Not.Null);
+                Assert.That(Camera.main.depthTextureMode & DepthTextureMode.Depth, Is.EqualTo(DepthTextureMode.Depth));
+                var bridge = Object.FindFirstObjectByType<LifeTreeBridge>();
+                Assert.That(bridge, Is.Not.Null);
+                Assert.That(bridge.ApplyStateJson("{\"schemaVersion\":1,\"stageIndex\":0,\"reduceMotion\":true,\"keepsakes\":[]}"), Is.True);
+                Assert.That(bridge.ApplyStateJson("{\"schemaVersion\":1,\"stageIndex\":5,\"reduceMotion\":false,\"keepsakes\":[]}"), Is.True);
+            }
+            finally
+            {
+                if (previous.Length == 0 || previous.Any(item => string.IsNullOrEmpty(item.path)))
+                    EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                else EditorSceneManager.RestoreSceneManagerSetup(previous);
+            }
+        }
+
+        [Test]
         public void ShowcaseHasNoConstructionCardAndDoesNotReplaceEarnedScene()
         {
             var previous = EditorSceneManager.GetSceneManagerSetup();

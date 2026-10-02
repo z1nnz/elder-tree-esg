@@ -12,6 +12,22 @@ namespace TreeCompanion.Editor
     public static class CloudExteriorSceneBuilder
     {
         private const string ScenePath = "Assets/Scenes/雲境外觀展示.unity";
+        public const string AppScenePath = "Assets/Scenes/生命樹手機庭園.unity";
+
+        [MenuItem("樹伴/更新手機生命樹場景")]
+        public static void BuildAppScene()
+        {
+            BuildScene();
+            // The app receives earned growth from its native bridge. Never ship
+            // the art preview's Start callback, which forces an unearned mature tree.
+            UnityEngine.Object.DestroyImmediate(UnityEngine.Object.FindFirstObjectByType<CloudExteriorPreview>());
+            UnityEngine.Object.DestroyImmediate(UnityEngine.Object.FindFirstObjectByType<CloudGardenPlayController>());
+            UnityEngine.Object.FindFirstObjectByType<LifeTreeSceneController>()
+                .ApplyState(new LifeTreeState { stageIndex = 0, reduceMotion = true });
+            if (!EditorSceneManager.SaveScene(SceneManager.GetActiveScene(), AppScenePath))
+                throw new InvalidOperationException("無法儲存手機生命樹場景。");
+            AssetDatabase.SaveAssets();
+        }
 
         [MenuItem("樹伴/輸出世界樹外觀審查")]
         public static void Capture()
