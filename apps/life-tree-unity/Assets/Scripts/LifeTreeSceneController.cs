@@ -16,9 +16,10 @@ namespace TreeCompanion.LifeTree
         }
 
         [SerializeField] private Transform treeRoot;
+        [SerializeField] private Transform[] growthStages = Array.Empty<Transform>();
+        [SerializeField] private LifeTreeAtmosphereController atmosphereController;
         [SerializeField] private float windFrequency = 0.34f;
         [SerializeField] private float branchAmplitude = 0.42f;
-        [SerializeField] private float leafAmplitude = 0.85f;
 
         private readonly List<Transform> branches = new List<Transform>();
         private readonly List<Transform> backLeaves = new List<Transform>();
@@ -29,6 +30,23 @@ namespace TreeCompanion.LifeTree
         private LifeTreeState currentState = new LifeTreeState();
         private Vector3 authoredScale = Vector3.one;
         private bool hasBoundHierarchy;
+
+        public void BindGrowthStages(Transform[] stages)
+        {
+            if (stages == null || stages.Length != LifeTreeState.MaximumStageIndex + 1 ||
+                stages.Any(stage => stage == null) || stages.Distinct().Count() != stages.Length)
+            {
+                throw new ArgumentException("生命樹需要六個不同的生長造型節點。", nameof(stages));
+            }
+            growthStages = stages;
+            ApplyState(currentState);
+        }
+
+        public void ConfigureAtmosphere(LifeTreeAtmosphereController atmosphere)
+        {
+            atmosphereController = atmosphere;
+            atmosphereController?.ApplyMotionPreference(currentState.reduceMotion);
+        }
 
         public void BindHierarchy(Transform root)
         {
@@ -70,8 +88,6 @@ namespace TreeCompanion.LifeTree
             frontLeaves.Sort(CompareByName);
 
             AddMotionParts(branches, branchAmplitude, 0.17f);
-            AddMotionParts(backLeaves, leafAmplitude * 0.72f, 0.13f);
-            AddMotionParts(frontLeaves, leafAmplitude, 0.11f);
             hasBoundHierarchy = true;
             ApplyState(currentState);
         }
@@ -103,6 +119,7 @@ namespace TreeCompanion.LifeTree
             {
                 RestoreBaseRotations();
             }
+            atmosphereController?.ApplyMotionPreference(state.reduceMotion);
         }
 
         private void Awake()
@@ -154,18 +171,17 @@ namespace TreeCompanion.LifeTree
 
         private void ApplyStage(int stageIndex)
         {
-            // The first vertical slice uses one authored mature tree. Earlier
-            // stages reveal the same hierarchy conservatively until their own
-            // silhouettes are authored; no client-side action advances state.
-            var normalized = stageIndex / (float)LifeTreeState.MaximumStageIndex;
-            treeRoot.localScale = authoredScale * Mathf.Lerp(0.24f, 1f, Mathf.SmoothStep(0f, 1f, normalized));
-
-            var visibleBranchCount = Mathf.CeilToInt(branches.Count * Mathf.Lerp(0.25f, 1f, normalized));
-            var visibleBackLeafCount = Mathf.CeilToInt(backLeaves.Count * Mathf.InverseLerp(0.12f, 1f, normalized));
-            var visibleFrontLeafCount = Mathf.CeilToInt(frontLeaves.Count * Mathf.InverseLerp(0.28f, 1f, normalized));
-            SetVisibleCount(branches, visibleBranchCount);
-            SetVisibleCount(backLeaves, visibleBackLeafCount);
-            SetVisibleCount(frontLeaves, visibleFrontLeafCount);
+            // Stage geometry is authored in Blender. Never shrink a mature
+            // crown into a seed. A stage change only follows validated state.
+            treeRoot.localScale = authoredScale;
+            for (var stage = 0; stage < growthStages.Length; stage++)
+            {
+                if (growthStages[stage] != null)
+                    growthStages[stage].gameObject.SetActive(stage == stageIndex);
+            }
+            SetVisibleCount(branches, branches.Count);
+            SetVisibleCount(backLeaves, backLeaves.Count);
+            SetVisibleCount(frontLeaves, frontLeaves.Count);
         }
 
         private void RebuildKeepsakes(IEnumerable<LifeTreeKeepsake> keepsakes)
