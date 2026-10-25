@@ -39,6 +39,18 @@ blender --background --python tools/blender/build_life_tree.py -- \
 
 這會從 FBX 建立 `Assets/Scenes/生命樹庭園.unity`，並輸出 Unity 真實場景檢查圖至 `docs/leadership-evidence/screenshots/life-tree-unity-garden.png`。首次套件解析需要網路。
 
+輸出三秒、每秒 30 張的正常動態檢查影格至系統暫存資料夾：
+
+```sh
+/Applications/Unity/Hub/Editor/6000.0.82f1/Unity.app/Contents/MacOS/Unity \
+  -batchmode -quit \
+  -projectPath apps/life-tree-unity \
+  -executeMethod TreeCompanion.Editor.LifeTreeSceneBuilder.BuildAndCaptureMotionPreview \
+  -logFile /tmp/tree-companion-life-tree-motion.log
+```
+
+影格用來檢查主枝、葉簇、瀑布和有限環繞是否同時運作；離線輸出速度不能當作手機實機每秒 30 幀證據。
+
 編輯器測試：
 
 ```sh
@@ -60,7 +72,7 @@ blender --background --python tools/blender/build_life_tree.py -- \
 tools/unity/prepare_life_tree_ios.sh
 ```
 
-腳本會使用已版控並經過審查的場景匯出 iOS 工程、編譯 ARM64 `UnityFramework`、把可嵌入成品保存在忽略版控的 `Builds/Frameworks/iphoneos`，並寫入本機 `LifeTreeUnity.local.xcconfig`。多 GB 的編譯中間物會在成品轉存後清除；美術階層改變時才另外執行「重建生命樹庭園」，避免單純匯出造成無意義場景差異。
+腳本會先依目前 FBX、材質與場景產生程式建立「生命樹手機庭園」，再匯出 iOS 工程、編譯 ARM64 `UnityFramework`、把可嵌入成品保存在忽略版控的 `Builds/Frameworks/iphoneos`，並寫入本機 `LifeTreeUnity.local.xcconfig`。多 GB 的編譯中間物會在成品轉存後清除。場景生成可能更新其他展示場景的序列化資料，提交時須審查差異。
 
 Flutter 的「走進生命樹庭園」會透過 iOS 原生通道傳入後端成長階段、固定紀念掛點與降低動態偏好。未準備 Unity 程式庫、原生載入失敗或其他尚未支援的平台會留在既有二維生命樹，不會假裝已開啟三維畫面。
 
@@ -76,5 +88,7 @@ tools/unity/verify_life_tree_android_bridge.sh
 ```
 
 第一個腳本會匯出 ARM64 `unityLibrary`；Flutter 的 Gradle 設定只在本機成品存在時嵌入它，乾淨複製與自動測試仍可使用二維生命樹。第二個腳本會建置完整 Android APK，並核對 APK 確實包含 Unity 與 IL2CPP ARM64 程式庫。
+
+Android 與 iOS 匯出共用「生命樹手機庭園」：沿用新版外觀的島嶼、水流與雲海，移除強制成熟的美術展示元件及本機建設試玩元件，成長階段仍由 App 原生通道傳入。可先執行 Unity 選單「樹伴／更新手機生命樹場景」審查。此整合流程於 2026-10-03 加入；當次 Unity 因授權失效無法啟動，尚未完成 Unity 編譯、手機打包或實機验收，不應將既有安裝包視為新版。
 
 App 透過與 iOS 相同的原生通道開啟 Unity 6 的全螢幕 `UnityPlayerGameActivity`。生命樹狀態放在啟動資料中，由 Unity 場景讀取；Unity 活動不對外匯出，也不會產生第二個 App 啟動圖示。編譯成功不取代實體 Android 手機的開啟、返回、幀率與記憶體驗收。
